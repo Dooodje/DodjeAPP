@@ -8,13 +8,15 @@ export interface Video {
   description: string;
   courseId: string;
   videoUrl: string;
-  duration: number;
+  duration: number | string;
+  duree?: string;
   order: number;
   progress?: number;
   lastWatchedPosition?: number;
   lastWatchedDate?: Date;
   isUnlocked?: boolean;
   status?: 'new' | 'started' | 'completed';
+  thumbnail?: string;
 }
 
 export interface RelatedVideo {

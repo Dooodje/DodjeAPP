@@ -100,6 +100,18 @@ export const videoService = {
     }
   },
 
+  // Vérifier si une vidéo est débloquée pour un utilisateur
+  async isVideoUnlocked(userId: string, videoId: string): Promise<boolean> {
+    try {
+      const userVideoRef = doc(db, `users/${userId}/unlocked_videos`, videoId);
+      const docSnap = await getDoc(userVideoRef);
+      return docSnap.exists();
+    } catch (error) {
+      console.error('Erreur lors de la vérification si la vidéo est débloquée:', error);
+      return false;
+    }
+  },
+
   // Marquer une vidéo comme complétée
   async markVideoAsCompleted(userId: string, videoId: string): Promise<void> {
     try {

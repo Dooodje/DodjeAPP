@@ -63,6 +63,24 @@ export const useVideo = (videoId: string, userId: string) => {
           return;
         }
 
+        // S'assurer que la durée est correctement définie
+        if (video.duree) {
+          // Si le champ duree existe, l'utiliser en priorité
+          console.log(`⏱️ Utilisation de la durée du document: ${video.duree}`);
+          video.duration = video.duree;
+        } else if (typeof video.duration === 'string') {
+          // Si la durée est stockée sous forme de chaîne (ex: "04:56"), la convertir en secondes
+          console.log(`⏱️ Conversion de la durée string en secondes: ${video.duration}`);
+          const durationParts = video.duration.split(':');
+          if (durationParts.length === 2) {
+            const minutes = parseInt(durationParts[0], 10);
+            const seconds = parseInt(durationParts[1], 10);
+            video.duration = minutes * 60 + seconds;
+          }
+        }
+        
+        console.log(`⏱️ Durée finale de la vidéo: ${video.duration} secondes`);
+
         // Récupérer la progression de l'utilisateur
         if (userId) {
           try {
@@ -78,27 +96,59 @@ export const useVideo = (videoId: string, userId: string) => {
           }
         }
 
-        dispatch(setCurrentVideo(video));
+        // TEMPORAIREMENT: on considère que toutes les vidéos sont débloquées pour les tests
+        console.log('⚠️ Mode test: toutes les vidéos sont considérées comme débloquées');
+        video.isUnlocked = true;
 
-        // Récupérer la miniature de façon directe et sans attente
-        if (video.courseId) {
-          try {
-            console.log(`🎓 Tentative de récupération de la miniature pour courseId=${video.courseId}`);
-            const course = await courseService.getCourseById(video.courseId);
-            
-            if (course && course.thumbnail) {
-              console.log(`✅ Miniature trouvée (thumbnail): ${course.thumbnail}`);
-              dispatch(setThumbnailUrl(course.thumbnail));
-            } else {
-              console.log('⚠️ Pas de miniature trouvée pour ce parcours');
-              dispatch(setThumbnailUrl(''));
+        /* Commenté pour les tests
+        // Vérifier si c'est la première vidéo du parcours (ordre 0 ou 1)
+        // Si c'est le cas, on la débloque automatiquement
+        if (video.order === 0 || video.order === 1) {
+          console.log('🔓 Première vidéo du parcours, on la débloque automatiquement');
+          video.isUnlocked = true;
+          
+          // Débloquer également dans la base de données si l'utilisateur est connecté
+          if (userId) {
+            try {
+              await videoService.unlockVideo(userId, videoId);
+            } catch (unlockErr) {
+              console.error('Erreur lors du déblocage automatique de la première vidéo:', unlockErr);
+              // Ne pas bloquer le chargement de la vidéo si on n'a pas pu la débloquer
             }
-          } catch (err) {
-            console.error('❌ Erreur lors de la récupération de la miniature:', err);
+          }
+        } else {
+          // Vérifier si la vidéo est déjà débloquée
+          try {
+            if (userId) {
+              const isUnlocked = await videoService.isVideoUnlocked(userId, videoId);
+              video.isUnlocked = isUnlocked;
+            }
+          } catch (unlockCheckErr) {
+            console.error('Erreur lors de la vérification du statut de déverrouillage:', unlockCheckErr);
+            // Par défaut, considérer que la vidéo n'est pas débloquée
+            video.isUnlocked = false;
           }
         }
+        */
+
+        dispatch(setCurrentVideo(video));
+
+        // Récupérer la miniature directement depuis le document de la vidéo
+        try {
+          // Utiliser directement le champ thumbnail du document vidéo
+          if (video.thumbnail) {
+            console.log(`🖼️ Miniature trouvée dans la vidéo: ${video.thumbnail}`);
+            dispatch(setThumbnailUrl(video.thumbnail));
+          } else {
+            console.log(`⚠️ Aucune miniature trouvée dans la vidéo`);
+            dispatch(setThumbnailUrl(''));
+          }
+        } catch (thumbnailErr) {
+          console.error(`❌ Erreur lors de la récupération de la miniature:`, thumbnailErr);
+          dispatch(setThumbnailUrl(''));
+        }
         
-        // Terminer le chargement quelle que soit l'état de la miniature
+        // Terminer le chargement de la vidéo
         dispatch(setLoading(false));
 
         // Charger les vidéos connexes si courseId est défini

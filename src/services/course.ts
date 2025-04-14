@@ -54,19 +54,23 @@ class CourseService {
         return null;
       }
 
-      // Récupération des données brutes pour inspection
+      // Récupérer les données brutes et les retourner telles quelles
       const rawData = courseDoc.data();
-      console.log(`📄 Données brutes du document:`, rawData);
-      console.log(`🖼️ Champ thumbnail:`, rawData.thumbnail);
       
+      // Log simple pour voir le thumbnail
+      if (rawData.thumbnail) {
+        console.log(`📸 Thumbnail trouvé dans le document: ${rawData.thumbnail}`);
+      } else {
+        console.log(`⚠️ Pas de thumbnail dans le document`);
+      }
+      
+      // Créer l'objet ParcoursData sans modification
       const courseData: ParcoursData = {
         id: courseDoc.id,
         ...courseDoc.data() as any
       };
       
       console.log(`✅ Parcours ID=${courseId} récupéré avec succès`);
-      console.log(`🖼️ Valeur du champ thumbnail:`, courseData.thumbnail);
-      
       return courseData;
     } catch (error) {
       console.error(`❌ Erreur lors de la récupération du parcours ID=${courseId}:`, error);

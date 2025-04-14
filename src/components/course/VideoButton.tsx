@@ -12,7 +12,7 @@ const HEADER_HEIGHT = 56; // Hauteur du header sans la barre d'état
 interface VideoButtonProps {
   id: string;
   title: string;
-  duration: number;
+  duration: number | string;
   status: 'blocked' | 'unlocked' | 'completed';
   order: number;
   positionX: number; // Position X en pourcentage (0-100)
@@ -82,13 +82,39 @@ const VideoButton: React.FC<VideoButtonProps> = ({
     }
   }, [status]);
 
-  // Formater la durée en minutes
+  // Formater la durée au format MM:SS
   const formattedDuration = useMemo(() => {
-    if (isNaN(duration) || duration <= 0) {
-      return 'NaN min';
+    // Si la durée est une chaîne de caractères
+    if (typeof duration === 'string') {
+      // Si la durée est déjà au format MM:SS, l'utiliser directement
+      if (duration.includes(':')) {
+        return duration;
+      }
+      
+      // Si c'est une chaîne mais pas au format MM:SS, essayer de la convertir en nombre
+      const durationNumber = parseFloat(duration);
+      if (!isNaN(durationNumber)) {
+        if (durationNumber <= 0) return '00:00';
+        
+        // Convertir en format MM:SS
+        const minutes = Math.floor(durationNumber / 60);
+        const seconds = Math.floor(durationNumber % 60);
+        return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+      }
+      
+      // En cas d'échec, afficher une valeur par défaut
+      return '00:00';
     }
     
-    return `${Math.ceil(duration / 60)} min`;
+    // Si la durée est un nombre (en secondes)
+    if (isNaN(duration) || duration <= 0) {
+      return '00:00';
+    }
+    
+    // Convertir en format MM:SS
+    const minutes = Math.floor(duration / 60);
+    const seconds = Math.floor(duration % 60);
+    return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
   }, [duration]);
 
   return (
