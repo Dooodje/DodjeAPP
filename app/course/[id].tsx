@@ -256,21 +256,8 @@ export default function CoursePage() {
   const handleQuizPress = (quizId: string) => {
     console.log(`Navigation vers le quiz ID=${quizId}`);
     
-    // Vérifier que toutes les vidéos sont débloquées/complétées avant de permettre l'accès au quiz
-    if (parcoursData?.videos && parcoursData.videos.length > 0) {
-      const allVideosAccessible = parcoursData.videos.every(video => 
-        videoStatus[video.id] === 'unlocked' || videoStatus[video.id] === 'completed'
-      );
-      
-      if (!allVideosAccessible) {
-        Alert.alert(
-          "Quiz non disponible",
-          "Vous devez débloquer toutes les vidéos du parcours avant de pouvoir accéder au quiz final.",
-          [{ text: "OK", style: "default" }]
-        );
-        return;
-      }
-    }
+    // Mode test : accès direct sans aucune restriction
+    console.log("Mode test : accès direct au quiz sans vérification");
     
     // Rediriger vers la page du quiz
     router.push(`/quiz/${quizId}?parcoursId=${id}` as any);
@@ -459,10 +446,23 @@ export default function CoursePage() {
                           onPress={handleQuizPress}
                         />
                       );
+                    } else {
+                      // Si aucune position spécifique n'est trouvée pour le quiz mais quizId est présent,
+                      // afficher le quiz au centre en bas de l'écran
+                      console.log(`Aucune position avec isQuiz=true trouvée. Affichage du quiz au centre en bas.`);
+                      return (
+                        <QuizButton
+                          key={parcoursData.quizId}
+                          id={parcoursData.quizId}
+                          title="Quiz Final"
+                          positionX={50} // Centre horizontalement
+                          positionY={85} // En bas (mais pas tout en bas)
+                          imageWidth={imageDimensions.width || screenWidth}
+                          imageHeight={imageDimensions.height || screenHeight}
+                          onPress={handleQuizPress}
+                        />
+                      );
                     }
-                    
-                    console.warn("Quiz ID présent mais aucune position avec isQuiz=true trouvée");
-                    return null;
                   })()
                 )}
               </View>

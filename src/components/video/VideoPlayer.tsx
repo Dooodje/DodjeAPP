@@ -1,26 +1,37 @@
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { View, StyleSheet, Dimensions, Text, TouchableOpacity, Image, Animated } from 'react-native';
-import { Video, ResizeMode } from 'expo-av';
+import { Video, ResizeMode, VideoFullscreenUpdateEvent } from 'expo-av';
 import { useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useDispatch } from 'react-redux';
-import { setFullscreen } from '../../store/slices/videoSlice';
+import { setFullscreen, resetVideo } from '../../store/slices/videoSlice';
 import { useVideo } from '../../hooks/useVideo';
 import { VideoControls } from './VideoControls';
 import { VideoInfo } from './VideoInfo';
 import { RelatedVideos } from './RelatedVideos';
 import { VideoSettings } from './VideoSettings';
+import { NextVideo } from '../../components/NextVideo';
 import { LoadingSpinner } from '../ui/LoadingSpinner';
 import * as ScreenOrientation from 'expo-screen-orientation';
+import { videoService } from '../../services/video';
 
 const { width, height } = Dimensions.get('window');
+
+// Constantes pour les états de plein écran d'Expo AV
+const FULLSCREEN_UPDATE_PLAYER_WILL_PRESENT = 0;
+const FULLSCREEN_UPDATE_PLAYER_DID_PRESENT = 1;
+const FULLSCREEN_UPDATE_PLAYER_WILL_DISMISS = 2;
+const FULLSCREEN_UPDATE_PLAYER_DID_DISMISS = 3;
 
 interface VideoPlayerProps {
   videoId: string;
   userId: string;
 }
 
-export const VideoPlayer: React.FC<VideoPlayerProps> = ({ videoId, userId }) => {
+export const VideoPlayer: React.FC<VideoPlayerProps> = ({ videoId: initialVideoId, userId }) => {
+  // État interne pour l'ID de la vidéo (permet de changer de vidéo sans recharger la page)
+  const [currentVideoId, setCurrentVideoId] = useState(initialVideoId);
+  
   const videoRef = useRef<Video>(null);
   const [showSettings, setShowSettings] = useState(false);
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
@@ -28,9 +39,11 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ videoId, userId }) => 
   const [isSubtitleEnabled, setIsSubtitleEnabled] = useState(false);
   const [videoError, setVideoError] = useState<string | null>(null);
   const [videoStarted, setVideoStarted] = useState(false);
+  const [savedPosition, setSavedPosition] = useState<number>(0);
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const router = useRouter();
   const dispatch = useDispatch();
+  const [prevIsFullscreen, setPrevIsFullscreen] = useState(false);
 
   // Animation de pulsation pour le bouton play
   useEffect(() => {
@@ -50,9 +63,11 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ videoId, userId }) => 
     ).start();
   }, []);
 
+  // Utiliser le hook useVideo avec l'ID de vidéo actuel (qui peut changer)
   const {
     currentVideo,
     relatedVideos,
+    nextVideo,
     isPlaying,
     currentTime,
     duration,
@@ -63,23 +78,52 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ videoId, userId }) => 
     thumbnailUrl,
     handleProgress,
     handleUnlock,
-    handleVideoSelect,
+    handleVideoSelect: originalHandleVideoSelect,
     togglePlayback,
     toggleFullscreen,
     toggleControls,
     setPlaying,
     setCurrentTime,
     setDuration
-  } = useVideo(videoId, userId);
+  } = useVideo(currentVideoId, userId);
 
-  // Log IMMÉDIAT dans le rendu pour comprendre le problème
-  console.log('📽️ RENDU VideoPlayer | isLoading:', isLoading, '| currentVideo:', currentVideo?.id, '| videoStarted:', videoStarted, '| isUnlocked:', currentVideo?.isUnlocked, '| thumbnailUrl:', thumbnailUrl);
-
-  // Assurons-nous que videoStarted est toujours false quand on change de vidéo
+  // Log pour faciliter le débogage
   useEffect(() => {
-    console.log('Video ID changée, réinitialisation de videoStarted à false');
-    setVideoStarted(false);
-  }, [videoId]);
+    console.log(`🔄 VideoPlayer: ID vidéo actuelle changée: ${currentVideoId}`);
+  }, [currentVideoId]);
+
+  // Handler personnalisé pour charger directement une nouvelle vidéo sans navigation
+  const handleVideoSelect = useCallback((id: string) => {
+    if (id) {
+      console.log('🎬 Chargement direct de la vidéo suivante, ID:', id);
+      
+      // Arrêter la lecture et réinitialiser l'état
+      if (videoRef.current) {
+        videoRef.current.pauseAsync().catch(err => {
+          console.error('Erreur lors de la mise en pause:', err);
+        });
+      }
+      
+      // Réinitialiser les états pour la nouvelle vidéo
+      setVideoStarted(false);
+      setPlaying(false);
+      setSavedPosition(0);
+      setVideoError(null);
+      
+      // Changer l'ID de la vidéo actuelle - cela déclenchera un rechargement via useVideo
+      setCurrentVideoId(id);
+      
+      // Mettre à jour l'URL dans le navigateur sans rechargement (pour rendre l'historique cohérent)
+      try {
+        window.history.pushState({videoId: id}, '', `/video/${id}`);
+        console.log('✅ URL mise à jour avec le nouvel ID sans rechargement');
+      } catch (historyErr) {
+        console.warn('⚠️ Impossible de mettre à jour l\'URL:', historyErr);
+      }
+    } else {
+      console.error('❌ ID vidéo manquant dans handleVideoSelect');
+    }
+  }, []);
 
   // Gérer la lecture/pause
   useEffect(() => {
@@ -110,6 +154,15 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ videoId, userId }) => 
         videoRef.current.presentFullscreenPlayer().catch(err => {
           console.error('Erreur lors du passage en plein écran:', err);
         });
+        
+        // S'assurer que la vidéo est en lecture quand on passe en plein écran
+        if (videoStarted && !isPlaying) {
+          console.log('Forcer la lecture en mode plein écran');
+          setPlaying(true);
+          videoRef.current.playAsync().catch(err => {
+            console.error('Erreur lors de la lecture forcée en plein écran:', err);
+          });
+        }
       } else {
         // Revenir en mode portrait lorsqu'on quitte le plein écran
         ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT).catch(err => {
@@ -119,9 +172,22 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ videoId, userId }) => 
         videoRef.current.dismissFullscreenPlayer().catch(err => {
           console.error('Erreur lors de la sortie du plein écran:', err);
         });
+        
+        // Mettre en pause la vidéo et afficher la miniature quand on quitte le plein écran
+        if (videoStarted && isPlaying) {
+          console.log('Mise en pause de la vidéo à la sortie du plein écran');
+          setPlaying(false);
+          // Sauvegarder la position actuelle pour une reprise ultérieure
+          setSavedPosition(currentTime);
+          videoRef.current.pauseAsync().catch(err => {
+            console.error('Erreur lors de la mise en pause de la vidéo:', err);
+          });
+          // Forcer l'affichage de la miniature
+          setVideoStarted(false);
+        }
       }
     }
-  }, [isFullscreen]);
+  }, [isFullscreen, setPlaying, videoStarted, isPlaying, currentTime]);
 
   // Nettoyer et réinitialiser l'orientation lors du démontage du composant
   useEffect(() => {
@@ -144,14 +210,12 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ videoId, userId }) => 
 
   // Effet de montage/démontage pour le debug
   useEffect(() => {
-    console.log('🟢 VideoPlayer MONTÉ avec videoId=', videoId);
+    console.log('🟢 VideoPlayer MONTÉ avec videoId=', currentVideoId);
     
     return () => {
-      console.log('🟡 VideoPlayer DÉMONTÉ pour videoId=', videoId);
+      console.log('🟡 VideoPlayer DÉMONTÉ pour videoId=', currentVideoId);
     };
-  }, []);
-
-  // Démarrage automatique désactivé - La vidéo ne démarre qu'au clic sur le bouton play
+  }, [currentVideoId]);
 
   const handleBack = () => {
     router.back();
@@ -169,6 +233,14 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ videoId, userId }) => 
     setVideoStarted(true);
     setPlaying(true);
     
+    // Si nous avons une position sauvegardée, l'utiliser
+    if (savedPosition > 0 && videoRef.current) {
+      console.log(`Reprise de la vidéo à la position ${savedPosition.toFixed(2)}s`);
+      videoRef.current.setPositionAsync(savedPosition * 1000).catch(err => {
+        console.error('Erreur lors de la reprise à la position sauvegardée:', err);
+      });
+    }
+    
     // Passer en mode plein écran immédiatement
     setTimeout(() => {
       if (videoRef.current) {
@@ -179,9 +251,111 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ videoId, userId }) => 
         videoRef.current.presentFullscreenPlayer().catch(err => {
           console.error('Erreur lors du passage en plein écran:', err);
         });
+        
+        // Forcer la lecture après le passage en plein écran
+        setTimeout(() => {
+          if (videoRef.current) {
+            console.log('Forcer la lecture après passage en plein écran');
+            videoRef.current.playAsync().catch(err => {
+              console.error('Erreur lors de la lecture forcée:', err);
+            });
+          }
+        }, 500);
       }
     }, 300); // Petit délai pour permettre à la vidéo de se charger correctement
   };
+
+  // Gérer les mises à jour de l'état du plein écran (entrée/sortie)
+  const onFullscreenUpdate = useCallback(
+    (event: VideoFullscreenUpdateEvent) => {
+      // Les états possibles sont:
+      // - FULLSCREEN_UPDATE_PLAYER_WILL_PRESENT: La vidéo va passer en plein écran
+      // - FULLSCREEN_UPDATE_PLAYER_DID_PRESENT: La vidéo est passée en plein écran
+      // - FULLSCREEN_UPDATE_PLAYER_WILL_DISMISS: La vidéo va quitter le plein écran
+      // - FULLSCREEN_UPDATE_PLAYER_DID_DISMISS: La vidéo a quitté le plein écran
+      
+      console.log(`Mise à jour du plein écran: ${event.fullscreenUpdate}`);
+
+      if (event.fullscreenUpdate === FULLSCREEN_UPDATE_PLAYER_DID_DISMISS) {
+        // L'utilisateur a quitté le mode plein écran manuellement
+        console.log('Sortie du mode plein écran détectée');
+        
+        // Mettre à jour l'état dans Redux
+        dispatch(setFullscreen(false));
+        
+        // Mettre en pause la vidéo
+        if (videoRef.current) {
+          videoRef.current.pauseAsync().catch(err => {
+            console.error('Erreur lors de la mise en pause après sortie du plein écran:', err);
+          });
+        }
+        
+        // Revenir à l'état initial (thumbnail + bouton play)
+        setVideoStarted(false);
+        setPlaying(false);
+        
+        // Sauvegarder la position actuelle pour pouvoir reprendre plus tard
+        if (videoRef.current) {
+          videoRef.current.getStatusAsync().then(status => {
+            if (status.isLoaded) {
+              const currentPositionInSeconds = status.positionMillis / 1000;
+              console.log(`Sauvegarde de la position actuelle: ${currentPositionInSeconds.toFixed(2)}s`);
+              setSavedPosition(currentPositionInSeconds);
+            }
+          }).catch(err => {
+            console.error('Erreur lors de la récupération de la position actuelle:', err);
+          });
+        }
+      }
+    },
+    [dispatch]
+  );
+
+  // Gérer l'état de la vidéo lorsque l'utilisateur quitte le mode plein écran via le bouton back
+  useEffect(() => {
+    if (prevIsFullscreen && !isFullscreen) {
+      // L'utilisateur a quitté le mode plein écran via le bouton back ou programmatiquement
+      console.log('Sortie du mode plein écran via le state Redux détectée');
+      
+      // S'assurer que la vidéo est en pause
+      if (videoRef.current) {
+        videoRef.current.pauseAsync().catch(err => {
+          console.error('Erreur lors de la mise en pause après sortie du plein écran:', err);
+        });
+      }
+      
+      // Réinitialiser l'interface utilisateur pour afficher la vignette avec le bouton play
+      setVideoStarted(false);
+      setPlaying(false);
+      
+      // Sauvegarder la position pour pouvoir reprendre plus tard
+      if (videoRef.current) {
+        videoRef.current.getStatusAsync().then(status => {
+          if (status.isLoaded) {
+            const currentPositionInSeconds = status.positionMillis / 1000;
+            console.log(`Sauvegarde de la position lors de la sortie du plein écran: ${currentPositionInSeconds.toFixed(2)}s`);
+            setSavedPosition(currentPositionInSeconds);
+          }
+        }).catch(err => {
+          console.error('Erreur lors de la récupération de la position actuelle:', err);
+        });
+      }
+    }
+    
+    // Mettre à jour la valeur précédente pour la prochaine comparaison
+    setPrevIsFullscreen(isFullscreen);
+  }, [isFullscreen, prevIsFullscreen]);
+
+  // Au début du composant, ajouter un useEffect pour logger la vidéo suivante
+  useEffect(() => {
+    if (nextVideo) {
+      console.log('📱 Vidéo suivante disponible:', nextVideo.id, nextVideo.title);
+      console.log('📱 Thumbnail de la vidéo suivante:', nextVideo.thumbnail);
+      console.log('📱 Durée de la vidéo suivante:', nextVideo.duree);
+    } else {
+      console.log('📱 Aucune vidéo suivante disponible');
+    }
+  }, [nextVideo]);
 
   if (isLoading && !currentVideo) {
     console.log('⏳ Affichage du spinner de chargement');
@@ -218,78 +392,35 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ videoId, userId }) => 
     );
   }
 
-  // Afficher directement l'écran de déblocage si la vidéo n'est pas débloquée
-  // TEMPORAIREMENT DÉSACTIVÉ: on considère que toutes les vidéos sont débloquées pour les tests
-  /*
-  if (currentVideo && !currentVideo.isUnlocked) {
-    console.log('🔒 Vidéo verrouillée, affichage de l\'écran de déblocage');
-    return (
-      <View style={styles.container}>
-        <View style={styles.videoContainer}>
-          {thumbnailUrl ? (
-            <View style={styles.thumbnailContainer}>
-              <Image 
-                source={{ uri: thumbnailUrl }}
-                style={styles.thumbnail}
-                resizeMode="cover"
-              />
-              <TouchableOpacity style={styles.closeButton} onPress={handleBack}>
-                <MaterialCommunityIcons name="close" size={24} color="white" />
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.lockedOverlay} onPress={handleUnlock}>
-                <MaterialCommunityIcons name="lock" size={50} color="white" />
-                <Text style={styles.lockedText}>Touchez pour débloquer</Text>
-              </TouchableOpacity>
-            </View>
-          ) : (
-            <View style={styles.placeholderContainer}>
-              <Text style={styles.placeholderText}>Chargement...</Text>
-              <TouchableOpacity style={styles.closeButton} onPress={handleBack}>
-                <MaterialCommunityIcons name="close" size={24} color="white" />
-              </TouchableOpacity>
-            </View>
-          )}
-        </View>
-        
-        <View style={styles.content}>
-          <VideoInfo
-            video={currentVideo}
-            onUnlock={handleUnlock}
-          />
-        </View>
-      </View>
-    );
-  }
-  */
-
-  // Vérifier si l'URL de la vidéo est valide et l'afficher avec un log
-  const videoSource = currentVideo.videoUrl 
+  // Vérifier si l'URL de la vidéo est valide 
+  const videoSource = currentVideo?.videoUrl 
     ? { uri: currentVideo.videoUrl } 
     : undefined;
   
   console.log('🎬 Source vidéo:', videoSource?.uri);
+
+  // URL de fallback pour une vidéo de démonstration
+  const fallbackUrl = 'https://d23dyxeqlo5psv.cloudfront.net/big_buck_bunny.mp4';
+  const effectiveVideoSource = videoSource || { uri: fallbackUrl };
+  
+  console.log('🎬 Source vidéo effective:', effectiveVideoSource.uri);
+  
+  // Forcer l'URL de miniature pour tester - à supprimer en production
+  const customThumbnail = "https://i.imgur.com/example-thumbnail.jpg"; // Remplacer par l'URL réelle du caméléon
+  const useThumbnail = thumbnailUrl || customThumbnail;
   
   if (!videoSource) {
-    return (
-      <View style={styles.container}>
-        <View style={styles.errorContainer}>
-          <Text style={styles.errorText}>L'URL de la vidéo est invalide</Text>
-          <TouchableOpacity style={styles.retryButton} onPress={handleBack}>
-            <Text style={styles.retryText}>Retourner en arrière</Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    );
+    console.warn('⚠️ URL vidéo originale non définie, utilisation de la vidéo de fallback:', fallbackUrl);
   }
 
   return (
     <View style={[styles.container, isFullscreen && styles.fullscreen]}>
       <View style={styles.videoContainer} onTouchStart={toggleControls}>
         {/* Si la vidéo n'a pas démarré, afficher la miniature avec un bouton play */}
-        {!videoStarted && thumbnailUrl ? (
+        {!videoStarted && useThumbnail ? (
           <View style={styles.thumbnailContainer}>
             <Image 
-              source={{ uri: thumbnailUrl }}
+              source={{ uri: useThumbnail }}
               style={styles.thumbnail}
               resizeMode="cover"
             />
@@ -327,13 +458,14 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ videoId, userId }) => 
         {/* Vidéo en arrière-plan, masquée jusqu'à ce qu'on clique sur play */}
         <Video
           ref={videoRef}
-          source={videoSource}
-          style={[styles.video, !videoStarted && { opacity: 0 }]}
+          source={effectiveVideoSource}
+          style={[styles.video, !videoStarted && { opacity: 0, height: 0 }]}
           useNativeControls={false}
           resizeMode={ResizeMode.CONTAIN}
           isLooping={false}
           shouldPlay={videoStarted && isPlaying}
           onError={handleVideoError}
+          onFullscreenUpdate={onFullscreenUpdate}
           onPlaybackStatusUpdate={(status) => {
             if (status.isLoaded) {
               setCurrentTime(status.positionMillis / 1000);
@@ -401,10 +533,57 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ videoId, userId }) => 
       {/* Informations sur la vidéo - affichées en permanence sauf en mode plein écran */}
       {!isFullscreen && (
         <View style={styles.content}>
-          <VideoInfo video={currentVideo} />
-          {/* Vidéos connexes (affichées uniquement quand la vidéo a démarré) */}
-          {videoStarted && (
-            <RelatedVideos videos={relatedVideos} onVideoSelect={handleVideoSelect} />
+          {/* Titre principal de la vidéo */}
+          <Text style={styles.title} numberOfLines={2}>
+            {currentVideo?.titre || currentVideo?.title || "Titre non disponible"}
+          </Text>
+        
+          {/* Affichage de la durée */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 24 }}>
+            <Text style={{ color: '#FFFFFF' }}>
+              Durée : {currentVideo?.duree || (typeof currentVideo?.duration === 'number' 
+                ? `${Math.floor(currentVideo.duration / 60)} minutes` 
+                : currentVideo?.duration || '5 minutes')}
+            </Text>
+          </View>
+          
+          {/* Section Résumé */}
+          <View style={{ marginBottom: 32 }}>
+            <Text style={{
+              fontSize: 20,
+              fontWeight: 'bold',
+              color: '#FFFFFF',
+              marginBottom: 8,
+            }}>Résumé</Text>
+            <Text style={{
+              color: '#FFFFFF',
+              lineHeight: 22,
+            }}>{currentVideo.description}</Text>
+          </View>
+          
+          {/* Section vidéo suivante */}
+          {nextVideo ? (
+            <>
+              <Text style={{
+                fontSize: 20,
+                fontWeight: 'bold',
+                color: '#FFFFFF',
+                marginTop: 24,
+                marginBottom: 8,
+              }}>Vidéo suivante</Text>
+              <NextVideo 
+                video={nextVideo} 
+                onNavigate={handleVideoSelect}
+                courseId={currentVideo?.courseId}
+              />
+            </>
+          ) : (
+            <Text style={{
+              fontSize: 16,
+              color: '#AAAAAA',
+              marginTop: 24,
+              marginBottom: 8,
+            }}>Aucune vidéo suivante disponible</Text>
           )}
         </View>
       )}
@@ -491,10 +670,10 @@ const styles = StyleSheet.create({
     fontSize: 18,
   },
   playButton: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'center',
     alignItems: 'center',
     zIndex: 12,
@@ -506,8 +685,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.5,
     shadowRadius: 3.84,
     elevation: 5,
-    borderWidth: 2,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
   },
   closeButton: {
     position: 'absolute',
@@ -544,5 +721,11 @@ const styles = StyleSheet.create({
     bottom: 0,
     height: 100,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
+  },
+  title: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+    marginBottom: 12,
   },
 }); 

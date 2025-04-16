@@ -39,9 +39,28 @@ export class DodjiService {
       const result = await iapService.purchaseProduct(packId);
       
       if (result.responseCode === 0) {
+        // Déterminer la quantité de Dodji à ajouter selon le produit
+        let dodjiAmount = 0;
+        switch (product.productId) {
+          case 'dodji_small':
+            dodjiAmount = 100;
+            break;
+          case 'dodji_medium':
+            dodjiAmount = 500;
+            break;
+          case 'dodji_large':
+            dodjiAmount = 1000;
+            break;
+          case 'dodji_xlarge':
+            dodjiAmount = 2500;
+            break;
+          default:
+            dodjiAmount = 0;
+        }
+        
         // Mettre à jour le solde
         await updateDoc(doc(db, this.COLLECTION, userId), {
-          [this.FIELD]: increment(product.amount)
+          [this.FIELD]: increment(dodjiAmount)
         });
       } else {
         throw new Error('Échec de l\'achat');
@@ -105,6 +124,18 @@ export class DodjiService {
 
   async rewardCourseCompletion(userId: string, courseId: string): Promise<void> {
     await this.rewardTokens(userId, 500, `course_completion_${courseId}`);
+  }
+  
+  // Récompenser la réussite d'un quiz
+  async rewardQuizCompletion(userId: string, quizId: string, dodjiAmount: number): Promise<void> {
+    try {
+      // Utiliser un identifiant unique pour cette récompense
+      await this.rewardTokens(userId, dodjiAmount, `quiz_completion_${quizId}`);
+      console.log(`Utilisateur ${userId} récompensé de ${dodjiAmount} Dodji pour le quiz ${quizId}`);
+    } catch (error) {
+      console.error('Erreur lors de la récompense pour le quiz:', error);
+      throw error;
+    }
   }
 }
 

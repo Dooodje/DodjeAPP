@@ -4,7 +4,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 
 // Constantes pour les dimensions
 const { width: screenWidth } = Dimensions.get('window');
-const DEFAULT_BUTTON_SIZE = 70; // Légèrement plus grand que les boutons vidéo
+const DEFAULT_BUTTON_SIZE = 80; // Plus grand pour être plus visible
 
 interface QuizButtonProps {
   id: string;
@@ -54,14 +54,24 @@ const QuizButton: React.FC<QuizButtonProps> = ({
       style={[styles.container, position]}
       onPress={() => onPress(id)}
     >
-      <View style={styles.quizIcon}>
+      <View style={styles.buttonContent}>
         <MaterialIcons name="quiz" size={36} color="#FFFFFF" />
       </View>
-      <View style={styles.contentContainer}>
+      
+      {/* Effet de brillance */}
+      <View style={styles.glow} />
+      
+      {/* Étiquette du quiz */}
+      <View style={styles.labelContainer}>
         <Text style={styles.title} numberOfLines={1}>
           {title}
         </Text>
         <Text style={styles.subtitle}>Testez vos connaissances</Text>
+      </View>
+      
+      {/* Badge "Final" */}
+      <View style={styles.finalBadge}>
+        <Text style={styles.finalText}>Final</Text>
       </View>
     </TouchableOpacity>
   );
@@ -73,28 +83,40 @@ const styles = StyleSheet.create({
     width: DEFAULT_BUTTON_SIZE,
     height: DEFAULT_BUTTON_SIZE,
     borderRadius: DEFAULT_BUTTON_SIZE / 2,
-    backgroundColor: 'rgba(255, 193, 7, 0.9)', // Couleur jaune distinctive
     justifyContent: 'center',
     alignItems: 'center',
     zIndex: 10, // Plus élevé que les vidéos pour être au-dessus
+  },
+  buttonContent: {
+    width: '100%',
+    height: '100%',
+    borderRadius: DEFAULT_BUTTON_SIZE / 2,
+    backgroundColor: '#FFC107', // Jaune doré
+    justifyContent: 'center',
+    alignItems: 'center',
     elevation: 8,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 3 },
     shadowOpacity: 0.6,
     shadowRadius: 5,
-    borderWidth: 2,
-    borderColor: '#FFFFFF',
+    borderWidth: 3,
+    borderColor: '#FFD54F', // Bord légèrement plus clair
   },
-  quizIcon: {
-    alignItems: 'center',
-    justifyContent: 'center',
+  glow: {
+    position: 'absolute',
+    width: '50%',
+    height: '50%',
+    borderRadius: 25,
+    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+    top: '15%',
+    left: '15%',
   },
-  contentContainer: {
+  labelContainer: {
     position: 'absolute',
     top: DEFAULT_BUTTON_SIZE + 5,
     width: 140,
     backgroundColor: 'rgba(0, 0, 0, 0.8)',
-    borderRadius: 8,
+    borderRadius: 10,
     padding: 8,
     alignItems: 'center',
     left: -(140 - DEFAULT_BUTTON_SIZE) / 2, // Centrer par rapport au bouton
@@ -103,12 +125,12 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.8,
     shadowRadius: 3,
     elevation: 5,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 193, 7, 0.5)',
+    borderWidth: 2,
+    borderColor: '#FFC107',
   },
   title: {
     color: '#FFF',
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: 'bold',
     marginBottom: 3,
     maxWidth: 120,
@@ -118,11 +140,36 @@ const styles = StyleSheet.create({
     textShadowRadius: 2,
   },
   subtitle: {
-    color: 'rgba(255, 193, 7, 0.9)',
-    fontSize: 10,
+    color: '#FFC107',
+    fontSize: 12,
     textAlign: 'center',
     fontStyle: 'italic',
-  }
+  },
+  finalBadge: {
+    position: 'absolute',
+    top: -5,
+    right: -5,
+    backgroundColor: '#FF3D00', // Orange vif
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#FFFFFF',
+    zIndex: 11,
+    elevation: 9,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.5,
+    shadowRadius: 2,
+  },
+  finalText: {
+    color: '#FFFFFF',
+    fontSize: 12,
+    fontWeight: 'bold',
+    textShadowColor: 'rgba(0, 0, 0, 0.5)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 1,
+  },
 });
 
 export default QuizButton; 

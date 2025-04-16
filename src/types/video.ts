@@ -5,6 +5,7 @@ export type VideoStatus = 'blocked' | 'unlocked' | 'completed';
 export interface Video {
   id: string;
   title: string;
+  titre?: string;
   description: string;
   courseId: string;
   videoUrl: string;

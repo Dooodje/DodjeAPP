@@ -25,6 +25,7 @@ import { RootState } from '../store';
 export const useVideo = (videoId: string, userId: string) => {
   const dispatch = useDispatch();
   const router = useRouter();
+  const [nextVideo, setNextVideo] = useState<Video | null>(null);
 
   // Sélecteurs pour l'état Redux
   const {
@@ -96,44 +97,12 @@ export const useVideo = (videoId: string, userId: string) => {
           }
         }
 
-        // TEMPORAIREMENT: on considère que toutes les vidéos sont débloquées pour les tests
-        console.log('⚠️ Mode test: toutes les vidéos sont considérées comme débloquées');
+        // Toutes les vidéos sont considérées comme débloquées
         video.isUnlocked = true;
-
-        /* Commenté pour les tests
-        // Vérifier si c'est la première vidéo du parcours (ordre 0 ou 1)
-        // Si c'est le cas, on la débloque automatiquement
-        if (video.order === 0 || video.order === 1) {
-          console.log('🔓 Première vidéo du parcours, on la débloque automatiquement');
-          video.isUnlocked = true;
-          
-          // Débloquer également dans la base de données si l'utilisateur est connecté
-          if (userId) {
-            try {
-              await videoService.unlockVideo(userId, videoId);
-            } catch (unlockErr) {
-              console.error('Erreur lors du déblocage automatique de la première vidéo:', unlockErr);
-              // Ne pas bloquer le chargement de la vidéo si on n'a pas pu la débloquer
-            }
-          }
-        } else {
-          // Vérifier si la vidéo est déjà débloquée
-          try {
-            if (userId) {
-              const isUnlocked = await videoService.isVideoUnlocked(userId, videoId);
-              video.isUnlocked = isUnlocked;
-            }
-          } catch (unlockCheckErr) {
-            console.error('Erreur lors de la vérification du statut de déverrouillage:', unlockCheckErr);
-            // Par défaut, considérer que la vidéo n'est pas débloquée
-            video.isUnlocked = false;
-          }
-        }
-        */
 
         dispatch(setCurrentVideo(video));
 
-        // Récupérer la miniature directement depuis le document de la vidéo
+        // Mettre à jour la miniature directement depuis le document de la vidéo
         try {
           // Utiliser directement le champ thumbnail du document vidéo
           if (video.thumbnail) {
@@ -155,10 +124,58 @@ export const useVideo = (videoId: string, userId: string) => {
         try {
           const related = await videoService.getRelatedVideos(video.courseId, videoId);
           dispatch(setRelatedVideos(related));
+          
+          // Charger la prochaine vidéo du parcours
+          console.log('⏭️ Tentative de récupération de la prochaine vidéo pour courseId:', video.courseId, ', videoId:', videoId);
+          console.log('⏭️ Les données de la vidéo actuelle:', video);
+          
+          const next = await videoService.getNextVideo(video.courseId, videoId);
+          console.log('⏭️ Résultat de getNextVideo:', next);
+          
+          if (next) {
+            // URL de fallback pour une vidéo de démonstration
+            const fallbackUrl = 'https://d23dyxeqlo5psv.cloudfront.net/big_buck_bunny.mp4';
+            
+            // S'assurer que la vidéo suivante a toutes les propriétés nécessaires
+            const completeNextVideo = {
+              ...next,
+              isUnlocked: true, // On considère toutes les vidéos débloquées
+              // Ajouter les propriétés requises qui pourraient manquer
+              id: next.id || '',
+              title: next.title || 'Vidéo sans titre',
+              titre: next.titre || next.title || 'Vidéo sans titre', // Assurer la compatibilité du titre
+              description: next.description || 'Aucune description disponible',
+              videoUrl: next.videoUrl || fallbackUrl, // Utiliser URL fallback si absente
+              duration: next.duration || 0,
+              duree: next.duree || (typeof next.duration === 'string' ? next.duration : '00:00'), // Assurer la compatibilité du format de durée
+              thumbnail: next.thumbnail || '', // S'assurer que thumbnail est présent
+              courseId: video.courseId
+            };
+            
+            // Convertir les valeurs pour s'assurer de la compatibilité
+            if (typeof completeNextVideo.duration === 'string') {
+              const durationParts = completeNextVideo.duration.split(':');
+              if (durationParts.length === 2) {
+                const minutes = parseInt(durationParts[0], 10);
+                const seconds = parseInt(durationParts[1], 10);
+                completeNextVideo.duration = minutes * 60 + seconds;
+              }
+            }
+            
+            console.log('⏭️ Prochaine vidéo formatée:', JSON.stringify(completeNextVideo));
+            console.log('⏭️ URL vidéo suivante:', completeNextVideo.videoUrl);
+            console.log('⏭️ Durée formatée:', completeNextVideo.duree);
+            console.log('⏭️ Miniature:', completeNextVideo.thumbnail);
+            setNextVideo(completeNextVideo);
+          } else {
+            console.log('⏭️ Aucune prochaine vidéo trouvée');
+            setNextVideo(null);
+          }
         } catch (relatedErr) {
           console.error('Erreur lors de la récupération des vidéos liées:', relatedErr);
           // Ne pas bloquer le chargement de la vidéo principale si on n'a pas pu récupérer les vidéos liées
           dispatch(setRelatedVideos([]));
+          setNextVideo(null);
         }
       } catch (err) {
         console.error('Erreur lors du chargement de la vidéo:', err);
@@ -229,7 +246,55 @@ export const useVideo = (videoId: string, userId: string) => {
   // Changer de vidéo
   const handleVideoSelect = useCallback((id: string) => {
     if (id) {
-      router.replace(`/video/${id}`);
+      console.log('🔍 handleVideoSelect - Changement de vidéo vers ID:', id);
+      
+      // Vérifier que l'ID existe dans la base de données
+      videoService.getVideoById(id).then(checkVideo => {
+        if (checkVideo) {
+          console.log('✅ Vidéo cible vérifiée - Existe avec URL:', checkVideo.videoUrl);
+        } else {
+          console.warn('⚠️ La vidéo cible n\'existe pas dans la base de données');
+        }
+      }).catch(err => {
+        console.error('❌ Erreur lors de la vérification de la vidéo cible:', err);
+      });
+      
+      try {
+        console.log('🔄 Tentative de navigation vers /video/' + id);
+        
+        // Enregistrer l'ID dans sessionStorage pour debug (pour vérifier qu'il est correct)
+        if (typeof window !== 'undefined') {
+          try {
+            sessionStorage.setItem('lastVideoNavigation', id);
+            console.log('📝 ID vidéo enregistré dans sessionStorage');
+          } catch (storageError) {
+            console.warn('⚠️ Impossible d\'utiliser sessionStorage:', storageError);
+          }
+        }
+        
+        // Tenter d'abord avec push
+        router.push(`/video/${id}`);
+        console.log('✅ Navigation réussie avec router.push vers /video/' + id);
+      } catch (error) {
+        console.error('❌ Erreur avec router.push:', error);
+        
+        // Si push échoue, essayer avec replace
+        try {
+          console.log('🔄 Tentative avec router.replace');
+          router.replace(`/video/${id}`);
+          console.log('✅ Navigation réussie avec router.replace');
+        } catch (replaceError) {
+          console.error('❌ Échec de la navigation avec router.replace:', replaceError);
+          
+          // Dernière solution: rafraîchir la page avec URL
+          console.log('🔄 Tentative avec window.location');
+          if (typeof window !== 'undefined') {
+            window.location.href = `/video/${id}`;
+          }
+        }
+      }
+    } else {
+      console.error('❌ ID de vidéo manquant dans handleVideoSelect');
     }
   }, [router]);
 
@@ -251,6 +316,7 @@ export const useVideo = (videoId: string, userId: string) => {
   return {
     currentVideo,
     relatedVideos,
+    nextVideo,
     isPlaying,
     currentTime,
     duration,

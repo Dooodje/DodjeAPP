@@ -1,7 +1,8 @@
-import { useEffect, useCallback } from 'react';
+import { useEffect, useCallback, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { RootState } from '../store';
 import { quizService } from '../services/quiz';
+import { dodjiService } from '../services/dodji';
 import {
   setCurrentQuiz,
   setCurrentQuestionIndex,
@@ -29,6 +30,9 @@ export const useQuiz = (quizId: string, userId: string) => {
     error,
     showResults: isShowingResults
   } = useSelector((state: RootState) => state.quiz);
+  
+  // État local pour suivre si la récompense a été attribuée
+  const [rewardGranted, setRewardGranted] = useState(false);
 
   // Charger le quiz
   const loadQuiz = useCallback(async () => {
@@ -61,7 +65,7 @@ export const useQuiz = (quizId: string, userId: string) => {
 
   // Soumettre le quiz
   const submitQuiz = useCallback(async () => {
-    if (!currentQuiz) return;
+    if (!currentQuiz || !userId) return;
 
     try {
       dispatch(setSubmitting(true));
@@ -95,6 +99,21 @@ export const useQuiz = (quizId: string, userId: string) => {
 
       await quizService.saveQuizProgress(userId, progress);
 
+      // Calculer le pourcentage du score
+      const scorePercentage = (totalScore / currentQuiz.totalPoints) * 100;
+      const isPassed = scorePercentage >= currentQuiz.passingScore;
+      
+      // Attribuer la récompense si le quiz est réussi et que la récompense n'a pas encore été attribuée
+      if (isPassed && !rewardGranted && currentQuiz.dodjiReward > 0) {
+        try {
+          await dodjiService.rewardQuizCompletion(userId, quizId, currentQuiz.dodjiReward);
+          setRewardGranted(true);
+        } catch (rewardError) {
+          console.error('Erreur lors de l\'attribution de la récompense:', rewardError);
+          // Continuer même en cas d'erreur pour ne pas bloquer l'utilisateur
+        }
+      }
+
       // Mettre à jour le statut et le meilleur score si nécessaire
       if (totalScore >= currentQuiz.passingScore) {
         await quizService.updateQuizStatus(userId, quizId, 'completed');
@@ -110,11 +129,12 @@ export const useQuiz = (quizId: string, userId: string) => {
     } finally {
       dispatch(setSubmitting(false));
     }
-  }, [dispatch, currentQuiz, answers, timeRemaining, userId, quizId]);
+  }, [dispatch, currentQuiz, answers, timeRemaining, userId, quizId, rewardGranted]);
 
   // Réinitialiser le quiz
   const reset = useCallback(() => {
     dispatch(resetQuiz());
+    setRewardGranted(false);
   }, [dispatch]);
 
   // Gérer le timer
@@ -147,6 +167,7 @@ export const useQuiz = (quizId: string, userId: string) => {
     isLoading,
     error,
     isShowingResults,
+    rewardGranted,
     answerQuestion,
     nextQuestion,
     submitQuiz,
