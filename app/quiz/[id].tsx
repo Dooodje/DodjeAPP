@@ -49,34 +49,69 @@ const AnswerOption = ({
   showResult: boolean;
   onSelect: () => void; 
 }) => {
-  let borderColor = selected ? '#06D001' : 'rgba(255, 255, 255, 0.1)';
-  let backgroundColor = selected ? 'rgba(6, 208, 1, 0.1)' : 'rgba(0, 0, 0, 0.3)';
+  // Déterminer le style en fonction de l'état
+  let styleModifiers = {};
+  let textStyle = {};
+  
+  if (selected) {
+    styleModifiers = {
+      ...styleModifiers,
+      borderColor: '#06D001',
+      borderWidth: 2,
+      backgroundColor: 'rgba(6, 208, 1, 0.1)',
+    };
+    textStyle = {
+      ...textStyle,
+      color: '#FFFFFF',
+      fontWeight: 'bold',
+    };
+  }
   
   if (showResult) {
     if (answer.isCorrect) {
-      borderColor = '#06D001';
-      backgroundColor = 'rgba(6, 208, 1, 0.2)';
+      styleModifiers = {
+        ...styleModifiers,
+        borderColor: '#06D001',
+        borderWidth: 2,
+        backgroundColor: 'rgba(6, 208, 1, 0.2)',
+      };
+      textStyle = {
+        ...textStyle,
+        color: '#06D001',
+        fontWeight: 'bold',
+      };
     } else if (selected && !answer.isCorrect) {
-      borderColor = '#FF3B30';
-      backgroundColor = 'rgba(255, 59, 48, 0.1)';
+      styleModifiers = {
+        ...styleModifiers,
+        borderColor: '#FF3B30',
+        borderWidth: 2,
+        backgroundColor: 'rgba(255, 59, 48, 0.1)',
+      };
+      textStyle = {
+        ...textStyle,
+        color: '#FF3B30',
+        fontWeight: 'bold',
+      };
     }
   }
   
   return (
     <TouchableOpacity 
-      style={[styles.answerContainer, { borderColor, backgroundColor }]} 
+      style={[styles.answerContainer, styleModifiers]} 
       onPress={onSelect}
       disabled={showResult}
     >
       <View style={styles.answerCheckbox}>
         {selected && (
-          <MaterialIcons name="check-circle" size={20} color="#06D001" />
-        )}
-        {!selected && (
-          <View style={styles.answerCheckboxEmpty} />
+          <View style={{
+            width: 12,
+            height: 12,
+            backgroundColor: '#FFFFFF',
+            borderRadius: 6,
+          }} />
         )}
       </View>
-      <Text style={styles.answerText}>{answer.text}</Text>
+      <Text style={[styles.answerText, textStyle]}>{answer.text}</Text>
       {showResult && answer.isCorrect && (
         <MaterialIcons name="check-circle" size={20} color="#06D001" />
       )}
@@ -125,11 +160,49 @@ export default function QuizPage() {
           return;
         }
         
-        setQuiz(quizData);
+        // Adapter le format des données pour correspondre à notre structure
+        const adaptedQuizData: Quiz = {
+          ...quizData,
+          questions: Array.isArray(quizData.questions) 
+            ? quizData.questions.map((q: any, index: number) => {
+                // Adapter chaque question
+                return {
+                  id: q.id || `question-${index}`,
+                  text: q.text || "",
+                  type: q.isMultipleChoice === true ? 'multiple' as const : 'single' as const,
+                  answers: Array.isArray(q.choices) 
+                    ? q.choices.map((choice: any, choiceIndex: number) => ({
+                        id: choice.id || `choice-${choiceIndex}`,
+                        text: choice.text || "",
+                        isCorrect: Boolean(choice.isCorrect),
+                        explanation: choice.explanation || ""
+                      })) 
+                    : [],
+                  explanation: q.explanation || "",
+                  points: 1, // Par défaut 1 point par question
+                  timeLimit: q.timeLimit || undefined
+                };
+              }) 
+            : [],
+          title: quizData.title || quizData.titre || "Quiz",
+          titre: quizData.titre || quizData.title || "Quiz",
+          description: quizData.description || "",
+          courseId: quizData.courseId || "",
+          videoId: quizData.videoId || "",
+          totalPoints: quizData.questions?.length || 0,
+          passingScore: 70, // Valeur fixe comme demandé
+          dodjiReward: quizData.tokenReward || quizData.dodjiReward || 0,
+          tokenReward: quizData.tokenReward || quizData.dodjiReward || 0,
+          status: quizData.status || 'unlocked',
+          progress: quizData.progress || 0
+        };
+        
+        console.log("Quiz adapté:", adaptedQuizData);
+        setQuiz(adaptedQuizData);
         
         // Initialiser les réponses
         const initialAnswers: Record<string, string[]> = {};
-        quizData.questions.forEach(q => {
+        adaptedQuizData.questions.forEach(q => {
           initialAnswers[q.id] = [];
         });
         setAnswers(initialAnswers);
@@ -163,44 +236,79 @@ export default function QuizPage() {
   };
   
   // Sélectionner une réponse
-  const selectAnswer = (questionId: string, answerId: string) => {
-    const question = quiz?.questions[currentQuestionIndex];
+  const selectAnswer = (questionId: string, answerId: string, isMultipleChoice: boolean) => {
+    const question = quiz?.questions.find(q => q.id === questionId);
     if (!question) return;
     
-    // Pour les questions à choix unique
-    if (question.type === 'single') {
-      setAnswers(prev => ({
-        ...prev,
-        [questionId]: [answerId]
-      }));
-    } 
-    // Pour les questions à choix multiples
-    else {
-      setAnswers(prev => {
-        const currentAnswers = prev[questionId] || [];
-        
-        // Si la réponse est déjà sélectionnée, la retirer
-        if (currentAnswers.includes(answerId)) {
-          return {
-            ...prev,
-            [questionId]: currentAnswers.filter(id => id !== answerId)
-          };
-        } 
-        // Sinon, l'ajouter
-        else {
-          return {
-            ...prev,
-            [questionId]: [...currentAnswers, answerId]
-          };
+    setAnswers(prev => {
+      // Crée une copie des réponses actuelles
+      const newAnswers = { ...prev };
+      
+      // Initialise le tableau de réponses pour cette question s'il n'existe pas
+      if (!newAnswers[questionId]) {
+        newAnswers[questionId] = [];
+      }
+
+      // Pour les questions à choix unique, remplace la réponse précédente
+      if (!isMultipleChoice) {
+        newAnswers[questionId] = [answerId];
+      } 
+      // Pour les questions à choix multiples, ajoute/supprime selon l'état actuel
+      else {
+        if (newAnswers[questionId].includes(answerId)) {
+          // Si déjà sélectionné, retire-le
+          newAnswers[questionId] = newAnswers[questionId].filter(id => id !== answerId);
+        } else {
+          // Sinon ajoute-le
+          newAnswers[questionId].push(answerId);
         }
-      });
-    }
+      }
+      
+      return newAnswers;
+    });
+  };
+  
+  // Calculer le score
+  const calculateScore = useCallback(() => {
+    if (!quiz || !quiz.questions || quiz.questions.length === 0) return 0;
+    
+    let score = 0;
+    
+    quiz.questions.forEach(question => {
+      if (!question || !question.answers) return;
+      
+      const userAnswers = answers[question.id] || [];
+      const correctAnswers = question.answers
+        .filter(answer => answer.isCorrect)
+        .map(answer => answer.id);
+      
+      // Vérifier si les réponses de l'utilisateur correspondent exactement aux bonnes réponses
+      if (correctAnswers.length > 0 && userAnswers.length === correctAnswers.length &&
+          correctAnswers.every(id => userAnswers.includes(id))) {
+        score++;
+      }
+    });
+    
+    return score;
+  }, [quiz, answers]);
+  
+  // Calculer le score final
+  const calculateFinalScore = () => {
+    const score = calculateScore();
+    const total = quiz?.questions?.length || 0;
+    return {
+      score,
+      total,
+      percentage: total > 0 ? Math.round((score / total) * 100) : 0
+    };
   };
   
   // Valider la réponse à la question courante
   const validateAnswer = () => {
-    const question = quiz?.questions[currentQuestionIndex];
-    if (!question) return;
+    if (!quiz || !quiz.questions) return;
+    
+    const question = quiz.questions[currentQuestionIndex];
+    if (!question || !question.answers) return;
     
     const userAnswers = answers[question.id] || [];
     
@@ -213,16 +321,18 @@ export default function QuizPage() {
     setShowAnswer(true);
     
     // Calculer le score pour cette question
+    if (!Array.isArray(question.answers)) return;
+    
     const correctAnswerIds = question.answers
-      .filter(a => a.isCorrect)
+      .filter(a => a && a.isCorrect)
       .map(a => a.id);
     
     const userCorrectCount = userAnswers.filter(id => correctAnswerIds.includes(id)).length;
     const userIncorrectCount = userAnswers.filter(id => !correctAnswerIds.includes(id)).length;
     
     // Attribution des points (uniquement si toutes les bonnes réponses sont sélectionnées et aucune mauvaise)
-    if (userCorrectCount === correctAnswerIds.length && userIncorrectCount === 0) {
-      setScore(prev => prev + question.points);
+    if (correctAnswerIds.length > 0 && userCorrectCount === correctAnswerIds.length && userIncorrectCount === 0) {
+      setScore(prev => prev + (question.points || 1));
     }
   };
   
@@ -243,41 +353,76 @@ export default function QuizPage() {
   const finishQuiz = async () => {
     if (!quiz || !user) return;
     
+    // S'assurer que quiz.id existe et n'est pas undefined
+    if (!quiz.id) {
+      console.error("L'ID du quiz est undefined, impossible de terminer le quiz");
+      Alert.alert("Erreur", "Impossible de terminer le quiz. Veuillez réessayer.");
+      return;
+    }
+    
     setCurrentState(QuizState.RESULT);
     
-    // Calculer le score en pourcentage
-    const scorePercentage = (score / quiz.totalPoints) * 100;
-    const isPassed = scorePercentage >= quiz.passingScore;
-    
-    // Si l'utilisateur a réussi, lui attribuer la récompense
-    if (isPassed && !hasEarnedReward) {
-      try {
-        // Enregistrer la progression
-        await quizService.saveQuizProgress(user.uid, {
-          quizId: quiz.id,
-          score: scorePercentage,
-          answers,
-          timeSpent: 0, // À implémenter: tracker le temps passé
-          completedAt: new Date()
-        });
-        
-        // Attribuer la récompense en Dodji
-        if (quiz.dodjiReward > 0) {
-          await dodjiService.rewardQuizCompletion(user.uid, quiz.id, quiz.dodjiReward);
-          console.log(`Récompense de ${quiz.dodjiReward} Dodji attribuée pour le quiz ${quiz.id}`);
-          
-          // Afficher le message de récompense
-          setShowRewardMessage(true);
-          setTimeout(() => setShowRewardMessage(false), 5000); // Masquer après 5 secondes
-        }
-        
-        // Mettre à jour le statut du quiz
-        await quizService.updateQuizStatus(user.uid, quiz.id, 'completed');
-        
-        setHasEarnedReward(true);
-      } catch (error) {
-        console.error("Erreur lors de l'enregistrement des résultats:", error);
+    try {
+      // Calculer le score en pourcentage
+      const totalPoints = quiz.totalPoints || quiz.questions?.length || 0;
+      if (totalPoints === 0) {
+        console.warn("Attention: totalPoints est 0, impossible de calculer le pourcentage");
+        return;
       }
+      
+      const scorePercentage = (score / totalPoints) * 100;
+      const passingScore = 70; // Seuil de réussite fixé à 70%
+      const isPassed = scorePercentage >= passingScore;
+      const rewardAmount = quiz.tokenReward || quiz.dodjiReward || 0;
+      
+      // Si l'utilisateur a réussi, lui attribuer la récompense
+      if (isPassed) {
+        try {
+          // Enregistrer la progression
+          const progressData = {
+            quizId: quiz.id,
+            score: scorePercentage,
+            answers: { ...answers }, // Créer une copie pour éviter les références circulaires
+            timeSpent: 0, // À implémenter plus tard
+            completedAt: new Date()
+          };
+          
+          await quizService.saveQuizProgress(user.uid, progressData);
+          console.log("Progression du quiz enregistrée avec succès");
+          
+          // Attribuer la récompense en Dodji seulement si elle est > 0
+          if (rewardAmount > 0) {
+            try {
+              await dodjiService.rewardQuizCompletion(user.uid, quiz.id, rewardAmount);
+              console.log(`Récompense de ${rewardAmount} Dodji attribuée pour le quiz ${quiz.id}`);
+              setHasEarnedReward(true);
+              
+              // Afficher un message de confirmation temporaire
+              setShowRewardMessage(true);
+              setTimeout(() => setShowRewardMessage(false), 3000);
+            } catch (rewardError) {
+              console.error("Erreur lors de l'attribution de récompense:", rewardError);
+              // Ne pas bloquer la progression si la récompense échoue
+            }
+          }
+          
+          // Mettre à jour le statut du quiz - dans un try/catch séparé pour ne pas bloquer
+          try {
+            await quizService.updateQuizStatus(user.uid, quiz.id, 'completed');
+            console.log("Statut du quiz mis à jour avec succès");
+          } catch (statusError) {
+            console.error("Erreur lors de la mise à jour du statut:", statusError);
+            // Ne pas bloquer la progression si la mise à jour échoue
+          }
+          
+        } catch (progressError) {
+          console.error("Erreur lors de l'enregistrement des résultats:", progressError);
+          Alert.alert("Attention", "Une erreur s'est produite lors de l'enregistrement de vos résultats.");
+        }
+      }
+    } catch (error) {
+      console.error("Erreur générale dans finishQuiz:", error);
+      // Même en cas d'erreur, on reste sur l'écran des résultats mais sans récompense
     }
   };
   
@@ -303,22 +448,22 @@ export default function QuizPage() {
       <View style={styles.introContainer}>
         <View style={styles.quizInfoCard}>
           <MaterialIcons name="quiz" size={48} color="#FFC107" style={styles.quizIcon} />
-          <Text style={styles.quizTitle}>{quiz.title}</Text>
+          <Text style={styles.quizTitle}>{quiz.titre || quiz.title}</Text>
           <Text style={styles.quizDescription}>{quiz.description}</Text>
           
           <View style={styles.infoRow}>
             <MaterialIcons name="help" size={24} color="#FFFFFF" />
-            <Text style={styles.infoText}>{quiz.questions.length} questions</Text>
+            <Text style={styles.infoText}>{quiz.questions?.length || 0} questions</Text>
           </View>
           
           <View style={styles.infoRow}>
             <MaterialIcons name="stars" size={24} color="#FFFFFF" />
-            <Text style={styles.infoText}>Seuil de réussite: {quiz.passingScore}%</Text>
+            <Text style={styles.infoText}>Seuil de réussite: 70%</Text>
           </View>
           
           <View style={styles.infoRow}>
             <MaterialIcons name="monetization-on" size={24} color="#06D001" />
-            <Text style={styles.infoText}>Récompense: {quiz.dodjiReward} Dodji</Text>
+            <Text style={styles.infoText}>Récompense: {quiz.tokenReward || quiz.dodjiReward || 0} Dodji</Text>
           </View>
           
           <TouchableOpacity style={styles.startButton} onPress={startQuiz}>
@@ -331,9 +476,10 @@ export default function QuizPage() {
   
   // Render la question courante
   const renderQuestion = () => {
-    if (!quiz) return null;
+    if (!quiz || !quiz.questions || quiz.questions.length === 0) return null;
     
     const question = quiz.questions[currentQuestionIndex];
+    if (!question) return null;
     
     return (
       <View style={styles.questionContainer}>
@@ -346,16 +492,16 @@ export default function QuizPage() {
           <Text style={styles.questionTitle}>
             Question {currentQuestionIndex + 1}
           </Text>
-          <Text style={styles.questionText}>{question.text}</Text>
+          <Text style={styles.questionText}>{question.text || `Question ${currentQuestionIndex + 1}`}</Text>
           
           <View style={styles.answersContainer}>
-            {question.answers.map(answer => (
+            {question.answers && Array.isArray(question.answers) && question.answers.map(answer => (
               <AnswerOption 
                 key={answer.id}
                 answer={answer}
                 selected={answers[question.id]?.includes(answer.id) || false}
                 showResult={showAnswer}
-                onSelect={() => selectAnswer(question.id, answer.id)}
+                onSelect={() => selectAnswer(question.id, answer.id, question.type === 'multiple')}
               />
             ))}
           </View>
@@ -398,9 +544,34 @@ export default function QuizPage() {
   const renderResult = () => {
     if (!quiz) return null;
     
-    const totalPoints = quiz.totalPoints;
-    const scorePercentage = (score / totalPoints) * 100;
-    const isPassed = scorePercentage >= quiz.passingScore;
+    // S'assurer que l'ID du quiz existe
+    if (!quiz.id) {
+      console.error("L'ID du quiz est undefined dans renderResult");
+      return (
+        <View style={styles.resultContainer}>
+          <View style={styles.resultCard}>
+            <MaterialIcons name="error" size={60} color="#F44336" />
+            <Text style={styles.resultTitle}>Une erreur s'est produite</Text>
+            <Text style={styles.quizDescription}>
+              Impossible d'afficher les résultats. Veuillez réessayer plus tard.
+            </Text>
+            <TouchableOpacity 
+              style={[styles.resultButton, styles.retryButton]} 
+              onPress={retryQuiz}
+            >
+              <MaterialIcons name="replay" size={20} color="#FFFFFF" />
+              <Text style={styles.retryButtonText}>Réessayer</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      );
+    }
+    
+    const totalPoints = quiz.totalPoints || quiz.questions?.length || 0;
+    const scorePercentage = totalPoints > 0 ? (score / totalPoints) * 100 : 0;
+    const passingScore = 70; // Seuil de réussite fixé à 70%
+    const isPassed = scorePercentage >= passingScore;
+    const rewardAmount = quiz.tokenReward || quiz.dodjiReward || 0;
     
     return (
       <View style={styles.resultContainer}>
@@ -420,25 +591,26 @@ export default function QuizPage() {
             Score: {score}/{totalPoints} ({Math.round(scorePercentage)}%)
           </Text>
           
-          <Text style={styles.resultDescription}>
+          {/* Utiliser le style resultDescription s'il existe, sinon fallback sur quizDescription */}
+          <Text style={styles.resultDescription || styles.quizDescription}>
             {isPassed 
-              ? `Vous avez obtenu un score supérieur à ${quiz.passingScore}% et gagné ${quiz.dodjiReward} Dodji !` 
-              : `Vous devez obtenir au moins ${quiz.passingScore}% pour réussir le quiz.`}
+              ? `Vous avez obtenu un score supérieur à ${passingScore}% et gagné ${rewardAmount} Dodji !` 
+              : `Vous devez obtenir au moins ${passingScore}% pour réussir le quiz.`}
           </Text>
           
           {isPassed && hasEarnedReward && (
-            <View style={[styles.rewardContainer]}>
+            <View style={styles.rewardContainer}>
               <MaterialIcons name="emoji-events" size={30} color="#FFC107" />
-              <Text style={[styles.rewardText]}>
-                Vous avez gagné {quiz.dodjiReward} Dodji !
+              <Text style={styles.rewardText}>
+                Vous avez gagné {rewardAmount} Dodji !
               </Text>
             </View>
           )}
           
           {showRewardMessage && (
-            <View style={[styles.rewardMessageContainer]}>
-              <Text style={[styles.rewardMessageText]}>
-                +{quiz.dodjiReward} Dodji ajoutés à votre compte!
+            <View style={styles.rewardMessageContainer}>
+              <Text style={styles.rewardMessageText}>
+                +{rewardAmount} Dodji ajoutés à votre compte!
               </Text>
             </View>
           )}
@@ -470,7 +642,7 @@ export default function QuizPage() {
       <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
       <SafeAreaView style={styles.container} edges={['top', 'right', 'left']}>
         <QuizHeader 
-          title={quiz?.title || "Quiz"} 
+          title={quiz?.titre || quiz?.title || "Quiz"} 
           onBack={handleBackPress} 
         />
         
@@ -676,6 +848,77 @@ const styles = StyleSheet.create({
     fontSize: 16,
     lineHeight: 22,
   },
+  answerOptionText: {
+    flex: 1,
+    color: '#FFFFFF',
+    fontSize: 16,
+    lineHeight: 22,
+  },
+  selectedAnswer: {
+    borderColor: '#06D001',
+    borderWidth: 2,
+    backgroundColor: 'rgba(6, 208, 1, 0.1)',
+  },
+  correctAnswer: {
+    borderColor: '#06D001',
+    borderWidth: 2,
+    backgroundColor: 'rgba(6, 208, 1, 0.2)',
+  },
+  wrongAnswer: {
+    borderColor: '#FF3B30',
+    borderWidth: 2,
+    backgroundColor: 'rgba(255, 59, 48, 0.1)',
+  },
+  disabledAnswer: {
+    opacity: 0.8,
+  },
+  selectedAnswerText: {
+    color: '#FFFFFF',
+    fontWeight: 'bold',
+    fontSize: 16,
+    lineHeight: 22,
+    flex: 1,
+  },
+  correctAnswerText: {
+    color: '#06D001',
+    fontWeight: 'bold',
+    fontSize: 16,
+    lineHeight: 22,
+    flex: 1,
+  },
+  wrongAnswerText: {
+    color: '#FF3B30',
+    fontWeight: 'bold',
+    fontSize: 16,
+    lineHeight: 22,
+    flex: 1,
+  },
+  checkboxContainer: {
+    width: 20,
+    height: 20,
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.4)',
+    borderRadius: 4,
+    marginRight: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  checkboxSelected: {
+    backgroundColor: '#06D001',
+    borderColor: '#06D001',
+  },
+  checkboxCorrect: {
+    borderColor: '#06D001',
+  },
+  checkboxWrong: {
+    borderColor: '#FF3B30',
+  },
+  checkboxInner: {
+    width: 12,
+    height: 12,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 2,
+  },
   explanationContainer: {
     backgroundColor: 'rgba(6, 208, 1, 0.1)',
     borderRadius: 8,
@@ -828,5 +1071,20 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: 'bold',
+  },
+  finishButton: {
+    backgroundColor: '#FFC107',
+    paddingHorizontal: 24,
+    paddingVertical: 14,
+    borderRadius: 24,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  finishButtonText: {
+    color: '#000000',
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginRight: 8,
   },
 }); 

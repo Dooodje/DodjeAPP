@@ -43,30 +43,41 @@ export const QuestsList: React.FC<QuestsListProps> = ({ profile, onQuestPress })
         </View>
         <View style={styles.rewardContainer}>
           <MaterialCommunityIcons name="star" size={16} color="#F3FF90" />
-          <Text style={styles.rewardText}>{quest.reward} Dodji</Text>
+          <Text style={styles.rewardText}>
+            {typeof quest.reward === 'object' && quest.reward.amount 
+              ? `${quest.reward.amount} Dodji` 
+              : "Récompense"}
+          </Text>
         </View>
       </TouchableOpacity>
     );
   };
 
-  const getQuestIcon = (type: Quest['type']) => {
+  const getQuestIcon = (type: string) => {
     switch (type) {
       case 'daily':
         return 'calendar-check';
       case 'weekly':
         return 'calendar-week';
-      case 'achievement':
+      case 'special':
         return 'trophy';
       default:
         return 'star';
     }
   };
 
+  // Vérifier si profile.quests existe et est un tableau
+  const quests = Array.isArray(profile.quests) ? profile.quests : [];
+
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Quêtes en cours</Text>
       <ScrollView style={styles.scrollView}>
-        {profile.quests.map(renderQuest)}
+        {quests.length > 0 ? (
+          quests.map(renderQuest)
+        ) : (
+          <Text style={styles.emptyText}>Aucune quête disponible pour le moment</Text>
+        )}
       </ScrollView>
     </View>
   );
@@ -138,5 +149,10 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#F3FF90',
     marginLeft: 4,
+  },
+  emptyText: {
+    color: '#666',
+    textAlign: 'center',
+    padding: 20,
   },
 }); 

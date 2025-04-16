@@ -11,7 +11,18 @@ function Profile() {
   const router = useRouter();
   const [userId, setUserId] = useState<string | null>(null);
   
-  // Récupérer l'ID de l'utilisateur actuellement connecté
+  // Appel du hook useProfile avec un userId par défaut (vide si non défini)
+  // Les hooks doivent toujours être appelés au même endroit et dans le même ordre
+  const {
+    profile,
+    isLoading: profileIsLoading,
+    error: profileError,
+    updateUserProfile,
+    selectUserBadge,
+    selectUserQuest,
+  } = useProfile(userId || '');
+
+  // Vérification de l'authentification
   useEffect(() => {
     const getCurrentUser = () => {
       const user = auth.currentUser;
@@ -35,26 +46,8 @@ function Profile() {
     return () => unsubscribe();
   }, [router]);
   
-  // Si userId n'est pas encore défini, afficher un loader
-  if (!userId) {
-    return (
-      <View style={styles.container}>
-        <LoadingSpinner />
-      </View>
-    );
-  }
-  
-  // Utiliser le hook useProfile avec l'ID utilisateur récupéré
-  const {
-    profile,
-    isLoading,
-    error,
-    updateUserProfile,
-    selectUserBadge,
-    selectUserQuest,
-  } = useProfile(userId);
-
-  if (isLoading) {
+  // Si userId n'est pas encore défini ou profile est en cours de chargement
+  if (!userId || profileIsLoading) {
     return (
       <View style={styles.container}>
         <LoadingSpinner />
@@ -62,7 +55,8 @@ function Profile() {
     );
   }
 
-  if (error || !profile) {
+  // Gestion des erreurs
+  if (profileError || !profile) {
     return (
       <View style={styles.container}>
         <MediaError

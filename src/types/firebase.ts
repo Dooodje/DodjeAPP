@@ -21,6 +21,9 @@ export interface Parcours {
   level: 'debutant' | 'avance' | 'expert';
   order: number;
   imageUrl: string;
+  thumbnail?: string;
+  videoCount?: number;
+  videoIds?: string[];
   status?: 'blocked' | 'available' | 'in_progress' | 'completed';
   position: {
     x: number;

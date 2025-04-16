@@ -20,6 +20,7 @@ export interface Question {
 export interface Quiz {
   id: string;
   title: string;
+  titre?: string; // Champ alternatif pour le titre en français
   description: string;
   courseId: string;
   videoId: string;
@@ -28,6 +29,7 @@ export interface Quiz {
   passingScore: number;
   timeLimit?: number; // en secondes
   dodjiReward: number;
+  tokenReward?: number; // Champ alternatif pour la récompense en jetons
   status: 'locked' | 'unlocked' | 'completed';
   progress: number;
   lastAttemptDate?: Date;

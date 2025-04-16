@@ -145,14 +145,14 @@ export default function RootLayout() {
 function RootLayoutNav() {
   const pathname = usePathname();
   
-  // Si le chemin commence par /course ou /video, ne pas afficher le header du Stack parent
-  const isNoHeaderRoute = pathname.startsWith('/course') || pathname.startsWith('/video');
+  // Si le chemin commence par /course, /video ou /quiz, ne pas afficher le header du Stack parent
+  const isNoHeaderRoute = pathname.startsWith('/course') || pathname.startsWith('/video') || pathname.startsWith('/quiz');
   
   return (
     <Stack
       initialRouteName="index"
       screenOptions={{
-        headerShown: !isNoHeaderRoute, // Masquer le header pour les routes 'course' et 'video'
+        headerShown: !isNoHeaderRoute, // Masquer le header pour les routes 'course', 'video' et 'quiz'
         headerStyle: {
           backgroundColor: '#0A0400',
         },
@@ -173,6 +173,12 @@ function RootLayoutNav() {
         name="course"
         options={{
           headerShown: false, // Toujours masquer le header pour ces routes
+        }}
+      />
+      <Stack.Screen
+        name="quiz"
+        options={{
+          headerShown: false, // Ajouter la route quiz avec headerShown: false
         }}
       />
       <Stack.Screen

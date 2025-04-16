@@ -6,6 +6,22 @@ import { Parcours } from '../types/firebase';
 export type ThemeFilter = 'all' | 'bourse' | 'crypto';
 export type LevelFilter = 'all' | 'debutant' | 'avance' | 'expert';
 
+interface CatalogueData {
+  featured: Parcours | null;
+  byCourse: Parcours[];
+  byTheme: {
+    bourse: Parcours[];
+    crypto: Parcours[];
+  };
+  byLevel: {
+    debutant: Parcours[];
+    avance: Parcours[];
+    expert: Parcours[];
+  };
+  recent: Parcours[];
+  popular: Parcours[];
+}
+
 export const useCatalogue = () => {
   const [parcours, setParcours] = useState<Parcours[]>([]);
   const [filteredParcours, setFilteredParcours] = useState<Parcours[]>([]);
@@ -24,19 +40,45 @@ export const useCatalogue = () => {
       const parcoursRef = collection(db, 'parcours');
       const parcoursSnapshot = await getDocs(parcoursRef);
       
-      const parcoursData = parcoursSnapshot.docs.map(doc => {
+      const parcoursDataRaw = parcoursSnapshot.docs.map(doc => {
         const data = doc.data();
+        
+        // Vérifier si videoIds existe et calculer le nombre de vidéos
+        const videoCount = data.videoCount || 
+                           (Array.isArray(data.videoIds) ? data.videoIds.length : 0) || 
+                           (Array.isArray(data.videos) ? data.videos.length : 0);
+        
+        // Utiliser le champ thumbnail s'il existe, sinon utiliser imageUrl
+        const thumbnailUrl = data.thumbnail || data.imageUrl || '';
+        
         // S'assurer que videos est toujours défini comme un tableau
         return {
           id: doc.id,
           ...data,
           title: data.title || '',
+          titre: data.titre || data.title || '',
           description: data.description || '',
           theme: data.theme || 'bourse',
           level: data.level || 'debutant',
-          videos: Array.isArray(data.videos) ? data.videos : []
+          imageUrl: thumbnailUrl, // Utiliser thumbnail comme imageUrl
+          videoCount: videoCount,
+          videos: Array.isArray(data.videos) ? data.videos : [],
+          // Ajouter des valeurs par défaut pour les propriétés requises
+          order: data.order || 0,
+          position: data.position || { x: 0, y: 0 },
+          quiz: data.quiz || { id: '', title: '', description: '', questions: [], position: { x: 0, y: 0 } }
         };
-      }) as Parcours[];
+      });
+      
+      // Conversion typée pour éviter les erreurs TS
+      const parcoursData = parcoursDataRaw as unknown as Parcours[];
+      
+      console.log('Parcours récupérés:', parcoursData.map(p => ({
+        id: p.id,
+        titre: p.titre || p.title,
+        thumbnail: p.imageUrl,
+        videoCount: p.videoCount
+      })));
       
       setParcours(parcoursData);
       setFilteredParcours(parcoursData);
@@ -73,6 +115,7 @@ export const useCatalogue = () => {
         
         // Vérifier si le titre contient la requête
         const titleMatch = typeof item.title === 'string' && item.title.toLowerCase().includes(query);
+        const titreMatch = typeof item.titre === 'string' && item.titre.toLowerCase().includes(query);
         
         // Vérifier si la description contient la requête
         const descriptionMatch = typeof item.description === 'string' && item.description.toLowerCase().includes(query);
@@ -82,12 +125,56 @@ export const useCatalogue = () => {
           return video && typeof video.title === 'string' && video.title.toLowerCase().includes(query);
         });
         
-        return titleMatch || descriptionMatch || videoMatch;
+        return titleMatch || titreMatch || descriptionMatch || videoMatch;
       });
     }
 
     setFilteredParcours(result);
   }, [parcours, searchQuery, themeFilter, levelFilter]);
+
+  // Données organisées pour l'affichage style Netflix
+  const organizedData = useMemo<CatalogueData>(() => {
+    const validParcours = Array.isArray(filteredParcours) 
+      ? filteredParcours.filter(p => p && typeof p === 'object' && 'id' in p)
+      : [];
+      
+    if (!validParcours.length) {
+      return {
+        featured: null,
+        byCourse: [],
+        byTheme: { bourse: [], crypto: [] },
+        byLevel: { debutant: [], avance: [], expert: [] },
+        recent: [],
+        popular: []
+      };
+    }
+    
+    // Sélectionner un parcours en vedette (le premier par défaut, ou un aléatoire)
+    const featured = validParcours[0];
+    
+    // Parcours par thème
+    const bourse = validParcours.filter(p => p.theme === 'bourse');
+    const crypto = validParcours.filter(p => p.theme === 'crypto');
+    
+    // Parcours par niveau
+    const debutant = validParcours.filter(p => p.level === 'debutant');
+    const avance = validParcours.filter(p => p.level === 'avance');
+    const expert = validParcours.filter(p => p.level === 'expert');
+    
+    // Pour les parcours récents et populaires, on simule ici
+    // Dans un cas réel, il faudrait des champs de date et de popularité dans Firestore
+    const recent = [...validParcours].sort(() => Math.random() - 0.5).slice(0, 5);
+    const popular = [...validParcours].sort(() => Math.random() - 0.5).slice(0, 5);
+    
+    return {
+      featured,
+      byCourse: validParcours,
+      byTheme: { bourse, crypto },
+      byLevel: { debutant, avance, expert },
+      recent,
+      popular
+    };
+  }, [filteredParcours]);
 
   // Appliquer les filtres lorsque les dépendances changent
   useEffect(() => {
@@ -104,8 +191,12 @@ export const useCatalogue = () => {
     await fetchParcours();
   }, [fetchParcours]);
 
+  // Pour le mode recherche
+  const isSearchActive = searchQuery.trim().length > 0;
+
   return {
     parcours: filteredParcours,
+    organizedData,
     loading,
     error,
     searchQuery,
@@ -114,6 +205,7 @@ export const useCatalogue = () => {
     setThemeFilter,
     levelFilter,
     setLevelFilter,
-    refreshCatalogue
+    refreshCatalogue,
+    isSearchActive
   };
 }; 

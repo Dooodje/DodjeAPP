@@ -10,11 +10,20 @@ interface BadgesGridProps {
 
 export const BadgesGrid: React.FC<BadgesGridProps> = ({ profile, onBadgePress }) => {
   const renderBadge = (badge: Badge) => {
-    const isUnlocked = badge.unlockedAt !== null;
+    if (!badge) {
+      return null;
+    }
+
+    const name = badge.name || 'Badge inconnu';
+    const iconUrl = badge.iconUrl || '';
+    const category = badge.category || 'général';
+    const id = badge.id || `badge-${Math.random()}`;
+    
+    const isUnlocked = badge.unlockedAt !== null && badge.unlockedAt !== undefined;
 
     return (
       <TouchableOpacity
-        key={badge.id}
+        key={id}
         style={[
           styles.badgeContainer,
           !isUnlocked && styles.lockedBadge
@@ -24,7 +33,7 @@ export const BadgesGrid: React.FC<BadgesGridProps> = ({ profile, onBadgePress })
         <View style={styles.badgeIconContainer}>
           {isUnlocked ? (
             <Image
-              source={{ uri: badge.iconUrl }}
+              source={{ uri: iconUrl }}
               style={styles.badgeIcon}
             />
           ) : (
@@ -35,22 +44,28 @@ export const BadgesGrid: React.FC<BadgesGridProps> = ({ profile, onBadgePress })
             />
           )}
         </View>
-        <Text style={styles.badgeName}>{badge.name}</Text>
+        <Text style={styles.badgeName}>{name}</Text>
         {isUnlocked && (
           <Text style={styles.badgeCategory}>
-            {badge.category}
+            {category}
           </Text>
         )}
       </TouchableOpacity>
     );
   };
 
+  const badges = Array.isArray(profile?.badges) ? profile.badges : [];
+
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Badges</Text>
       <ScrollView style={styles.scrollView}>
         <View style={styles.grid}>
-          {profile.badges.map(renderBadge)}
+          {badges.length > 0 ? (
+            badges.map(renderBadge)
+          ) : (
+            <Text style={styles.emptyText}>Aucun badge disponible pour le moment</Text>
+          )}
         </View>
       </ScrollView>
     </View>
@@ -111,5 +126,11 @@ const styles = StyleSheet.create({
   badgeCategory: {
     fontSize: 12,
     color: '#666',
+  },
+  emptyText: {
+    width: '100%',
+    textAlign: 'center',
+    color: '#666',
+    padding: 20,
   },
 }); 

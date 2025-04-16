@@ -8,6 +8,22 @@ interface ProgressBarsProps {
 }
 
 export const ProgressBars: React.FC<ProgressBarsProps> = ({ profile }) => {
+  // Vérifier si les données de progression sont disponibles et fournir des valeurs par défaut si nécessaire
+  const getProgressData = (category: 'bourse' | 'crypto') => {
+    // Vérifier si progress existe
+    if (!profile.progress) {
+      return { percentage: 0, completedCourses: 0, totalCourses: 0 };
+    }
+    
+    // Vérifier si la catégorie existe
+    if (!profile.progress[category]) {
+      return { percentage: 0, completedCourses: 0, totalCourses: 0 };
+    }
+    
+    const { percentage = 0, completedCourses = 0, totalCourses = 0 } = profile.progress[category];
+    return { percentage, completedCourses, totalCourses };
+  };
+
   const renderProgressBar = (
     category: 'bourse' | 'crypto',
     percentage: number,
@@ -46,20 +62,24 @@ export const ProgressBars: React.FC<ProgressBarsProps> = ({ profile }) => {
     );
   };
 
+  // Récupérer les données de progression avec des valeurs par défaut
+  const bourseData = getProgressData('bourse');
+  const cryptoData = getProgressData('crypto');
+
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Progression</Text>
       {renderProgressBar(
         'bourse',
-        profile.progress.bourse.percentage,
-        profile.progress.bourse.completedCourses,
-        profile.progress.bourse.totalCourses
+        bourseData.percentage,
+        bourseData.completedCourses,
+        bourseData.totalCourses
       )}
       {renderProgressBar(
         'crypto',
-        profile.progress.crypto.percentage,
-        profile.progress.crypto.completedCourses,
-        profile.progress.crypto.totalCourses
+        cryptoData.percentage,
+        cryptoData.completedCourses,
+        cryptoData.totalCourses
       )}
     </View>
   );

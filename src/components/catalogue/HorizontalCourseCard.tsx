@@ -2,20 +2,22 @@ import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, Image, TouchableOpacity, Dimensions } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Parcours } from '../../types/firebase';
-import { useRouter } from 'expo-router';
 
-interface CourseCardProps {
+interface HorizontalCourseCardProps {
   parcours: Parcours;
   isLocked?: boolean;
-  onPress?: () => void;
+  onPress: () => void;
 }
 
 const { width } = Dimensions.get('window');
-const CARD_WIDTH = width / 2 - 24; // 2 colonnes avec padding
+const CARD_WIDTH = 160;
+const CARD_HEIGHT = 220;
 
-const CourseCard: React.FC<CourseCardProps> = ({ parcours, isLocked = false, onPress }) => {
-  const router = useRouter();
-
+const HorizontalCourseCard: React.FC<HorizontalCourseCardProps> = ({ 
+  parcours, 
+  isLocked = false, 
+  onPress 
+}) => {
   const themeColor = useMemo(() => {
     return parcours.theme === 'bourse' ? '#059212' : '#9BEC00';
   }, [parcours.theme]);
@@ -35,7 +37,7 @@ const CourseCard: React.FC<CourseCardProps> = ({ parcours, isLocked = false, onP
 
   // Obtenir le nombre de vidéos
   const videosCount = useMemo(() => {
-    // Utiliser videoCount s'il existe
+    // Utiliser videoCount s'il existe, sinon compter les vidéos
     if (parcours.videoCount !== undefined) {
       return parcours.videoCount;
     }
@@ -52,21 +54,11 @@ const CourseCard: React.FC<CourseCardProps> = ({ parcours, isLocked = false, onP
     return parcours.videos.length;
   }, [parcours]);
 
-  const handlePress = () => {
-    if (isLocked) return;
-    
-    if (onPress) {
-      onPress();
-    } else {
-      router.push(`/course/${parcours.id}`);
-    }
-  };
-
   return (
     <TouchableOpacity 
       style={styles.container}
-      onPress={handlePress}
-      activeOpacity={0.8}
+      onPress={onPress}
+      activeOpacity={0.7}
     >
       <View style={styles.imageContainer}>
         <Image
@@ -74,9 +66,18 @@ const CourseCard: React.FC<CourseCardProps> = ({ parcours, isLocked = false, onP
           style={styles.image}
           resizeMode="cover"
         />
+        
+        {/* Indicateur de thème */}
+        <View 
+          style={[
+            styles.themeIndicator, 
+            { backgroundColor: themeColor }
+          ]}
+        />
+        
         {isLocked && (
           <View style={styles.lockedOverlay}>
-            <Ionicons name="lock-closed" size={24} color="#FFF" />
+            <Ionicons name="lock-closed" size={20} color="#FFF" />
           </View>
         )}
       </View>
@@ -86,21 +87,15 @@ const CourseCard: React.FC<CourseCardProps> = ({ parcours, isLocked = false, onP
           {parcours.titre || parcours.title}
         </Text>
         
-        <View style={styles.infoContainer}>
-          <View style={[styles.themeIndicator, { backgroundColor: themeColor }]}>
-            <Text style={styles.themeText}>
-              {parcours.theme === 'bourse' ? 'Bourse' : 'Crypto'}
-            </Text>
-          </View>
-          
+        <View style={styles.metaContainer}>
           <Text style={styles.levelText}>
             {levelLabel}
           </Text>
+          
+          <Text style={styles.videosCount}>
+            {videosCount} vidéo{videosCount > 1 ? 's' : ''}
+          </Text>
         </View>
-        
-        <Text style={styles.videosCount}>
-          {videosCount} vidéo{videosCount > 1 ? 's' : ''}
-        </Text>
       </View>
     </TouchableOpacity>
   );
@@ -109,23 +104,31 @@ const CourseCard: React.FC<CourseCardProps> = ({ parcours, isLocked = false, onP
 const styles = StyleSheet.create({
   container: {
     width: CARD_WIDTH,
+    height: CARD_HEIGHT,
+    marginHorizontal: 8,
     backgroundColor: '#1A1A1A',
     borderRadius: 12,
-    marginBottom: 16,
     overflow: 'hidden',
-    elevation: 2,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
+    shadowOpacity: 0.3,
     shadowRadius: 4,
+    elevation: 4,
   },
   imageContainer: {
     width: '100%',
-    height: 120,
+    height: 160,
     position: 'relative',
   },
   image: {
     width: '100%',
+    height: '100%',
+  },
+  themeIndicator: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    width: 4,
     height: '100%',
   },
   lockedOverlay: {
@@ -136,28 +139,19 @@ const styles = StyleSheet.create({
   },
   contentContainer: {
     padding: 12,
+    flex: 1,
+    justifyContent: 'space-between',
   },
   title: {
     fontFamily: 'Arboria-Bold',
-    fontSize: 16,
+    fontSize: 14,
     color: '#FFF',
     marginBottom: 8,
   },
-  infoContainer: {
+  metaContainer: {
     flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 4,
-  },
-  themeIndicator: {
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 4,
-    marginRight: 8,
-  },
-  themeText: {
-    fontFamily: 'Arboria-Book',
-    fontSize: 12,
-    color: '#000',
+    justifyContent: 'space-between',
+    alignItems: 'flex-end',
   },
   levelText: {
     fontFamily: 'Arboria-Book',
@@ -168,8 +162,7 @@ const styles = StyleSheet.create({
     fontFamily: 'Arboria-Book',
     fontSize: 12,
     color: '#999',
-    marginTop: 4,
   },
 });
 
-export default CourseCard; 
+export default HorizontalCourseCard; 

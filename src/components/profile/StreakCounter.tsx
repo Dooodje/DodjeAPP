@@ -8,15 +8,40 @@ interface StreakCounterProps {
 }
 
 export const StreakCounter: React.FC<StreakCounterProps> = ({ profile }) => {
+  // Formater la date de dernière connexion de façon sécurisée
+  const formatLastLoginDate = () => {
+    // Vérifier si lastLoginDate existe
+    if (!profile.lastLoginDate) {
+      return 'Non disponible';
+    }
+    
+    // Si c'est une chaîne de caractères, la convertir en Date
+    let dateObj = profile.lastLoginDate;
+    if (typeof dateObj === 'string') {
+      dateObj = new Date(dateObj);
+    }
+    
+    // Vérifier si c'est un objet Date valide
+    if (dateObj instanceof Date && !isNaN(dateObj.getTime())) {
+      try {
+        return dateObj.toLocaleDateString();
+      } catch (error) {
+        return dateObj.toString().split('T')[0]; // Fallback si toLocaleDateString échoue
+      }
+    }
+    
+    return 'Date invalide';
+  };
+
   return (
     <View style={styles.container}>
       <View style={styles.streakContainer}>
         <MaterialCommunityIcons name="fire" size={24} color="#FF6B00" />
-        <Text style={styles.streakText}>{profile.streak}</Text>
+        <Text style={styles.streakText}>{profile.streak || 0}</Text>
         <Text style={styles.streakLabel}>jours</Text>
       </View>
       <Text style={styles.lastLogin}>
-        Dernière connexion : {profile.lastLoginDate.toLocaleDateString()}
+        Dernière connexion : {formatLastLoginDate()}
       </Text>
     </View>
   );
