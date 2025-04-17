@@ -18,7 +18,7 @@ const SearchBar: React.FC<SearchBarProps> = ({
   return (
     <View style={styles.container}>
       <View style={styles.searchContainer}>
-        <Ionicons name="search" size={20} color="#999" style={styles.searchIcon} />
+        <Ionicons name="search" size={18} color="#999" style={styles.searchIcon} />
         <TextInput
           style={styles.input}
           value={value}
@@ -29,7 +29,7 @@ const SearchBar: React.FC<SearchBarProps> = ({
           autoCorrect={false}
         />
         {value.length > 0 && (
-          <TouchableOpacity onPress={onClear} style={styles.clearButton}>
+          <TouchableOpacity onPress={onClear} style={styles.clearButton} hitSlop={{ top: 10, right: 10, bottom: 10, left: 10 }}>
             <Ionicons name="close-circle" size={18} color="#999" />
           </TouchableOpacity>
         )}
@@ -41,14 +41,13 @@ const SearchBar: React.FC<SearchBarProps> = ({
 const styles = StyleSheet.create({
   container: {
     width: '100%',
-    padding: 10,
   },
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#1A1A1A',
-    borderRadius: 8,
-    paddingHorizontal: 10,
+    backgroundColor: '#222',
+    borderRadius: 25,
+    paddingHorizontal: 15,
     height: 40,
   },
   searchIcon: {
@@ -57,8 +56,9 @@ const styles = StyleSheet.create({
   input: {
     flex: 1,
     color: '#FFF',
-    fontSize: 16,
+    fontSize: 14,
     fontFamily: 'Arboria-Book',
+    textAlign: 'left',
   },
   clearButton: {
     padding: 5,

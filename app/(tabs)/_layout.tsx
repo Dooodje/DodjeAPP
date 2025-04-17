@@ -73,7 +73,7 @@ export default function TabLayout() {
       <Tabs.Screen
         name="dodjeplus"
         options={{
-          title: 'DodjePlus',
+          title: 'DodjeLabs',
           tabBarIcon: ({ color, size }) => (
             <MaterialCommunityIcons name="plus-circle" color={color} size={26} />
           ),

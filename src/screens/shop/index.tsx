@@ -3,7 +3,6 @@ import { View, StyleSheet, ScrollView, TouchableOpacity, Text } from 'react-nati
 import { useRouter } from 'expo-router';
 import { useShop } from '../../hooks/useShop';
 import { useAuth } from '../../hooks/useAuth';
-import { ShopHeader } from '../../components/shop/ShopHeader';
 import { DodjiBalance } from '../../components/shop/DodjiBalance';
 import { TokenPack } from '../../components/shop/TokenPack';
 import { DodjeOneCard } from '../../components/shop/DodjeOneCard';
@@ -76,8 +75,6 @@ export default function ShopScreen() {
 
   return (
     <View style={styles.container}>
-      <ShopHeader onBack={() => router.back()} />
-
       <ScrollView style={styles.content}>
         {isAuthenticated ? (
           <DodjiBalance
@@ -152,6 +149,7 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
+    marginTop: 70,
   },
   section: {
     padding: 16,

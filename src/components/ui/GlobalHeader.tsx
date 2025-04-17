@@ -90,14 +90,14 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
 
 const styles = StyleSheet.create({
   container: {
-    paddingTop: 50,
-    paddingBottom: 16,
-    width: '100%',
-    zIndex: 10,
     position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
+    paddingTop: 15,
+    paddingBottom: 16,
+    width: '100%',
+    zIndex: 1000,
   },
   topRow: {
     flexDirection: 'row',

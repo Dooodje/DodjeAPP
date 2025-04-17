@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, StyleSheet, ScrollView, SafeAreaView, StatusBar } from 'react-native';
+import { View, StyleSheet, ScrollView, SafeAreaView, StatusBar, Text, TouchableOpacity, ImageBackground } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import SearchBar from '../../src/components/catalogue/SearchBar';
@@ -9,11 +9,14 @@ import CatalogueSection from '../../src/components/catalogue/CatalogueSection';
 import CourseGrid from '../../src/components/catalogue/CourseGrid';
 import { GlobalHeader } from '../../src/components/ui/GlobalHeader';
 import { useCatalogue } from '../../src/hooks/useCatalogue';
+import { Ionicons } from '@expo/vector-icons';
+import { useAuth } from '../../src/hooks/useAuth';
 
 export default function CataloguePage() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const [refreshing, setRefreshing] = useState(false);
+  const { user } = useAuth();
   
   const {
     parcours,
@@ -44,128 +47,164 @@ export default function CataloguePage() {
     router.push(`/course/${parcoursId}`);
   };
 
-  // Fonction pour afficher le contenu principal (Netflix-style)
-  const renderNetflixContent = () => {
-    if (loading && !refreshing) {
-      return null; // Laissons la grille gérer l'état de chargement
-    }
+  const handleBackPress = () => {
+    router.back();
+  };
 
-    return (
-      <ScrollView 
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.scrollContent}
-      >
-        {/* Parcours en vedette (hero banner) */}
-        {organizedData.featured && (
-          <FeaturedBanner 
-            parcours={organizedData.featured} 
-            onPress={handleCoursePress} 
-          />
-        )}
-        
-        {/* Parcours Récents */}
-        {organizedData.recent.length > 0 && (
-          <CatalogueSection
-            title="Ajoutés récemment"
-            parcours={organizedData.recent}
-            onCoursePress={handleCoursePress}
-          />
-        )}
-        
-        {/* Thème Bourse */}
-        {organizedData.byTheme.bourse.length > 0 && (
-          <CatalogueSection
-            title="Parcours Bourse"
-            parcours={organizedData.byTheme.bourse}
-            onCoursePress={handleCoursePress}
-          />
-        )}
-        
-        {/* Thème Crypto */}
-        {organizedData.byTheme.crypto.length > 0 && (
-          <CatalogueSection
-            title="Parcours Crypto"
-            parcours={organizedData.byTheme.crypto}
-            onCoursePress={handleCoursePress}
-          />
-        )}
-        
-        {/* Parcours Débutant */}
-        {organizedData.byLevel.debutant.length > 0 && (
-          <CatalogueSection
-            title="Pour les débutants"
-            parcours={organizedData.byLevel.debutant}
-            onCoursePress={handleCoursePress}
-          />
-        )}
-
-        {/* Parcours Avancé */}
-        {organizedData.byLevel.avance.length > 0 && (
-          <CatalogueSection
-            title="Niveau avancé"
-            parcours={organizedData.byLevel.avance}
-            onCoursePress={handleCoursePress}
-          />
-        )}
-        
-        {/* Parcours Expert */}
-        {organizedData.byLevel.expert.length > 0 && (
-          <CatalogueSection
-            title="Pour les experts"
-            parcours={organizedData.byLevel.expert}
-            onCoursePress={handleCoursePress}
-          />
-        )}
-        
-        {/* Ajouter un espace vide en bas pour assurer que la dernière section est entièrement visible */}
-        <View style={styles.bottomSpace} />
-      </ScrollView>
-    );
+  // Helper function to get video count text
+  const getVideoCountText = (count?: number) => {
+    if (count === undefined || count === null) return "0 vidéo";
+    return count === 1 ? "1 vidéo" : `${count} vidéos`;
   };
 
   return (
     <View style={styles.container}>
-      <GlobalHeader
-        title="CATALOGUE"
-        showBackButton={false}
-      />
       <SafeAreaView style={styles.container}>
         <StatusBar barStyle="light-content" backgroundColor="#0A0400" />
         
         <View style={[styles.content, { paddingTop: insets.top > 0 ? 0 : 10 }]}>
-          {/* Barre de recherche */}
-          <SearchBar
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-            onClear={handleClearSearch}
+          {/* Header avec GlobalHeader */}
+          <GlobalHeader
+            title="Catalogue"
+            points={user?.dodji || 0}
+            showBackButton={false}
           />
           
-          {/* Filtres (visibles uniquement en mode recherche) */}
-          {isSearchActive && (
-            <FilterBar
-              currentTheme={themeFilter}
-              currentLevel={levelFilter}
-              onThemeChange={setThemeFilter}
-              onLevelChange={setLevelFilter}
+          {/* Search bar */}
+          <View style={styles.searchBarContainer}>
+            <SearchBar
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              onClear={handleClearSearch}
+              placeholder="Tapez votre recherche..."
             />
-          )}
-          
-          {/* Contenu principal */}
-          <View style={styles.mainContent}>
-            {isSearchActive ? (
-              // Affichage des résultats de recherche en grille
-              <CourseGrid
-                parcours={parcours}
-                loading={loading}
-                error={error}
-                onRefresh={handleRefresh}
-                refreshing={refreshing}
-              />
-            ) : (
-              // Affichage Netflix-style
-              renderNetflixContent()
-            )}
           </View>
+          
+          {/* Theme Filter Buttons */}
+          <View style={styles.themeFilterContainer}>
+            <TouchableOpacity 
+              style={[
+                styles.themeButton, 
+                themeFilter === 'bourse' && styles.activeThemeButton
+              ]}
+              onPress={() => setThemeFilter('bourse')}
+            >
+              <Text style={styles.themeButtonText}>Bourse</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={[
+                styles.themeButton, 
+                themeFilter === 'crypto' && styles.activeThemeButton
+              ]}
+              onPress={() => setThemeFilter('crypto')}
+            >
+              <Text style={styles.themeButtonText}>Crypto</Text>
+            </TouchableOpacity>
+          </View>
+          
+          {isSearchActive ? (
+            // Search results grid
+            <CourseGrid
+              parcours={parcours}
+              loading={loading}
+              error={error}
+              onRefresh={handleRefresh}
+              refreshing={refreshing}
+            />
+          ) : (
+            // Main content
+            <ScrollView showsVerticalScrollIndicator={false} style={styles.scrollView}>
+              {/* Featured Banner */}
+              {organizedData.featured && (
+                <View style={styles.featuredContainer}>
+                  <FeaturedBanner 
+                    parcours={organizedData.featured} 
+                    onPress={handleCoursePress} 
+                  />
+                  <TouchableOpacity 
+                    style={styles.lectureButton} 
+                    onPress={() => organizedData.featured && handleCoursePress(organizedData.featured.id)}
+                  >
+                    <Text style={styles.lectureButtonText}>Lecture</Text>
+                    <Ionicons name="play" size={16} color="#000" />
+                  </TouchableOpacity>
+                </View>
+              )}
+              
+              <View style={styles.divider} />
+              
+              {/* "Ça peut te plaire" section */}
+              <View style={styles.sectionContainer}>
+                <Text style={styles.sectionTitle}>Ça peut te plaire</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.horizontalScroll}>
+                  {organizedData.recent.slice(0, 5).map((parcours) => (
+                    <TouchableOpacity 
+                      key={parcours.id} 
+                      style={styles.courseCard}
+                      onPress={() => handleCoursePress(parcours.id)}
+                    >
+                      <ImageBackground 
+                        source={{ uri: parcours.thumbnail || parcours.imageUrl }} 
+                        style={styles.cardBackground}
+                        resizeMode="cover"
+                      >
+                        <View style={styles.courseCardContent}>
+                          <Text style={styles.courseTitle}>{parcours.titre || parcours.title || "Titre du parcours"}</Text>
+                          <View style={styles.courseInfoRow}>
+                            <Text style={styles.courseLevel}>
+                              {parcours.level === 'debutant' 
+                                ? 'Niveau débutant' 
+                                : parcours.level === 'avance'
+                                  ? 'Niveau avancé'
+                                  : 'Niveau expert'}
+                            </Text>
+                            <Text style={styles.videoCount}>{getVideoCountText(parcours.videoCount)}</Text>
+                          </View>
+                        </View>
+                      </ImageBackground>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </View>
+              
+              {/* "Les indispensables" section */}
+              <View style={styles.sectionContainer}>
+                <Text style={styles.sectionTitle}>Les indispensables</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.horizontalScroll}>
+                  {organizedData.byTheme.bourse.slice(0, 5).map((parcours) => (
+                    <TouchableOpacity 
+                      key={parcours.id} 
+                      style={styles.courseCard}
+                      onPress={() => handleCoursePress(parcours.id)}
+                    >
+                      <ImageBackground 
+                        source={{ uri: parcours.thumbnail || parcours.imageUrl }} 
+                        style={styles.cardBackground}
+                        resizeMode="cover"
+                      >
+                        <View style={styles.courseCardContent}>
+                          <Text style={styles.courseTitle}>{parcours.titre || parcours.title || "Titre du parcours"}</Text>
+                          <View style={styles.courseInfoRow}>
+                            <Text style={styles.courseLevel}>
+                              Niveau {parcours.level === 'debutant' 
+                                ? 'débutant' 
+                                : parcours.level === 'avance'
+                                  ? 'avancé'
+                                  : 'expert'}
+                            </Text>
+                            <Text style={styles.videoCount}>{getVideoCountText(parcours.videoCount)}</Text>
+                          </View>
+                        </View>
+                      </ImageBackground>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </View>
+              
+              <View style={styles.bottomSpace} />
+            </ScrollView>
+          )}
         </View>
       </SafeAreaView>
     </View>
@@ -180,13 +219,123 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
   },
-  mainContent: {
+  headerContainer: {
+    width: '100%',
+  },
+  searchBarContainer: {
+    width: '100%',
+    paddingHorizontal: 16,
+    marginTop: 70,
+    marginBottom: 12,
+  },
+  themeFilterContainer: {
+    flexDirection: 'row',
+    paddingHorizontal: 16,
+    marginBottom: 20,
+  },
+  themeButton: {
+    backgroundColor: '#9BEC00',
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 20,
+    marginRight: 10,
+  },
+  activeThemeButton: {
+    backgroundColor: '#9BEC00',
+  },
+  themeButtonText: {
+    color: '#000',
+    fontFamily: 'Arboria-Medium',
+    fontSize: 16,
+  },
+  scrollView: {
     flex: 1,
   },
-  scrollContent: {
-    paddingBottom: 80,
+  featuredContainer: {
+    width: '100%',
+    height: 200,
+    marginBottom: 10,
+    backgroundColor: '#333', // Placeholder color
+    marginHorizontal: 16,
+    borderRadius: 8,
+    overflow: 'hidden',
+  },
+  lectureButton: {
+    position: 'absolute',
+    bottom: 20,
+    left: 20,
+    right: 20,
+    backgroundColor: '#9BEC00',
+    borderRadius: 8,
+    paddingVertical: 12,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  lectureButtonText: {
+    color: '#000',
+    fontFamily: 'Arboria-Bold',
+    fontSize: 16,
+    marginRight: 8,
+  },
+  divider: {
+    height: 1,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    marginHorizontal: 16,
+    marginVertical: 20,
+  },
+  sectionContainer: {
+    marginBottom: 20,
+  },
+  sectionTitle: {
+    color: '#FFF',
+    fontFamily: 'Arboria-Bold',
+    fontSize: 20,
+    marginLeft: 16,
+    marginBottom: 16,
+  },
+  horizontalScroll: {
+    paddingLeft: 16,
+    paddingRight: 8,
+  },
+  courseCard: {
+    width: 150,
+    height: 100,
+    marginRight: 10,
+    borderRadius: 8,
+    overflow: 'hidden',
+  },
+  cardBackground: {
+    width: '100%',
+    height: '100%',
+    justifyContent: 'flex-end',
+  },
+  courseCardContent: {
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    padding: 10,
+  },
+  courseTitle: {
+    color: '#FFF',
+    fontFamily: 'Arboria-Medium',
+    fontSize: 14,
+    marginBottom: 2,
+  },
+  courseLevel: {
+    color: '#AAA',
+    fontFamily: 'Arboria-Book',
+    fontSize: 12,
   },
   bottomSpace: {
-    height: 40,
+    height: 80,
+  },
+  courseInfoRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  videoCount: {
+    color: '#9BEC00',
+    fontFamily: 'Arboria-Book',
+    fontSize: 11,
   },
 }); 

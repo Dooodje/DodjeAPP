@@ -1,7 +1,5 @@
 import React from 'react';
-import { View, StyleSheet } from 'react-native';
-import { useRouter } from 'expo-router';
-import { GlobalHeader } from '../../src/components/ui/GlobalHeader';
+import { View, StyleSheet, SafeAreaView } from 'react-native';
 import Profile from '../../src/screens/profile/index';
 
 /**
@@ -9,16 +7,10 @@ import Profile from '../../src/screens/profile/index';
  * Affiche les informations de l'utilisateur et ses statistiques
  */
 export default function ProfilePage() {
-  const router = useRouter();
-
   return (
-    <View style={styles.container}>
-      <GlobalHeader
-        title="PROFIL"
-        showBackButton={false}
-      />
+    <SafeAreaView style={styles.container}>
       <Profile />
-    </View>
+    </SafeAreaView>
   );
 }
 
@@ -26,5 +18,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#0A0400',
+    paddingTop: 20,
   },
 }); 

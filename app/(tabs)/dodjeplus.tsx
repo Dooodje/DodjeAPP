@@ -2,12 +2,15 @@ import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, SafeAreaView, ScrollView } from 'react-native';
 import { useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { GlobalHeader } from '../../src/components/ui/GlobalHeader';
+import { useAuth } from '../../src/hooks/useAuth';
 
 /**
- * Écran DodjePlus - Point d'entrée vers les fonctionnalités avancées
+ * Écran DodjeLabs - Point d'entrée vers les fonctionnalités avancées
  */
-export default function DodjePlusScreen() {
+export default function DodjeLabsScreen() {
   const router = useRouter();
+  const { user } = useAuth();
   
   const navigateToDodjeLabScreen = () => {
     router.push("/(dodjelab)");
@@ -15,10 +18,10 @@ export default function DodjePlusScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>DodjePlus</Text>
-        <Text style={styles.subtitle}>Fonctionnalités supplémentaires à venir</Text>
-      </View>
+      <GlobalHeader 
+        title="Dodje Lab"
+        points={user?.dodji || 0}
+      />
       
       <ScrollView style={styles.content}>
         <Text style={styles.description}>
@@ -58,25 +61,10 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#0A0400',
   },
-  header: {
-    padding: 20,
-    paddingTop: 40,
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
-    marginBottom: 12,
-  },
-  subtitle: {
-    fontSize: 18,
-    fontWeight: '500',
-    color: '#06D001',
-    marginBottom: 16,
-  },
   content: {
     flex: 1,
     padding: 20,
+    marginTop: 80, // Ajouté pour laisser de l'espace pour le header
   },
   description: {
     fontSize: 16,
