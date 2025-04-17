@@ -1,5 +1,5 @@
 import { doc, getDoc, setDoc, updateDoc, Timestamp } from 'firebase/firestore';
-import { db } from 'src/config/firebase';
+import { db } from '../config/firebase';
 import { Platform } from 'react-native';
 import * as InAppPurchases from 'react-native-iap';
 

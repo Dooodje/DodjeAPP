@@ -1,11 +1,11 @@
 import React from 'react';
 import { View, StyleSheet, ActivityIndicator, Text, StatusBar } from 'react-native';
 import { useRouter } from 'expo-router';
-import { DodjeOneScreen } from '../../src/screens/dodjeone';
-import { useAuth } from '../../src/hooks/useAuth';
-import { AppRoute } from '../../src/types/routes';
+import { DodjeOneScreen } from '../src/screens/dodjeone';
+import { useAuth } from '../src/hooks/useAuth';
+import { AppRoute } from '../src/types/routes';
 
-export default function DodjeOneIndex() {
+export default function DodjeOnePage() {
   const router = useRouter();
   const { isAuthenticated, isLoading } = useAuth();
 

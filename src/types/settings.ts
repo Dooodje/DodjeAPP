@@ -1,48 +1,69 @@
 // Types pour les préférences de langue
 export type LanguagePreferences = 'fr' | 'en';
 
+// Types pour les préférences de langue étendues
+export interface LanguageSettings {
+  interface: LanguagePreferences;
+  videos: LanguagePreferences;
+  subtitles: LanguagePreferences;
+}
+
+// Types pour les préférences de contenu
+export interface ContentPreferences {
+  subtitlesEnabled: boolean;
+  defaultTheme: 'bourse' | 'crypto';
+}
+
 // Types pour les notifications
 export interface NotificationPreferences {
-  push: boolean;
-  email: boolean;
+  newContent: boolean;
+  news: boolean;
+  reminders: boolean;
 }
 
 // Types pour la confidentialité
 export interface PrivacyPreferences {
-  publicProfile: boolean;
-  showStats: boolean;
+  tracking: boolean;
 }
 
-// Types pour les téléchargements
-export interface DownloadPreferences {
-  autoDownload: boolean;
-  storageUsed: number;
-  storageLimit: number;
+// Types pour les jetons Dodji
+export interface TokenData {
+  id: string;
+  date: Date;
+  amount: number;
+  type: 'purchase' | 'gain' | 'expense';
+  description: string;
 }
 
-// Types pour les préférences de lecture
-export interface PlaybackPreferences {
-  autoPlay: boolean;
-  videoQuality: 'auto' | 'low' | 'medium' | 'high';
+export interface TokenPreferences {
+  balance: number;
+  history: TokenData[];
 }
 
-// Types pour l'abonnement
+// Types pour l'abonnement étendu
 export interface SubscriptionPreferences {
   status: 'free' | 'premium';
   plan: 'monthly' | 'yearly' | null;
   nextBillingDate: Date | null;
+  autoRenew: boolean;
+}
+
+// Types pour les informations utilisateur
+export interface UserInfoPreferences {
+  email: string;
+  username: string;
+  // Le mot de passe n'est pas stocké mais on a une action pour le modifier
 }
 
 // Type principal pour les paramètres
 export interface UserSettings {
-  language: LanguagePreferences;
+  userInfo: UserInfoPreferences;
+  language: LanguageSettings;
+  content: ContentPreferences;
   notifications: NotificationPreferences;
   privacy: PrivacyPreferences;
-  downloads: DownloadPreferences;
-  playback: PlaybackPreferences;
   subscription: SubscriptionPreferences;
-  theme: 'dark' | 'light' | 'system';
-  dataCollection: boolean;
+  tokens: TokenPreferences;
 }
 
 // Types pour les actions Redux
@@ -74,26 +95,26 @@ export type SettingsAction =
 
 export interface SubscriptionCardProps {
   settings: UserSettings;
-  onSubscribe: () => Promise<void>;
-  onManageSubscription: () => Promise<void>;
+  onUpgradePress: () => void;
+  onManagePress: () => void;
 }
 
 export interface SettingsItemProps {
   title: string;
   description: string;
   icon: string;
-  value?: boolean | string;
-  onValueChange?: (value: boolean | string) => Promise<void>;
-  onPress?: () => Promise<void>;
+  value?: boolean | string | number;
+  onValueChange?: (value: boolean | string | number) => void;
+  onPress?: () => void;
   showSwitch?: boolean;
   showChevron?: boolean;
   options?: Array<{ value: string; label: string }>;
-  onSelect?: (value: string) => Promise<void>;
+  onSelect?: (value: string) => void;
 }
 
 export interface SettingsSectionProps {
   title: string;
-  icon: React.ReactNode;
+  icon: string;
   children: React.ReactNode;
 }
 
@@ -103,12 +124,19 @@ export interface SettingsSelectProps {
   icon: string;
   value: string;
   options: Array<{ value: string; label: string }>;
-  onSelect: (value: string) => Promise<void>;
+  onSelect: (value: string) => void;
 }
 
 export interface SettingsContextType {
   settings: UserSettings;
   updateSettings: (newSettings: Partial<UserSettings>) => Promise<void>;
+  updateLanguage: (language: Partial<LanguageSettings>) => Promise<void>;
+  updateContent: (content: Partial<ContentPreferences>) => Promise<void>;
+  updateNotifications: (notifications: Partial<NotificationPreferences>) => Promise<void>;
+  updatePrivacy: (privacy: Partial<PrivacyPreferences>) => Promise<void>;
+  updateSubscription: (subscription: Partial<SubscriptionPreferences>) => Promise<void>;
+  updateUserInfo: (userInfo: Partial<UserInfoPreferences>) => Promise<void>;
+  resetPassword: () => Promise<void>;
   isLoading: boolean;
   error: string | null;
 } 

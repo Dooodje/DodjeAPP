@@ -2,7 +2,6 @@ import React from 'react';
 import { TouchableOpacity, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { AppRoute } from '../../types/routes';
 import { MaterialCommunityIconName } from '../../types/icons';
 
 interface SettingsButtonProps {
@@ -24,7 +23,8 @@ export function SettingsButton({
     if (onPress) {
       onPress();
     } else {
-      router.push('/(settings)' as AppRoute);
+      // Utiliser le chemin sans parenthèses pour la navigation
+      router.push("/settings");
     }
   };
 

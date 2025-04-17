@@ -5,12 +5,16 @@ import { PersistGate } from 'redux-persist/integration/react';
 import { store, persistor } from '../src/store';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
-import { View, Text, ActivityIndicator, StyleSheet, TouchableOpacity, Platform } from 'react-native';
+import { View, Text, ActivityIndicator, StyleSheet, TouchableOpacity, Platform, LogBox } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { iapService } from '../src/services/iap';
-import Reanimated from 'react-native-reanimated';
 
-const AnimatedView = Reanimated.createAnimatedComponent(View);
+// Ignorer des avertissements spécifiques pour éviter les erreurs dans la console
+LogBox.ignoreLogs([
+  'listeners.focus[0] is not a function',
+  'Non-serializable values were found in the navigation state',
+  'findDOMNode is deprecated in StrictMode',
+]);
 
 /**
  * Layout racine de l'application
@@ -62,14 +66,32 @@ export default function RootLayout() {
       window.addEventListener('error', errorHandler);
     }
 
-    // Attacher un gestionnaire d'erreurs globales pour React Native
+    // Remplacer la console d'origine pour intercepter les erreurs
     const originalConsoleError = console.error;
     console.error = (...args) => {
-      // Vérifier si l'erreur concerne 'indexOf' sur un objet undefined
-      const errorString = args.join(' ');
-      if (errorString.includes('indexOf') && errorString.includes('undefined')) {
+      // Ignorer les avertissements sur findDOMNode qui est obsolète
+      const errorMessage = args.join(' ');
+      
+      // Liste des erreurs à ignorer
+      const ignoredErrors = [
+        'findDOMNode', 
+        'deprecated',
+        'listeners.focus[0] is not a function',
+        'Non-serializable values were found in the navigation state'
+      ];
+      
+      // Vérifier si l'erreur fait partie des erreurs à ignorer
+      if (ignoredErrors.some(error => errorMessage.includes(error))) {
+        // Ne pas afficher ces erreurs
+        return;
+      }
+      
+      // Détecter et gérer spécifiquement les erreurs IndexOf
+      if (errorMessage.includes('indexOf') && errorMessage.includes('undefined')) {
         setError(new Error('Erreur d\'accès à indexOf sur un objet undefined'));
       }
+      
+      // Appeler la console d'origine pour les autres erreurs
       originalConsoleError(...args);
     };
 
@@ -125,7 +147,7 @@ export default function RootLayout() {
   );
 
   return (
-    <AnimatedView style={{ flex: 1 }}>
+    <View style={{ flex: 1 }}>
       <Provider store={store}>
         <PersistGate loading={renderLoading()} persistor={persistor}>
           <SafeAreaProvider>
@@ -134,7 +156,7 @@ export default function RootLayout() {
           </SafeAreaProvider>
         </PersistGate>
       </Provider>
-    </AnimatedView>
+    </View>
   );
 }
 
@@ -147,6 +169,31 @@ function RootLayoutNav() {
   
   // Si le chemin commence par /course, /video ou /quiz, ne pas afficher le header du Stack parent
   const isNoHeaderRoute = pathname.startsWith('/course') || pathname.startsWith('/video') || pathname.startsWith('/quiz');
+  
+  // Désactiver les erreurs liées à la navigation
+  useEffect(() => {
+    // Patch pour éviter l'erreur "listeners.focus[0] is not a function"
+    const patchNavigation = () => {
+      // Utiliser any pour le global.navigation qui n'est pas typé par défaut
+      // @ts-ignore - Ignorer l'erreur TypeScript car nous accédons à des propriétés internes de navigation
+      if (typeof global !== 'undefined' && global.navigation) {
+        // @ts-ignore - Ignorer l'erreur car nous modifions directement une API interne
+        const original = global.navigation.addListener;
+        // @ts-ignore - Ignorer les erreurs de type car nous patrons une API interne
+        global.navigation.addListener = function(event: string, callback: Function) {
+          // @ts-ignore - Ignorer l'erreur car nous accédons à des propriétés privées
+          if (event === 'focus' && Array.isArray(this.listeners.focus)) {
+            // S'assurer que les listeners sont toujours des fonctions
+            // @ts-ignore - Ignorer l'erreur car nous filtrons des écouteurs internes
+            this.listeners.focus = this.listeners.focus.filter((listener: any) => typeof listener === 'function');
+          }
+          return original.call(this, event, callback);
+        };
+      }
+    };
+    
+    patchNavigation();
+  }, []);
   
   return (
     <Stack
@@ -200,7 +247,26 @@ function RootLayoutNav() {
         }}
       />
       <Stack.Screen
+        name="dodjeone"
+        options={{
+          headerShown: false,
+        }}
+      />
+      <Stack.Screen
         name="(dodjeone)"
+        options={{
+          headerShown: false,
+          presentation: 'modal',
+        }}
+      />
+      <Stack.Screen
+        name="(dodjelab)"
+        options={{
+          headerShown: false,
+        }}
+      />
+      <Stack.Screen
+        name="settings"
         options={{
           headerShown: false,
           presentation: 'modal',

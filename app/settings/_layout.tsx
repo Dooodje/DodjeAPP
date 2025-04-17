@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React from 'react';
 import { Stack, useRouter } from 'expo-router';
 import { useAuth } from '../../src/hooks/useAuth';
 import { View, ActivityIndicator } from 'react-native';
@@ -7,10 +7,10 @@ export default function SettingsLayout() {
   const { isAuthenticated, isLoading } = useAuth();
   const router = useRouter();
 
-  useEffect(() => {
+  // Rediriger vers la connexion si non authentifié
+  React.useEffect(() => {
     if (isLoading) return;
 
-    // Si l'utilisateur n'est pas authentifié, rediriger vers la page de connexion
     if (!isAuthenticated) {
       router.replace('/login');
     }
@@ -59,12 +59,6 @@ export default function SettingsLayout() {
         name="terms"
         options={{
           title: 'Conditions d\'utilisation',
-        }}
-      />
-      <Stack.Screen
-        name="subscription/index"
-        options={{
-          title: 'Abonnement',
         }}
       />
     </Stack>

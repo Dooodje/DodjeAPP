@@ -19,7 +19,14 @@ export function useDodjeOne() {
     try {
       setIsLoading(true);
       setError(null);
-      const userSubscription = await dodjeOneService.getSubscription(user!.uid);
+      
+      if (!user || !user.uid) {
+        console.log('Utilisateur non connecté ou uid manquant');
+        setSubscription(null);
+        return;
+      }
+      
+      const userSubscription = await dodjeOneService.getSubscription(user.uid);
       setSubscription(userSubscription);
     } catch (err) {
       const errorMessage = 'Erreur lors du chargement de l\'abonnement';

@@ -1,6 +1,6 @@
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut } from 'firebase/auth';
 import { doc, setDoc } from 'firebase/firestore';
-import { db } from 'src/config/firebase';
+import { db } from '../config/firebase';
 import { storageService } from './storage';
 
 export interface User {

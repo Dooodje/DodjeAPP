@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { MaterialIcons } from '@expo/vector-icons';
 import { UserSettings } from '../../types/settings';
 
 interface SubscriptionCardProps {
@@ -12,54 +12,65 @@ interface SubscriptionCardProps {
 export const SubscriptionCard: React.FC<SubscriptionCardProps> = ({
   settings,
   onUpgradePress,
-  onManagePress
+  onManagePress,
 }) => {
   const { subscription } = settings;
-  const isPremium = subscription.status === 'premium';
+  const isSubscribed = subscription.status === 'premium';
+  const isPremiumActive = isSubscribed && subscription.plan !== null;
 
   return (
     <View style={styles.container}>
+      {/* Header */}
       <View style={styles.header}>
-        <MaterialCommunityIcons
-          name="crown"
-          size={24}
-          color="#FFD700"
-        />
-        <Text style={styles.title}>
-          {isPremium ? 'Dodje One Premium' : 'Dodje One'}
-        </Text>
+        <MaterialIcons name="card-membership" size={24} color="#F3FF90" />
+        <Text style={styles.headerText}>Abonnement</Text>
       </View>
 
+      {/* Content */}
       <View style={styles.content}>
-        {isPremium ? (
+        <View style={styles.infoRow}>
+          <Text style={styles.label}>Plan actuel</Text>
+          <Text style={styles.value}>
+            {isSubscribed ? 'DodjeOne' : 'Gratuit'}
+          </Text>
+        </View>
+
+        {isPremiumActive && (
           <>
-            <Text style={styles.status}>
-              Abonnement {subscription.plan === 'monthly' ? 'mensuel' : 'annuel'}
-            </Text>
-            {subscription.nextBillingDate && (
-              <Text style={styles.nextBilling}>
-                Prochain paiement : {subscription.nextBillingDate.toLocaleDateString()}
+            <View style={styles.infoRow}>
+              <Text style={styles.label}>Type</Text>
+              <Text style={styles.value}>
+                {subscription.plan === 'monthly' ? 'Mensuel' : 'Annuel'}
               </Text>
-            )}
-            <TouchableOpacity
-              style={styles.manageButton}
-              onPress={onManagePress}
-            >
-              <Text style={styles.manageButtonText}>Gérer l'abonnement</Text>
-            </TouchableOpacity>
+            </View>
+
+            <View style={styles.infoRow}>
+              <Text style={styles.label}>Renouvellement</Text>
+              <Text style={styles.value}>
+                {subscription.nextBillingDate 
+                  ? new Date(subscription.nextBillingDate).toLocaleDateString('fr-FR') 
+                  : 'Non défini'}
+              </Text>
+            </View>
           </>
+        )}
+
+        {!isSubscribed ? (
+          <TouchableOpacity 
+            style={styles.upgradeButton} 
+            onPress={onUpgradePress}
+          >
+            <MaterialIcons name="star" size={18} color="#000" />
+            <Text style={styles.upgradeButtonText}>Passer à DodjeOne</Text>
+          </TouchableOpacity>
         ) : (
-          <>
-            <Text style={styles.description}>
-              Accédez à toutes les fonctionnalités premium
-            </Text>
-            <TouchableOpacity
-              style={styles.upgradeButton}
-              onPress={onUpgradePress}
-            >
-              <Text style={styles.upgradeButtonText}>Passer à Premium</Text>
-            </TouchableOpacity>
-          </>
+          <TouchableOpacity 
+            style={styles.manageButton} 
+            onPress={onManagePress}
+          >
+            <MaterialIcons name="settings" size={18} color="#FFF" />
+            <Text style={styles.manageButtonText}>Gérer mon abonnement</Text>
+          </TouchableOpacity>
         )}
       </View>
     </View>
@@ -68,61 +79,73 @@ export const SubscriptionCard: React.FC<SubscriptionCardProps> = ({
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: '#1a1a1a',
+    backgroundColor: '#1A1A1A',
     borderRadius: 12,
-    padding: 20,
-    marginBottom: 20,
+    marginVertical: 10,
+    overflow: 'hidden',
   },
   header: {
+    backgroundColor: '#222222',
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 16,
+    padding: 15,
   },
-  title: {
-    fontSize: 20,
+  headerText: {
+    color: '#FFFFFF',
+    fontSize: 18,
     fontWeight: 'bold',
-    color: '#fff',
-    marginLeft: 12,
+    marginLeft: 10,
   },
   content: {
+    padding: 15,
+  },
+  infoRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#333333',
   },
-  status: {
+  label: {
+    color: '#AAAAAA',
     fontSize: 16,
-    color: '#06D001',
-    marginBottom: 8,
   },
-  nextBilling: {
-    fontSize: 14,
-    color: '#666',
-    marginBottom: 16,
-  },
-  description: {
+  value: {
+    color: '#FFFFFF',
     fontSize: 16,
-    color: '#fff',
-    textAlign: 'center',
-    marginBottom: 16,
-  },
-  manageButton: {
-    backgroundColor: 'rgba(6, 210, 1, 0.1)',
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 20,
-  },
-  manageButtonText: {
-    color: '#06D001',
-    fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '500',
   },
   upgradeButton: {
-    backgroundColor: '#06D001',
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 20,
+    backgroundColor: '#F3FF90',
+    borderRadius: 8,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 12,
+    marginTop: 15,
   },
   upgradeButtonText: {
-    color: '#fff',
+    color: '#000000',
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: 'bold',
+    marginLeft: 8,
+  },
+  manageButton: {
+    backgroundColor: 'transparent',
+    borderWidth: 1,
+    borderColor: '#444444',
+    borderRadius: 8,
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 12,
+    marginTop: 15,
+  },
+  manageButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '500',
+    marginLeft: 8,
   },
 }); 

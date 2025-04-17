@@ -73,7 +73,7 @@ function Profile() {
   }
 
   const handleSettingsPress = () => {
-    router.push("/(settings)" as AppRoute);
+    router.push("/settings" as AppRoute);
   };
   
   const handleStartPress = () => {
@@ -95,7 +95,7 @@ function Profile() {
         </View>
         
         <TouchableOpacity style={styles.settingsButton} onPress={handleSettingsPress}>
-          <SettingsButton icon="cog" />
+          <SettingsButton icon="cog" onPress={handleSettingsPress} />
         </TouchableOpacity>
       </View>
       
