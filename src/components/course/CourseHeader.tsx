@@ -1,14 +1,17 @@
 import React from 'react';
 import { View, Text, StyleSheet, Image } from 'react-native';
 import { Course } from '../../types/course';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 interface CourseHeaderProps {
   course: Course;
 }
 
 export const CourseHeader: React.FC<CourseHeaderProps> = ({ course }) => {
+  const insets = useSafeAreaInsets();
+  
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { paddingTop: insets.top }]}>
       {/* Image de couverture */}
       <Image
         source={{ uri: course.thumbnailUrl }}

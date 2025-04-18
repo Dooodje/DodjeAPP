@@ -44,19 +44,20 @@ const VideoButton: React.FC<VideoButtonProps> = ({
       console.warn(`Dimensions d'image invalides pour le bouton vidéo: ${imageWidth}x${imageHeight}. Utilisation des valeurs par défaut.`);
     }
     
-    // Convertir les pourcentages en pixels
-    const x = (positionX / 100) * validImageWidth;
+    // Convertir les pourcentages en pixels absolus par rapport à l'image
+    const absoluteX = (positionX / 100) * validImageWidth;
+    const absoluteY = (positionY / 100) * validImageHeight;
     
-    // Pour y, on utilise la position proportionnelle à l'image
-    // sans ajouter le header puisqu'il est désormais fixe et hors du défilement
-    const y = (positionY / 100) * validImageHeight;
+    // Centrer le bouton sur le point exact
+    const left = absoluteX - (DEFAULT_BUTTON_SIZE / 2);
+    const top = absoluteY - (DEFAULT_BUTTON_SIZE / 2);
     
     // Log pour débogage
-    console.log(`VideoButton (${id}): Position relative=${positionX}%,${positionY}%, Dimensions image=${validImageWidth}x${validImageHeight}, Position absolue=${x},${y}`);
+    console.log(`VideoButton (${id}): Position relative=${positionX}%,${positionY}%, Dimensions image=${validImageWidth}x${validImageHeight}, Position absolue=${left},${top}`);
     
     return { 
-      left: x - (DEFAULT_BUTTON_SIZE / 2),  // Centrer le bouton horizontalement
-      top: y - (DEFAULT_BUTTON_SIZE / 2)    // Centrer le bouton verticalement
+      left,
+      top
     };
   }, [id, positionX, positionY, imageWidth, imageHeight]);
 
@@ -71,51 +72,28 @@ const VideoButton: React.FC<VideoButtonProps> = ({
     }
   }, [status]);
 
-  // Déterminer l'icône à afficher en fonction du statut
-  const icon = useMemo(() => {
-    if (status === 'completed') {
-      return <MaterialIcons name="check-circle" size={28} color="#06D001" />;
-    } else if (status === 'unlocked') {
-      return <MaterialIcons name="play-circle-filled" size={28} color="#06D001" />;
-    } else {
-      return <MaterialIcons name="lock" size={28} color="#FFF" />;
-    }
-  }, [status]);
-
-  // Formater la durée au format MM:SS
+  // Format de la durée
   const formattedDuration = useMemo(() => {
-    // Si la durée est une chaîne de caractères
     if (typeof duration === 'string') {
-      // Si la durée est déjà au format MM:SS, l'utiliser directement
-      if (duration.includes(':')) {
-        return duration;
-      }
-      
-      // Si c'est une chaîne mais pas au format MM:SS, essayer de la convertir en nombre
-      const durationNumber = parseFloat(duration);
-      if (!isNaN(durationNumber)) {
-        if (durationNumber <= 0) return '00:00';
-        
-        // Convertir en format MM:SS
-        const minutes = Math.floor(durationNumber / 60);
-        const seconds = Math.floor(durationNumber % 60);
-        return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-      }
-      
-      // En cas d'échec, afficher une valeur par défaut
-      return '00:00';
+      return duration;
     }
     
-    // Si la durée est un nombre (en secondes)
-    if (isNaN(duration) || duration <= 0) {
-      return '00:00';
-    }
-    
-    // Convertir en format MM:SS
+    // Convertir les secondes en format MM:SS
     const minutes = Math.floor(duration / 60);
     const seconds = Math.floor(duration % 60);
-    return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
   }, [duration]);
+
+  // Icône en fonction du statut
+  const icon = useMemo(() => {
+    if (status === 'completed') {
+      return <MaterialIcons name="check-circle" size={24} color="#06D001" />;
+    } else if (status === 'unlocked') {
+      return <MaterialIcons name="play-circle-filled" size={24} color="#FFF" />;
+    } else {
+      return <MaterialIcons name="lock" size={24} color="#AAA" />;
+    }
+  }, [status]);
 
   return (
     <TouchableOpacity

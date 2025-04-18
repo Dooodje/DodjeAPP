@@ -1,26 +1,28 @@
-import React, { useEffect } from 'react';
+import React from 'react';
+import { NavigationContainer } from '@react-navigation/native';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { Provider } from 'react-redux';
-import { store } from './src/store';
-import setupWebPolyfills from './src/utils/web-polyfills';
+import HomeScreen from './src/screens/HomeScreen';
 
-// Import de l'application Firebase déjà initialisée
-import app from './src/config/firebase';
-
-// Importation de l'application Expo Router
-import { Slot } from 'expo-router';
+const Stack = createNativeStackNavigator();
 
 export default function App() {
-  // Initialiser les polyfills pour le web
-  useEffect(() => {
-    setupWebPolyfills();
-  }, []);
-
   return (
-    <Provider store={store}>
-      <SafeAreaProvider>
-        <Slot />
-      </SafeAreaProvider>
-    </Provider>
+    <SafeAreaProvider>
+      <NavigationContainer>
+        <StatusBar style="light" />
+        <Stack.Navigator 
+          initialRouteName="Home" 
+          screenOptions={{
+            headerShown: false,
+            contentStyle: { backgroundColor: '#0A0400' }
+          }}
+        >
+          <Stack.Screen name="Home" component={HomeScreen} />
+          {/* D'autres écrans seront ajoutés ici */}
+        </Stack.Navigator>
+      </NavigationContainer>
+    </SafeAreaProvider>
   );
 } 

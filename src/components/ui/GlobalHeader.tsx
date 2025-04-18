@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Section } from '../../types/home';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 interface GlobalHeaderProps {
   level?: number;
@@ -25,11 +26,16 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
   showBackButton = false,
   onBackPress,
 }) => {
+  const insets = useSafeAreaInsets();
+  
   return (
     <LinearGradient
       colors={['rgba(0, 0, 0, 0.9)', 'rgba(10, 4, 0, 0.9)', 'rgba(10, 4, 0, 0.6)', 'transparent']}
       locations={[0, 0.5, 0.8, 1]}
-      style={styles.container}
+      style={[
+        styles.container,
+        { paddingTop: Math.max(insets.top, 15) }
+      ]}
     >
       <View style={[styles.topRow, showSectionSelector && styles.topRowWithSelector]}>
         {showBackButton && (
@@ -94,7 +100,6 @@ const styles = StyleSheet.create({
     top: 0,
     left: 0,
     right: 0,
-    paddingTop: 15,
     paddingBottom: 16,
     width: '100%',
     zIndex: 1000,

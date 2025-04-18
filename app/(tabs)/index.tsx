@@ -8,7 +8,7 @@ import { router, useRouter } from 'expo-router';
 import TreeBackground from '../../src/components/home/TreeBackground';
 import { GlobalHeader } from '../../src/components/ui/GlobalHeader';
 import { GestureHandlerRootView, Gesture, GestureDetector } from 'react-native-gesture-handler';
-import Animated, { useAnimatedStyle, withSpring, useSharedValue } from 'react-native-reanimated';
+import Animated, { useAnimatedStyle, withSpring, useSharedValue, runOnJS } from 'react-native-reanimated';
 
 const LEVELS: Level[] = ['Débutant', 'Avancé', 'Expert'];
 const { width } = Dimensions.get('window');
@@ -56,33 +56,41 @@ export default function HomeScreen() {
 
     changeLevel(LEVELS[newIndex]);
     translateX.value = withSpring(0);
-  }, [currentLevel, changeLevel]);
+  }, [currentLevel, changeLevel, translateX]);
 
   // Configurer le geste de swipe
   const gesture = Gesture.Pan()
     .onStart(() => {
+      'worklet';
       context.value = { x: translateX.value };
     })
     .onUpdate((event) => {
+      'worklet';
       translateX.value = event.translationX + context.value.x;
     })
     .onEnd((event) => {
+      'worklet';
       if (Math.abs(event.velocityX) > 500) {
         if (event.velocityX > 0 && currentLevelIndex > 0) {
           // Swipe vers la droite (niveau précédent)
-          handleLevelChange('prev');
+          runOnJS(handleLevelChange)('prev');
         } else if (event.velocityX < 0 && currentLevelIndex < LEVELS.length - 1) {
           // Swipe vers la gauche (niveau suivant)
-          handleLevelChange('next');
+          runOnJS(handleLevelChange)('next');
+        } else {
+          translateX.value = withSpring(0);
         }
       } else {
         translateX.value = withSpring(0);
       }
     });
 
-  const animatedStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: translateX.value }],
-  }));
+  const animatedStyle = useAnimatedStyle(() => {
+    'worklet';
+    return {
+      transform: [{ translateX: translateX.value }],
+    };
+  });
 
   // Charger les données au premier rendu
   useEffect(() => {

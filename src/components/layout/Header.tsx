@@ -29,7 +29,7 @@ const Header: React.FC<HeaderProps> = ({
   };
   
   return (
-    <View style={[styles.container, { paddingTop: insets.top > 0 ? 0 : StatusBar.currentHeight }]}>
+    <View style={[styles.container, { paddingTop: insets.top }]}>
       <StatusBar barStyle="light-content" backgroundColor="#0A0400" />
       
       <View style={styles.content}>

@@ -1,8 +1,7 @@
 import React, { useMemo } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ViewStyle } from 'react-native';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { MaterialCommunityIconName } from '../../types/icons';
+import { View, StyleSheet, ViewStyle } from 'react-native';
 import { Parcours } from '../../types/firebase';
+import { CoursePosition, CoursePositionType } from '../ui/CoursePosition';
 
 interface PositionButtonProps {
   id: string;
@@ -12,6 +11,10 @@ interface PositionButtonProps {
   isAnnex?: boolean;
   onPress: (positionId: string, order?: number) => void;
   parcoursData?: Parcours; // Données du parcours associé
+  imageWidth?: number; // Largeur de l'image de fond
+  imageHeight?: number; // Hauteur de l'image de fond
+  containerWidth?: number; // Largeur du conteneur
+  containerHeight?: number; // Hauteur du conteneur
 }
 
 const PositionButton: React.FC<PositionButtonProps> = ({
@@ -22,97 +25,107 @@ const PositionButton: React.FC<PositionButtonProps> = ({
   isAnnex = false,
   onPress,
   parcoursData,
+  imageWidth = 0,
+  imageHeight = 0,
+  containerWidth = 0,
+  containerHeight = 0,
 }) => {
-  // Déterminer l'icône et la couleur en fonction du statut dans le useMemo
-  const { icon, color, backgroundColor } = useMemo(() => {
-    // Si pas de données de parcours ou un annexe, utiliser l'icône par défaut
-    if (!parcoursData || isAnnex) {
+  // Calculer les positions absolues en fonction des dimensions de l'image
+  const position = useMemo(() => {
+    // Si les dimensions ne sont pas disponibles, utiliser les pourcentages relatifs à l'écran
+    if (!imageWidth || !imageHeight || !containerWidth || !containerHeight) {
       return {
-        icon: (isAnnex ? 'script-text-outline' : 'map-marker') as MaterialCommunityIconName,
-        color: '#FFFFFF',
-        backgroundColor: isAnnex ? 'rgba(0, 150, 255, 0.7)' : 'rgba(0, 0, 0, 0.5)'
+        left: `${x}%`,
+        top: `${y}%`,
+      };
+    }
+
+    // Calculer la position absolue en pixels par rapport à l'image
+    const absoluteX = (x / 100) * imageWidth;
+    const absoluteY = (y / 100) * imageHeight;
+
+    // Calculer la marge horizontale si l'image est centrée
+    const horizontalMargin = Math.max(0, (containerWidth - imageWidth) / 2);
+
+    // Position finale en pixels
+    return {
+      left: horizontalMargin + absoluteX,
+      top: absoluteY,
+    };
+  }, [x, y, imageWidth, imageHeight, containerWidth, containerHeight]);
+
+  // Déterminer le type de position et si elle est active
+  const { type, isActive } = useMemo(() => {
+    // Si pas de données de parcours, utiliser les valeurs par défaut
+    if (!parcoursData) {
+      const defaultType: CoursePositionType = isAnnex ? 'annexe' : 'standard';
+      return {
+        type: defaultType,
+        isActive: false
+      };
+    }
+
+    // Vérifier d'abord si c'est une annexe
+    if (isAnnex) {
+      return {
+        type: 'annexe' as CoursePositionType,
+        isActive: parcoursData.status === 'completed'
       };
     }
 
     // En fonction du statut du parcours
     if (parcoursData.status === 'completed') {
       return {
-        icon: 'check-circle' as MaterialCommunityIconName,
-        color: '#FFFFFF',
-        backgroundColor: 'rgba(0, 200, 0, 0.7)'
+        type: 'standard' as CoursePositionType,
+        isActive: true
       };
     } else if (parcoursData.status === 'in_progress') {
       return {
-        icon: 'progress-check' as MaterialCommunityIconName,
-        color: '#FFFFFF',
-        backgroundColor: 'rgba(255, 165, 0, 0.7)'
+        type: 'important' as CoursePositionType,
+        isActive: false
       };
     } else if (parcoursData.status === 'blocked') {
       return {
-        icon: 'lock' as MaterialCommunityIconName,
-        color: '#FFFFFF',
-        backgroundColor: 'rgba(200, 0, 0, 0.7)'
+        type: 'special' as CoursePositionType,
+        isActive: false
       };
     } else {
       // Statut par défaut (available)
       return {
-        icon: 'map-marker' as MaterialCommunityIconName,
-        color: '#FFFFFF',
-        backgroundColor: 'rgba(0, 0, 0, 0.5)'
+        type: 'standard' as CoursePositionType,
+        isActive: false
       };
     }
   }, [parcoursData, isAnnex]);
+
+  const handlePress = () => {
+    onPress(id, order);
+  };
+
+  // Taille basée sur le type (plus petit pour les annexes)
+  const size = isAnnex ? 40 : 80;
 
   return (
     <View
       style={[
         styles.container,
         {
-          left: `${x}%`,
-          top: `${y}%`,
-          backgroundColor
+          left: position.left,
+          top: position.top,
+          width: size,
+          height: size,
         } as ViewStyle,
-        isAnnex ? styles.annexContainer : styles.mainContainer,
       ]}
     >
-      <TouchableOpacity
-        style={[
-          styles.button,
-          isAnnex ? styles.annexButton : styles.mainButton,
-          // Ajouter un style en fonction du statut si disponible
-          parcoursData?.status === 'completed' && styles.completedButton,
-          parcoursData?.status === 'blocked' && styles.blockedButton,
-        ]}
-        onPress={() => onPress(id, order)}
-        activeOpacity={0.7}
-      >
-        <MaterialCommunityIcons
-          name={icon}
-          size={isAnnex ? 18 : 24}
-          color={color}
-        />
-        
-        {order !== undefined && (
-          <View style={styles.orderBadge}>
-            <Text style={styles.orderText}>{order}</Text>
-          </View>
-        )}
-      </TouchableOpacity>
-      
-      {/* Petit effet de brillance au centre du bouton */}
-      <View style={[
-        styles.glow,
-        isAnnex ? styles.annexGlow : styles.mainGlow
-      ]} />
-      
-      {/* Titre du parcours en dessous du bouton si disponible */}
-      {parcoursData?.titre && (
-        <View style={styles.labelContainer}>
-          <Text style={styles.labelText} numberOfLines={2}>
-            {parcoursData.titre}
-          </Text>
-        </View>
-      )}
+      <CoursePosition
+        type={type}
+        size={size}
+        isActive={isActive}
+        title={parcoursData?.titre || parcoursData?.title}
+        onPress={handlePress}
+        order={order}
+        parcours={parcoursData}
+      />
     </View>
   );
 };
@@ -123,98 +136,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     transform: [{ translateX: '-50%' }, { translateY: '-50%' }],
-  } as ViewStyle,
-  mainContainer: {
-    width: 60,
-    height: 60,
     zIndex: 20,
-  },
-  annexContainer: {
-    width: 40,
-    height: 40,
-    zIndex: 15,
-  },
-  button: {
-    justifyContent: 'center',
-    alignItems: 'center',
-    borderWidth: 2,
-    elevation: 5,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-  },
-  mainButton: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    backgroundColor: '#059212',
-    borderColor: '#06D001',
-  },
-  annexButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(5, 146, 18, 0.7)',
-    borderColor: 'rgba(6, 208, 1, 0.7)',
-  },
-  completedButton: {
-    backgroundColor: '#06D001',
-    borderColor: '#9BEC00',
-  },
-  blockedButton: {
-    backgroundColor: '#444444',
-    borderColor: '#666666',
-  },
-  orderBadge: {
-    position: 'absolute',
-    top: -5,
-    right: -5,
-    backgroundColor: '#FF6B00',
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  orderText: {
-    fontSize: 12,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
-  },
-  glow: {
-    position: 'absolute',
-    backgroundColor: 'rgba(255, 255, 255, 0.3)',
-    borderRadius: 15,
-  },
-  mainGlow: {
-    width: 30,
-    height: 30,
-  },
-  annexGlow: {
-    width: 20,
-    height: 20,
-  },
-  labelContainer: {
-    position: 'absolute',
-    bottom: -35,
-    backgroundColor: 'rgba(0, 0, 0, 0.8)',
-    borderRadius: 10,
-    padding: 5,
-    width: 90,
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.5,
-    shadowRadius: 3,
-    elevation: 3,
-  },
-  labelText: {
-    color: '#FFFFFF',
-    fontSize: 10,
-    textAlign: 'center',
-    fontWeight: 'bold',
-  },
+  } as ViewStyle,
 });
 
 export default PositionButton; 

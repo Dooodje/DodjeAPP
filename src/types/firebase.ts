@@ -2,14 +2,14 @@ import { User } from 'firebase/auth';
 
 export interface UserData {
   uid: string;
-  email: string | null;
-  displayName: string | null;
+  email: string;
+  displayName: string;
   photoURL: string | null;
   dodji: number;
   streak: number;
   isDodjeOne: boolean;
-  createdAt: Date;
-  lastLogin: Date;
+  createdAt: string;
+  lastLogin: string;
 }
 
 export interface Parcours {
@@ -31,48 +31,52 @@ export interface Parcours {
   };
   videos: Video[];
   quiz: Quiz;
+  isCompleted?: boolean;
+  isUnlocked?: boolean;
+  isAnnex?: boolean;
+  isAnnexe?: boolean;
+  isSpecial?: boolean;
+  isBonus?: boolean;
+  isIntroduction?: boolean;
+  dodjiCost?: number;
 }
 
 export interface Video {
   id: string;
   title: string;
+  titre?: string;
   description: string;
-  url: string;
   duration: number;
+  url: string;
+  thumbnailUrl: string;
+  subtitlesUrl?: string;
   order: number;
-  position: {
-    x: number;
-    y: number;
-  };
+  isCompleted?: boolean;
+  nextVideoId?: string;
 }
 
 export interface Quiz {
   id: string;
   title: string;
-  description: string;
+  description?: string;
   questions: Question[];
-  reward: {
-    dodji: number;
-    badge?: string;
-  };
-  position: {
-    x: number;
-    y: number;
-  };
+  passingScore: number;
+  timeLimit?: number;
+  isCompleted?: boolean;
 }
 
 export interface Question {
   id: string;
   text: string;
-  type: 'single' | 'multiple';
-  options: Option[];
-  explanation: string;
+  options: QuestionOption[];
+  correctOptionId: string;
+  explanation?: string;
+  imageUrl?: string;
 }
 
-export interface Option {
+export interface QuestionOption {
   id: string;
   text: string;
-  isCorrect: boolean;
 }
 
 export interface UserProgress {
@@ -83,4 +87,43 @@ export interface UserProgress {
   quizCompleted: boolean;
   quizScore?: number;
   lastAccessed: Date;
+}
+
+export interface DodjeOneSubscription {
+  userId: string;
+  status: 'active' | 'canceled' | 'expired';
+  subscriptionType: 'monthly' | 'yearly';
+  startDate: Date;
+  endDate: Date;
+  autoRenew: boolean;
+  paymentMethod: string;
+  price: number;
+}
+
+export interface Notification {
+  id: string;
+  userId: string;
+  title: string;
+  message: string;
+  type: 'system' | 'course' | 'achievement' | 'dodji' | 'subscription';
+  read: boolean;
+  timestamp: Date;
+  relatedItemId?: string;
+}
+
+export interface Achievement {
+  id: string;
+  title: string;
+  description: string;
+  imageUrl: string;
+  condition: string;
+  dodjiReward: number;
+  unlockedAt?: Date;
+}
+
+export interface UserAchievement {
+  userId: string;
+  achievementId: string;
+  unlockedAt: Date;
+  claimed: boolean;
 } 

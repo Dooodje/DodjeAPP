@@ -2,10 +2,13 @@ import React from 'react';
 import { View, StyleSheet, Text, TouchableOpacity } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { QuizHeaderProps } from '../../types/quiz';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export const QuizHeader: React.FC<QuizHeaderProps> = ({ quiz, onBack }) => {
+  const insets = useSafeAreaInsets();
+  
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { paddingTop: Math.max(16, insets.top) }]}>
       <TouchableOpacity onPress={onBack} style={styles.backButton}>
         <MaterialCommunityIcons name="arrow-left" size={24} color="#fff" />
       </TouchableOpacity>

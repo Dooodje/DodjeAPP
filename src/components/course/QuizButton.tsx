@@ -35,45 +35,39 @@ const QuizButton: React.FC<QuizButtonProps> = ({
       console.warn(`Dimensions d'image invalides pour le bouton quiz: ${imageWidth}x${imageHeight}. Utilisation des valeurs par défaut.`);
     }
     
-    // Convertir les pourcentages en pixels
-    const x = (positionX / 100) * validImageWidth;
-    const y = (positionY / 100) * validImageHeight;
+    // Convertir les pourcentages en pixels absolus par rapport à l'image
+    const absoluteX = (positionX / 100) * validImageWidth;
+    const absoluteY = (positionY / 100) * validImageHeight;
+    
+    // Centrer le bouton sur le point exact
+    const left = absoluteX - (DEFAULT_BUTTON_SIZE / 2);
+    const top = absoluteY - (DEFAULT_BUTTON_SIZE / 2);
     
     // Log pour débogage
-    console.log(`QuizButton (${id}): Position relative=${positionX}%,${positionY}%, Dimensions image=${validImageWidth}x${validImageHeight}, Position absolue=${x},${y}`);
+    console.log(`QuizButton (${id}): Position relative=${positionX}%,${positionY}%, Dimensions image=${validImageWidth}x${validImageHeight}, Position absolue=${left},${top}`);
     
     return { 
-      left: x - (DEFAULT_BUTTON_SIZE / 2),  // Centrer le bouton horizontalement
-      top: y - (DEFAULT_BUTTON_SIZE / 2)    // Centrer le bouton verticalement
+      left,
+      top
     };
   }, [id, positionX, positionY, imageWidth, imageHeight]);
 
   return (
-    <TouchableOpacity
-      activeOpacity={0.8}
-      style={[styles.container, position]}
-      onPress={() => onPress(id)}
-    >
-      <View style={styles.buttonContent}>
-        <MaterialIcons name="quiz" size={36} color="#FFFFFF" />
-      </View>
+    <View style={[styles.container, position]}>
+      <TouchableOpacity
+        activeOpacity={0.7}
+        style={styles.buttonContent}
+        onPress={() => onPress(id)}
+      >
+        <View style={styles.glow} />
+        <MaterialIcons name="help" size={40} color="#000" />
+      </TouchableOpacity>
       
-      {/* Effet de brillance */}
-      <View style={styles.glow} />
-      
-      {/* Étiquette du quiz */}
       <View style={styles.labelContainer}>
-        <Text style={styles.title} numberOfLines={1}>
-          {title}
-        </Text>
-        <Text style={styles.subtitle}>Testez vos connaissances</Text>
+        <Text style={styles.title}>{title}</Text>
+        <Text style={styles.subtitle}>Testons vos connaissances !</Text>
       </View>
-      
-      {/* Badge "Final" */}
-      <View style={styles.finalBadge}>
-        <Text style={styles.finalText}>Final</Text>
-      </View>
-    </TouchableOpacity>
+    </View>
   );
 };
 
@@ -144,31 +138,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     textAlign: 'center',
     fontStyle: 'italic',
-  },
-  finalBadge: {
-    position: 'absolute',
-    top: -5,
-    right: -5,
-    backgroundColor: '#FF3D00', // Orange vif
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: '#FFFFFF',
-    zIndex: 11,
-    elevation: 9,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.5,
-    shadowRadius: 2,
-  },
-  finalText: {
-    color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: 'bold',
-    textShadowColor: 'rgba(0, 0, 0, 0.5)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 1,
   },
 });
 
