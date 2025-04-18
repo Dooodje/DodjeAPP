@@ -7,7 +7,6 @@ import { useAuth } from '../../src/hooks/useAuth';
 import { quizService } from '../../src/services/quiz';
 import { dodjiService } from '../../src/services/dodji';
 import { Quiz, Question, Answer } from '../../src/types/quiz';
-import ConfettiCannon from 'react-native-confetti-cannon';
 
 console.log('Quiz page loaded - full implementation!');
 
@@ -575,7 +574,6 @@ export default function QuizPage() {
     
     return (
       <View style={styles.resultContainer}>
-        {isPassed && <ConfettiCannon count={200} origin={{x: -10, y: 0}} fallSpeed={2000} />}
         <View style={styles.resultCard}>
           <MaterialIcons 
             name={isPassed ? "check-circle" : "cancel"} 

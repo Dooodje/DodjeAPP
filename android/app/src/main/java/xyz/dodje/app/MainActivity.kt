@@ -1,4 +1,4 @@
-package com.anonymous.dodje
+package xyz.dodje.app
 import expo.modules.splashscreen.SplashScreenManager
 
 import android.os.Build

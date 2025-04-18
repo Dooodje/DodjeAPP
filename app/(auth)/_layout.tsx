@@ -1,8 +1,9 @@
 import React, { useEffect } from 'react';
 import { Stack } from 'expo-router';
 import { Slot, useRouter, useSegments } from 'expo-router';
-import { View, ActivityIndicator } from 'react-native';
+import { View, ActivityIndicator, StyleSheet } from 'react-native';
 import { useAuth } from '../../src/hooks/useAuth';
+import { getAuth } from 'firebase/auth';
 
 export default function AuthLayout() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -18,13 +19,25 @@ export default function AuthLayout() {
     }
   }, [isAuthenticated, isLoading, segments, router]);
 
+  useEffect(() => {
+    const auth = getAuth();
+    console.log('État de l\'auth:', auth.currentUser ? 'Connecté' : 'Non connecté');
+  }, []);
+
   if (isLoading) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#0A0400' }}>
+      <View style={styles.container}>
         <ActivityIndicator size="large" color="#059212" />
       </View>
     );
   }
 
   return <Slot />;
-} 
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: '#0A0400',
+  },
+}); 

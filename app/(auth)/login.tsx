@@ -4,9 +4,7 @@ import { Link, router } from 'expo-router';
 import { useForm } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
 import { Button, Input } from '../../src/components/ui';
-import { authService } from '../../src/services/auth';
-import { useAppDispatch } from '../../src/hooks/useRedux';
-import { setUser } from '../../src/store/slices/authSlice';
+import { useAuth } from '../../src/hooks/useAuth';
 import { loginSchema } from '../../src/utils/validation';
 
 interface LoginForm {
@@ -17,7 +15,7 @@ interface LoginForm {
 export default function LoginScreen() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const dispatch = useAppDispatch();
+  const { login } = useAuth();
 
   const { control, handleSubmit } = useForm<LoginForm>({
     resolver: yupResolver(loginSchema),
@@ -27,8 +25,7 @@ export default function LoginScreen() {
     try {
       setIsLoading(true);
       setError(null);
-      const user = await authService.login(data.email, data.password);
-      dispatch(setUser(user));
+      await login(data.email, data.password);
       router.replace('/(tabs)');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Une erreur est survenue');

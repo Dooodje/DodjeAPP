@@ -8,8 +8,10 @@ import {
   ProductPurchase,
   PurchaseError,
   Product,
-  PurchaseResult
+  PurchaseResult,
+  Purchase
 } from 'react-native-iap';
+import { Platform } from 'react-native';
 
 // IDs des produits dans les stores
 const PRODUCT_IDS = {
@@ -41,6 +43,13 @@ class IAPService {
   async initialize(): Promise<void> {
     if (this.isInitialized) return;
 
+    // Vérifier si nous sommes sur une plateforme supportée
+    if (Platform.OS !== 'ios' && Platform.OS !== 'android') {
+      console.log('IAP non supporté sur cette plateforme');
+      this.isInitialized = true;
+      return;
+    }
+
     try {
       await initConnection();
       
@@ -53,13 +62,23 @@ class IAPService {
         await this.handlePurchase(purchase);
       });
 
-      // Récupérer les produits
-      this.products = await getProducts(Object.values(PRODUCT_IDS));
+      // Récupérer les produits seulement si nous avons des IDs de produits définis
+      const productIds = Object.values(PRODUCT_IDS);
+      if (productIds.length > 0) {
+        try {
+          this.products = await getProducts({ skus: productIds });
+        } catch (productError) {
+          console.warn('Erreur lors de la récupération des produits:', productError);
+        }
+      } else {
+        console.warn('Aucun ID de produit défini pour les achats in-app');
+      }
       
       this.isInitialized = true;
     } catch (error) {
       console.error('Erreur d\'initialisation IAP:', error);
-      throw error;
+      // Marquer comme initialisé même en cas d'erreur pour ne pas bloquer l'app
+      this.isInitialized = true;
     }
   }
 
@@ -71,26 +90,39 @@ class IAPService {
       }
 
       // Finaliser la transaction
-      await finishTransaction(purchase);
+      try {
+        // On ne peut pas directement passer purchase, on doit construire un objet conforme
+        await finishTransaction({
+          purchase: purchase as unknown as Purchase,
+          isConsumable: true
+        });
+      } catch (finishError) {
+        console.error('Erreur lors de la finalisation de la transaction:', finishError);
+      }
 
       // TODO: Mettre à jour le backend avec les détails de l'achat
     } catch (error) {
       console.error('Erreur lors du traitement de l\'achat:', error);
-      throw error;
     }
   }
 
-  async purchaseProduct(productId: string): Promise<PurchaseResult> {
+  async purchaseProduct(productId: string): Promise<PurchaseResult | null> {
     if (!this.isInitialized) {
       await this.initialize();
     }
 
+    // Vérifier si nous sommes sur une plateforme supportée
+    if (Platform.OS !== 'ios' && Platform.OS !== 'android') {
+      console.log('Achat non supporté sur cette plateforme');
+      return null;
+    }
+
     try {
-      const result = await requestPurchase(productId);
-      return result;
+      const result = await requestPurchase({ sku: productId });
+      return result as PurchaseResult;
     } catch (error) {
       console.error('Erreur lors de l\'achat:', error);
-      throw error;
+      return null;
     }
   }
 

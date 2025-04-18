@@ -31,11 +31,11 @@ export default function RootLayout() {
       const initializeIAP = async () => {
         try {
           await iapService.initialize();
-          setIsIAPInitialized(true);
           console.log('Service IAP initialisé avec succès');
         } catch (error) {
           console.error('Erreur lors de l\'initialisation du service IAP:', error);
-          // Ne pas bloquer l'application en cas d'échec d'initialisation IAP
+        } finally {
+          // Dans tous les cas, marquer comme initialisé pour ne pas bloquer l'application
           setIsIAPInitialized(true);
         }
       };
@@ -61,7 +61,7 @@ export default function RootLayout() {
     };
 
     // Attacher les gestionnaires d'erreur
-    if (typeof window !== 'undefined') {
+    if (Platform.OS === 'web' && typeof window !== 'undefined') {
       // @ts-ignore - Ignorer l'erreur TypeScript car nous adaptons le comportement pour RN
       window.addEventListener('error', errorHandler);
     }
@@ -77,7 +77,8 @@ export default function RootLayout() {
         'findDOMNode', 
         'deprecated',
         'listeners.focus[0] is not a function',
-        'Non-serializable values were found in the navigation state'
+        'Non-serializable values were found in the navigation state',
+        'window.addEventListener is not a function'
       ];
       
       // Vérifier si l'erreur fait partie des erreurs à ignorer
@@ -97,7 +98,7 @@ export default function RootLayout() {
 
     return () => {
       // Nettoyer les gestionnaires
-      if (typeof window !== 'undefined') {
+      if (Platform.OS === 'web' && typeof window !== 'undefined') {
         // @ts-ignore
         window.removeEventListener('error', errorHandler);
       }
@@ -108,7 +109,7 @@ export default function RootLayout() {
   const handleReset = () => {
     setError(null);
     // Recharger la page si possible
-    if (typeof window !== 'undefined') {
+    if (Platform.OS === 'web' && typeof window !== 'undefined') {
       window.location.reload();
     }
   };

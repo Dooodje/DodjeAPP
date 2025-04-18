@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Redirect, useRouter } from 'expo-router';
-import { View, ActivityIndicator, StyleSheet, Text } from 'react-native';
+import { View, ActivityIndicator, StyleSheet, Text, Alert } from 'react-native';
 import { useAppDispatch } from '../src/hooks/useRedux';
 import { setTreeData, setError } from '../src/store/slices/homeSlice';
 import { useAuth } from '../src/hooks/useAuth';
@@ -14,6 +14,7 @@ export default function Index() {
   const dispatch = useAppDispatch();
   const { isAuthenticated, isLoading: authLoading } = useAuth();
   const [isInitializing, setIsInitializing] = useState(true);
+  const [message, setMessage] = useState('Initialisation de l\'application...');
 
   // Étape de nettoyage et d'initialisation des données
   useEffect(() => {
@@ -43,16 +44,27 @@ export default function Index() {
     initializeApp();
   }, [dispatch]);
 
+  // Vérification de l'authentification et mise à jour du message
+  useEffect(() => {
+    if (!authLoading) {
+      setMessage(isAuthenticated 
+        ? 'Récupération des données utilisateur...' 
+        : 'Vous devez vous connecter pour continuer');
+    }
+  }, [authLoading, isAuthenticated]);
+
   // Redirection conditionnelle après initialisation et vérification de l'authentification
   useEffect(() => {
     if (!isInitializing && !authLoading) {
       const timer = setTimeout(() => {
         if (isAuthenticated) {
+          console.log('Utilisateur authentifié, redirection vers l\'accueil');
           router.replace('/(tabs)');
         } else {
+          console.log('Utilisateur non authentifié, redirection vers la page de connexion');
           router.replace('/(auth)/login');
         }
-      }, 200);
+      }, 500);
       
       return () => clearTimeout(timer);
     }
@@ -62,7 +74,7 @@ export default function Index() {
   return (
     <View style={styles.container}>
       <ActivityIndicator size="large" color="#059212" />
-      <Text style={styles.loadingText}>Initialisation de l'application...</Text>
+      <Text style={styles.loadingText}>{message}</Text>
     </View>
   );
 }

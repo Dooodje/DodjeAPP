@@ -1,0 +1,45 @@
+{
+  "cli": {
+    "version": ">= 16.3.1",
+    "appVersionSource": "remote"
+  },
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "channel": "dev"
+    },
+    "preview": {
+      "distribution": "internal"
+    },
+    "testflight": {
+      "developmentClient": true,
+      "distribution": "store",
+      "ios": {
+        "resourceClass": "m1-medium"
+      },
+      "autoIncrement": true,
+      "channel": "testflight"
+    },
+    "production": {
+      "autoIncrement": true
+    }
+  },
+  "submit": {
+    "production": {},
+    "development": {
+      "ios": {
+        "appleId": "charlesrambert56@gmail.com",
+        "ascAppId": "6743447215",
+        "appleTeamId": "3Z7DPJXU8J"
+      }
+    },
+    "testflight": {
+      "ios": {
+        "appleId": "charlesrambert56@gmail.com",
+        "ascAppId": "6743447215",
+        "appleTeamId": "3Z7DPJXU8J"
+      }
+    }
+  }
+}

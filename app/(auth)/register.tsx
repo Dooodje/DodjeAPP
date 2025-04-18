@@ -4,21 +4,20 @@ import { Link, router } from 'expo-router';
 import { useForm } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
 import { Button, Input } from '../../src/components/ui';
-import { authService } from '../../src/services/auth';
-import { useAppDispatch } from '../../src/hooks/useRedux';
-import { setUser } from '../../src/store/slices/authSlice';
+import { useAuth } from '../../src/hooks/useAuth';
 import { registerSchema } from '../../src/utils/validation';
 
 interface RegisterForm {
   username: string;
   email: string;
   password: string;
+  confirmPassword: string;
 }
 
 export default function RegisterScreen() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const dispatch = useAppDispatch();
+  const { register } = useAuth();
 
   const { control, handleSubmit } = useForm<RegisterForm>({
     resolver: yupResolver(registerSchema),
@@ -28,11 +27,10 @@ export default function RegisterScreen() {
     try {
       setIsLoading(true);
       setError(null);
-      const user = await authService.register(data.email, data.password, data.username);
-      dispatch(setUser(user));
+      await register(data.email, data.password, data.username);
       router.replace('/(tabs)');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Une erreur est survenue');
+      setError(err instanceof Error ? err.message : 'Une erreur est survenue lors de l\'inscription');
     } finally {
       setIsLoading(false);
     }
@@ -47,7 +45,7 @@ export default function RegisterScreen() {
         control={control}
         name="username"
         label="Nom d'utilisateur"
-        placeholder="Choisissez un nom d'utilisateur"
+        placeholder="Entrez votre nom d'utilisateur"
         autoCapitalize="none"
       />
 
@@ -64,7 +62,15 @@ export default function RegisterScreen() {
         control={control}
         name="password"
         label="Mot de passe"
-        placeholder="Choisissez un mot de passe"
+        placeholder="Entrez votre mot de passe"
+        secureTextEntry
+      />
+
+      <Input
+        control={control}
+        name="confirmPassword"
+        label="Confirmer le mot de passe"
+        placeholder="Confirmez votre mot de passe"
         secureTextEntry
       />
 
