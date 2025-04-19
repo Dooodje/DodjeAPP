@@ -55,11 +55,9 @@
         "root": "app"
       },
       "eas": {
-        "projectId": "45f44cae-6667-42c2-ba3c-3f7f6185459c"
+        "projectId": "fad11d0a-31e2-41f8-b268-982831dade6c"
       }
     },
-    "updates": {
-      "url": "https://u.expo.dev/45f44cae-6667-42c2-ba3c-3f7f6185459c"
-    }
+    "updates": {}
   }
 }

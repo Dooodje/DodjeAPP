@@ -16,7 +16,8 @@
       "developmentClient": true,
       "distribution": "store",
       "ios": {
-        "resourceClass": "m1-medium"
+        "resourceClass": "m1-medium",
+        "buildConfiguration": "Release"
       },
       "autoIncrement": true,
       "channel": "testflight"
