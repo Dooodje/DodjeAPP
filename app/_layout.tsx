@@ -8,6 +8,10 @@ import { StatusBar } from 'expo-status-bar';
 import { View, Text, ActivityIndicator, StyleSheet, TouchableOpacity, Platform, LogBox } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { iapService } from '../src/services/iap';
+import FontAwesome from '@expo/vector-icons/FontAwesome';
+import { useFonts } from 'expo-font';
+import * as SplashScreen from 'expo-splash-screen';
+import { isTokenAvailable } from '../src/lib/api';
 
 // Ignorer des avertissements spécifiques pour éviter les erreurs dans la console
 LogBox.ignoreLogs([
@@ -15,6 +19,9 @@ LogBox.ignoreLogs([
   'Non-serializable values were found in the navigation state',
   'findDOMNode is deprecated in StrictMode',
 ]);
+
+// Empêcher l'écran de démarrage de se cacher automatiquement
+SplashScreen.preventAutoHideAsync();
 
 /**
  * Layout racine de l'application
@@ -24,6 +31,28 @@ LogBox.ignoreLogs([
 export default function RootLayout() {
   const [error, setError] = useState<Error | null>(null);
   const [isIAPInitialized, setIsIAPInitialized] = useState(false);
+
+  const [loaded, errorFonts] = useFonts({
+    'Arboria-Book': require('../assets/fonts/OnlineWebFonts_COM_ddd7c8d2d4a68d143440be787b1761ca/Arboria-Book/Arboria-Book.ttf'),
+    'Arboria-Bold': require('../assets/fonts/OnlineWebFonts_COM_aa1ba8e2a1a8a89fbf375966553eb206/Arboria-Bold/Arboria-Bold.ttf'),
+    'Arboria-Light': require('../assets/fonts/OnlineWebFonts_COM_6de75bde8a1de0c1fc321885e448e0c4/Arboria-Light/Arboria-Light.ttf'),
+    'Arboria-Black': require('../assets/fonts/OnlineWebFonts_COM_2c27c8acf8fbff113e0dec45f5532c90/Arboria-Black/Arboria-Black.ttf'),
+    'Arboria-Medium': require('../assets/fonts/OnlineWebFonts_COM_cf7f3e8a3232cb14e58c65c0cc79bedb/Arboria-Medium/Arboria-Medium.ttf'),
+    'Arboria-Thin': require('../assets/fonts/OnlineWebFonts_COM_ae5c57a0ffedf1ded9de720e7718c33b/Arboria-Thin/Arboria-Thin.ttf'),
+    'SpaceMono': require('../assets/fonts/SpaceMono-Regular.ttf'),
+    ...FontAwesome.font,
+  });
+
+  // Masquer l'écran de démarrage après le chargement des polices
+  useEffect(() => {
+    if (loaded || errorFonts) {
+      SplashScreen.hideAsync();
+    }
+  }, [loaded, errorFonts]);
+
+  if (!loaded && !errorFonts) {
+    return null;
+  }
 
   // Initialiser le service IAP pour les plateformes mobiles (Android/iOS)
   useEffect(() => {

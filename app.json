@@ -58,6 +58,36 @@
         "projectId": "fad11d0a-31e2-41f8-b268-982831dade6c"
       }
     },
-    "updates": {}
+    "updates": {},
+    "fonts": [
+      {
+        "asset": "./assets/fonts/OnlineWebFonts_COM_2c27c8acf8fbff113e0dec45f5532c90/Arboria-Black/Arboria-Black.ttf",
+        "family": "Arboria-Black"
+      },
+      {
+        "asset": "./assets/fonts/OnlineWebFonts_COM_6de75bde8a1de0c1fc321885e448e0c4/Arboria-Light/Arboria-Light.ttf",
+        "family": "Arboria-Light"
+      },
+      {
+        "asset": "./assets/fonts/OnlineWebFonts_COM_aa1ba8e2a1a8a89fbf375966553eb206/Arboria-Bold/Arboria-Bold.ttf",
+        "family": "Arboria-Bold"
+      },
+      {
+        "asset": "./assets/fonts/OnlineWebFonts_COM_ae5c57a0ffedf1ded9de720e7718c33b/Arboria-Thin/Arboria-Thin.ttf",
+        "family": "Arboria-Thin"
+      },
+      {
+        "asset": "./assets/fonts/OnlineWebFonts_COM_cf7f3e8a3232cb14e58c65c0cc79bedb/Arboria-Medium/Arboria-Medium.ttf",
+        "family": "Arboria-Medium"
+      },
+      {
+        "asset": "./assets/fonts/OnlineWebFonts_COM_ddd7c8d2d4a68d143440be787b1761ca/Arboria-Book/Arboria-Book.ttf",
+        "family": "Arboria-Book"
+      },
+      {
+        "asset": "./assets/fonts/SpaceMono-Regular.ttf",
+        "family": "SpaceMono"
+      }
+    ]
   }
 }
