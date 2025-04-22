@@ -1,11 +1,12 @@
-import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Course } from '../../types/home';
 import { MaterialCommunityIconName } from '../../types/icons';
 
 interface CourseTreeProps {
   courses: Course[];
+  treeImageUrl?: string;
   onCoursePress: (courseId: string) => void;
 }
 
@@ -13,7 +14,22 @@ interface CourseTreeProps {
  * Version ultra simplifiée de CourseTree sans aucune méthode pouvant utiliser indexOf
  * (pas de filter, map, find, includes, etc.)
  */
-export const CourseTree: React.FC<CourseTreeProps> = ({ courses = [], onCoursePress }) => {
+export const CourseTree: React.FC<CourseTreeProps> = ({ 
+  courses = [], 
+  treeImageUrl,
+  onCoursePress 
+}) => {
+  const [treeImageLoaded, setTreeImageLoaded] = useState<boolean>(true);
+  const [treeImageError, setTreeImageError] = useState<boolean>(false);
+
+  // If there's no treeImageUrl, consider it loaded
+  useEffect(() => {
+    if (!treeImageUrl || treeImageUrl.trim() === '') {
+      setTreeImageLoaded(true);
+      setTreeImageError(false);
+    }
+  }, [treeImageUrl]);
+
   // Fonction de gestion du clic sur le cours qui évite d'utiliser .find
   const handleCoursePress = () => {
     // Utiliser un ID en dur pour éviter toute recherche dans un tableau
@@ -26,10 +42,25 @@ export const CourseTree: React.FC<CourseTreeProps> = ({ courses = [], onCoursePr
     }
   };
 
+  // Handle tree image loading error
+  const handleTreeImageError = (error: any) => {
+    setTreeImageError(true);
+    setTreeImageLoaded(true); // Important to allow courses to display
+  };
+
   return (
     <View style={styles.container}>
-      {/* Fond simple */}
-      <View style={styles.defaultBackground} />
+      {/* Background image or default background */}
+      {treeImageUrl ? (
+        <Image
+          source={{ uri: treeImageUrl }}
+          style={styles.treeImage}
+          onLoad={() => setTreeImageLoaded(true)}
+          onError={handleTreeImageError}
+        />
+      ) : (
+        <View style={styles.defaultBackground} />
+      )}
 
       {/* Affichage manuel d'un seul cours de test au centre sans passer par map */}
       <View style={styles.courseContainer}>
@@ -75,6 +106,10 @@ const styles = StyleSheet.create({
   defaultBackground: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: '#1A1A1A',
+  },
+  treeImage: {
+    ...StyleSheet.absoluteFillObject,
+    resizeMode: 'cover',
   },
   courseContainer: {
     position: 'absolute',

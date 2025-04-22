@@ -8,26 +8,31 @@ const config = getDefaultConfig(__dirname, {
   isCSSEnabled: true,
 });
 
-// Ajout des extensions .mjs pour le support web
-config.resolver.sourceExts.push('mjs');
+// Add support for file extensions used by React Native Reanimated
+config.resolver.sourceExts = [
+  ...config.resolver.sourceExts,
+  'mjs',
+  'cjs',
+  'svg'
+];
 
-// Configuration pour react-native-svg-transformer
-config.transformer.babelTransformerPath = require.resolve('react-native-svg-transformer');
-
-// Filtrer les extensions d'assets pour exclure .svg (sera traité comme un composant)
+// Exclude .svg from asset extensions to use it as a React component
 config.resolver.assetExts = config.resolver.assetExts.filter(ext => ext !== 'svg');
 
-// Ajouter svg aux extensions de source pour qu'il soit traité comme un composant
-config.resolver.sourceExts = [...config.resolver.sourceExts, 'svg', 'cjs', 'mjs'];
+// Configuration for react-native-svg-transformer
+config.transformer.babelTransformerPath = require.resolve('react-native-svg-transformer');
 
-// Ajouter les modules React Native Reanimated comme modules à traiter spécialement
+// Add React Native Reanimated module to be treated specially 
 config.resolver.extraNodeModules = {
   ...config.resolver.extraNodeModules,
   'react-native-reanimated': path.resolve(__dirname, 'node_modules', 'react-native-reanimated'),
+  // Add mock for expo-font/build/server
+  'expo-font/build/server': path.resolve(__dirname, 'src/utils/server.js'),
 };
 
-// Désactiver le minify pour le web peut aider à résoudre certains problèmes
+// Configuration specific for web
 if (process.env.EXPO_PLATFORM === 'web') {
+  // Disable minification for web to help resolve ESM/CommonJS issues
   config.transformer.minifierConfig = {
     keep_classnames: true,
     keep_fnames: true,
@@ -36,9 +41,12 @@ if (process.env.EXPO_PLATFORM === 'web') {
       keep_fnames: true,
     },
   };
+  
+  // Resolver main fields order for web
+  config.resolver.resolverMainFields = ['browser', 'main', 'module'];
 }
 
-// Augmenter la limite de mémoire pour le bundler
+// Optimize memory usage for bundler
 config.maxWorkers = 2;
 config.transformer.workerThreads = false;
 config.transformer.assetPlugins = ['expo-asset/tools/hashAssetFiles'];
