@@ -3,15 +3,102 @@ import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Dimensions
 import { useAuth } from '../../src/hooks/useAuth';
 import { useHome } from '../../src/hooks/useHome';
 import { Level, Section } from '../../src/types/home';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { router, useRouter } from 'expo-router';
 import TreeBackground from '../../src/components/home/TreeBackground';
 import { GlobalHeader } from '../../src/components/ui/GlobalHeader';
 import { GestureHandlerRootView, Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, { useAnimatedStyle, withSpring, useSharedValue, runOnJS } from 'react-native-reanimated';
+import Svg, { Path, Circle } from 'react-native-svg';
 
 const LEVELS: Level[] = ['Débutant', 'Avancé', 'Expert'];
 const { width } = Dimensions.get('window');
+
+interface NavigationArrowProps {
+  direction: 'left' | 'right';
+  disabled: boolean;
+  onPress: () => void;
+}
+
+// Composant de flèche personnalisé
+const NavigationArrow: React.FC<NavigationArrowProps> = ({ direction, disabled, onPress }) => {
+  // Ne pas rendre la flèche du tout si elle est désactivée
+  if (disabled) return null;
+  
+  return (
+    <TouchableOpacity 
+      style={[
+        styles.arrowButton,
+        direction === 'left' ? styles.leftArrowButton : styles.rightArrowButton
+      ]}
+      onPress={onPress}
+      activeOpacity={0.7}
+    >
+      <Svg width={50} height={50} viewBox="0 0 50 50">
+        {direction === 'left' ? (
+          <Path
+            d="M32 10L18 25L32 40"
+            stroke="#FFFFFF"
+            strokeWidth="3"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            fill="none"
+          />
+        ) : (
+          <Path
+            d="M18 10L32 25L18 40"
+            stroke="#FFFFFF"
+            strokeWidth="3"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            fill="none"
+          />
+        )}
+      </Svg>
+    </TouchableOpacity>
+  );
+};
+
+interface PositionIndicatorsProps {
+  total: number;
+  current: number;
+}
+
+// Composant d'indicateurs de position
+const PositionIndicators: React.FC<PositionIndicatorsProps> = ({ total, current }) => {
+  return (
+    <View style={styles.indicatorsContainer}>
+      {Array.from({ length: total }).map((_, index) => (
+        <View 
+          key={index}
+          style={[
+            styles.indicator,
+            current === index && styles.activeIndicator
+          ]}
+        >
+          {current === index ? (
+            <Svg height={16} width={16} viewBox="0 0 16 16">
+              <Circle 
+                cx="8" 
+                cy="8" 
+                r="7" 
+                fill="#F3FF90"
+              />
+            </Svg>
+          ) : (
+            <Svg height={12} width={12} viewBox="0 0 12 12">
+              <Circle 
+                cx="6" 
+                cy="6" 
+                r="5" 
+                fill="rgba(255, 255, 255, 0.3)"
+              />
+            </Svg>
+          )}
+        </View>
+      ))}
+    </View>
+  );
+};
 
 /**
  * Page d'accueil principale de l'application
@@ -162,26 +249,22 @@ export default function HomeScreen() {
         onSectionChange={handleSectionChange}
       />
 
-      {/* Flèches de navigation */}
-      <View style={styles.navigationContainer}>
-        {currentLevelIndex > 0 && currentLevel !== 'Débutant' && (
-          <TouchableOpacity
-            style={[styles.navButton, styles.leftButton]}
-            onPress={() => handleLevelChange('prev')}
-          >
-            <MaterialCommunityIcons name="chevron-left" size={40} color="#FFFFFF" />
-          </TouchableOpacity>
-        )}
-        
-        {currentLevelIndex < LEVELS.length - 1 && (
-          <TouchableOpacity
-            style={[styles.navButton, styles.rightButton]}
-            onPress={() => handleLevelChange('next')}
-          >
-            <MaterialCommunityIcons name="chevron-right" size={40} color="#FFFFFF" />
-          </TouchableOpacity>
-        )}
-      </View>
+      {/* Flèche gauche */}
+      <NavigationArrow 
+        direction="left" 
+        disabled={currentLevelIndex === 0} 
+        onPress={() => handleLevelChange('prev')}
+      />
+      
+      {/* Flèche droite */}
+      <NavigationArrow 
+        direction="right" 
+        disabled={currentLevelIndex === LEVELS.length - 1} 
+        onPress={() => handleLevelChange('next')}
+      />
+      
+      {/* Indicateurs de position */}
+      <PositionIndicators total={LEVELS.length} current={currentLevelIndex} />
     </GestureHandlerRootView>
   );
 }
@@ -195,30 +278,39 @@ const styles = StyleSheet.create({
     flex: 1,
     width: '100%',
   },
-  navigationContainer: {
+  arrowButton: {
     position: 'absolute',
     top: '50%',
+    width: 50,
+    height: 50,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 10,
+    marginTop: -25,
+  },
+  leftArrowButton: {
+    left: 20,
+  },
+  rightArrowButton: {
+    right: 20,
+  },
+  indicatorsContainer: {
+    position: 'absolute',
+    bottom: 100, // Remonté pour être visible au-dessus du menu de navigation
     left: 0,
     right: 0,
     flexDirection: 'row',
-    justifyContent: 'flex-end',
-    paddingHorizontal: 20,
-    zIndex: 10,
-  },
-  navButton: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    backgroundColor: 'rgba(6, 208, 1, 0.3)',
     justifyContent: 'center',
     alignItems: 'center',
-    position: 'absolute',
+    zIndex: 10,
   },
-  leftButton: {
-    left: 10,
+  indicator: {
+    marginHorizontal: 6,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  rightButton: {
-    right: 10,
+  activeIndicator: {
+    transform: [{ scale: 1.2 }],
   },
   loadingContainer: {
     flex: 1,
@@ -253,7 +345,7 @@ const styles = StyleSheet.create({
   },
   retryButtonText: {
     color: '#FFFFFF',
-    fontWeight: 'bold',
+    fontSize: 16,
   },
   emptyContainer: {
     flex: 1,
@@ -262,8 +354,8 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   emptyText: {
-    color: '#CCCCCC',
+    color: '#FFFFFF',
     fontSize: 16,
     textAlign: 'center',
-  }
+  },
 });

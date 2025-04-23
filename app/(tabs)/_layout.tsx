@@ -1,27 +1,19 @@
 import React, { useEffect } from 'react';
 import { Tabs } from 'expo-router';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter, useSegments } from 'expo-router';
 import { useAuth } from '../../src/hooks/useAuth';
-import { View, StyleSheet, Dimensions } from 'react-native';
-import { GlobalHeader } from '../../src/components/ui/GlobalHeader';
+import { View, StyleSheet, Dimensions, TouchableOpacity } from 'react-native';
+import { IlotMenu } from '../../src/components/IlotMenu';
+import { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 
 const { width } = Dimensions.get('window');
 
-/**
- * Composant qui crée une barre de navigation en forme d'île ovale
- */
-function TabBarBackground() {
-  return (
-    <View style={styles.tabBarContainer}>
-      <View style={styles.tabBarBackground} />
-    </View>
-  );
-}
+// Routes de l'application
+type AppRoute = '/' | '/profile' | '/dodjeplus' | '/boutique' | '/catalogue';
 
 /**
  * Layout pour la section des onglets principaux de l'application
- * Ce composant définit la barre de navigation du bas
+ * Ce composant définit la barre de navigation en forme d'îlot
  */
 export default function TabLayout() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -38,74 +30,58 @@ export default function TabLayout() {
     }
   }, [isAuthenticated, isLoading, router]);
 
+  // Fonction pour naviguer vers les différents onglets
+  const navigateTo = (route: AppRoute) => {
+    router.push(route);
+  };
+  
+  // Nous utilisons un custom tab bar
+  const CustomTabBar = ({ state, descriptors, navigation }: BottomTabBarProps) => {
+    return (
+      <View style={styles.tabBarContainer}>
+        <IlotMenu style={styles.ilotMenu} />
+        {/* Zones tactiles pour la navigation */}
+        <View style={styles.touchableContainer}>
+          <TouchableOpacity 
+            style={styles.touchableItem} 
+            onPress={() => navigateTo('/profile')}
+          />
+          <TouchableOpacity 
+            style={styles.touchableItem} 
+            onPress={() => navigateTo('/dodjeplus')}
+          />
+          <TouchableOpacity 
+            style={styles.touchableItem} 
+            onPress={() => navigateTo('/')}
+          />
+          <TouchableOpacity 
+            style={styles.touchableItem} 
+            onPress={() => navigateTo('/boutique')}
+          />
+          <TouchableOpacity 
+            style={styles.touchableItem} 
+            onPress={() => navigateTo('/catalogue')}
+          />
+        </View>
+      </View>
+    );
+  };
+
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: '#06D001',
-        tabBarInactiveTintColor: '#999999',
+        headerShown: false,
         tabBarStyle: { 
-          position: 'absolute',
-          bottom: 20,
-          left: 20,
-          right: 20,
-          borderRadius: 30,
-          height: 70,
-          paddingBottom: 10,
-          paddingTop: 10,
-          backgroundColor: 'transparent',
-          borderTopWidth: 0,
-          elevation: 0,
+          display: 'none', // Masquer complètement la barre d'onglets native
         },
-        tabBarShowLabel: false, // Cache les labels
-        tabBarBackground: () => <TabBarBackground />,
-        header: () => null, // Supprime l'ancien header
       }}
+      tabBar={props => <CustomTabBar {...props} />}
     >
-      <Tabs.Screen
-        name="profile"
-        options={{
-          title: 'Profil',
-          tabBarIcon: ({ color, size }) => (
-            <MaterialCommunityIcons name="account" color={color} size={26} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="dodjeplus"
-        options={{
-          title: 'DodjeLabs',
-          tabBarIcon: ({ color, size }) => (
-            <MaterialCommunityIcons name="plus-circle" color={color} size={26} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="index"
-        options={{
-          title: 'Accueil',
-          tabBarIcon: ({ color, size }) => (
-            <MaterialCommunityIcons name="home" color={color} size={26} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="boutique"
-        options={{
-          title: 'Boutique',
-          tabBarIcon: ({ color, size }) => (
-            <MaterialCommunityIcons name="shopping" color={color} size={26} />
-          ),
-        }}
-      />
-      <Tabs.Screen
-        name="catalogue"
-        options={{
-          title: 'Catalogue',
-          tabBarIcon: ({ color, size }) => (
-            <MaterialCommunityIcons name="book-open-variant" color={color} size={26} />
-          ),
-        }}
-      />
+      <Tabs.Screen name="profile" />
+      <Tabs.Screen name="dodjeplus" />
+      <Tabs.Screen name="index" />
+      <Tabs.Screen name="boutique" />
+      <Tabs.Screen name="catalogue" />
     </Tabs>
   );
 }
@@ -113,27 +89,24 @@ export default function TabLayout() {
 const styles = StyleSheet.create({
   tabBarContainer: {
     position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    width: '100%',
-    height: '100%',
+    bottom: 20,
+    left: 20,
+    right: 20,
     alignItems: 'center',
-    justifyContent: 'center',
+    zIndex: 100,
   },
-  tabBarBackground: {
+  ilotMenu: {
+    width: width - 40, // Ajuster la largeur en fonction de l'écran
+  },
+  touchableContainer: {
     position: 'absolute',
     width: '100%',
     height: '100%',
-    borderRadius: 30,
-    backgroundColor: '#0A0400',
-    shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 4,
-    },
-    shadowOpacity: 0.3,
-    shadowRadius: 4.65,
-    elevation: 8,
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+  },
+  touchableItem: {
+    flex: 1,
+    height: '100%',
   },
 });

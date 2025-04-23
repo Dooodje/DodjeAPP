@@ -4,7 +4,7 @@ import { SvgXml } from 'react-native-svg';
 
 const choicePoint1Svg = `
 <svg width="64" height="13" viewBox="0 0 64 13" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <circle cx="6.25" cy="6.25" r="6.25" fill="#D9D9D9"/>
+  <circle cx="6.25" cy="6.25" r="6.25" fill="#F3FF90"/>
   <circle cx="31.75" cy="6.25" r="6.25" fill="#D9D9D9"/>
   <circle cx="57.25" cy="6.25" r="6.25" fill="#D9D9D9"/>
 </svg>

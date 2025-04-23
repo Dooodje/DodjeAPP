@@ -1,3 +1,4 @@
+import 'react-native-reanimated';
 import React, { useEffect, useState } from 'react';
 import { Stack, usePathname } from 'expo-router';
 import { Provider } from 'react-redux';
@@ -11,7 +12,6 @@ import { iapService } from '../src/services/iap';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { useFonts } from 'expo-font';
 import * as SplashScreen from 'expo-splash-screen';
-import { isTokenAvailable } from '../src/lib/api';
 
 // Ignorer des avertissements spécifiques pour éviter les erreurs dans la console
 LogBox.ignoreLogs([
@@ -50,32 +50,25 @@ export default function RootLayout() {
     }
   }, [loaded, errorFonts]);
 
-  if (!loaded && !errorFonts) {
-    return null;
-  }
-
-  // Initialiser le service IAP pour les plateformes mobiles (Android/iOS)
+  // Initialiser le service IAP
   useEffect(() => {
-    if (Platform.OS === 'android' || Platform.OS === 'ios') {
-      const initializeIAP = async () => {
+    const initializeIAP = async () => {
+      if (Platform.OS === 'android' || Platform.OS === 'ios') {
         try {
           await iapService.initialize();
           console.log('Service IAP initialisé avec succès');
         } catch (error) {
           console.error('Erreur lors de l\'initialisation du service IAP:', error);
-        } finally {
-          // Dans tous les cas, marquer comme initialisé pour ne pas bloquer l'application
-          setIsIAPInitialized(true);
         }
-      };
-
-      initializeIAP();
-    } else {
-      // Sur le web, marquer comme initialisé pour ne pas bloquer
+      }
+      // Dans tous les cas, marquer comme initialisé pour ne pas bloquer l'application
       setIsIAPInitialized(true);
-    }
+    };
+
+    initializeIAP();
   }, []);
 
+  // Intercepter les erreurs globales
   useEffect(() => {
     // Intercepter les erreurs globales non capturées
     const errorHandler = (error: any) => {
@@ -142,6 +135,10 @@ export default function RootLayout() {
       window.location.reload();
     }
   };
+
+  if (!loaded && !errorFonts) {
+    return null;
+  }
 
   if (error) {
     return (

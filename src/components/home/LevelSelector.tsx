@@ -1,6 +1,5 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Animated } from 'react-native';
-import theme from '../../config/theme';
+import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 
 type LevelType = 'debutant' | 'avance' | 'expert';
 
@@ -13,31 +12,14 @@ const LevelSelector: React.FC<LevelSelectorProps> = ({
   selectedLevel,
   onLevelChange
 }) => {
-  // Calcul de la position de l'indicateur de sélection
-  const getIndicatorPosition = () => {
-    switch (selectedLevel) {
-      case 'debutant':
-        return 0;
-      case 'avance':
-        return 100;
-      case 'expert':
-        return 200;
-      default:
-        return 0;
-    }
-  };
-
   return (
     <View style={styles.container}>
       <View style={styles.selectorContainer}>
-        <Animated.View 
-          style={[
-            styles.selectionIndicator, 
-            { transform: [{ translateX: getIndicatorPosition() }] }
-          ]} 
-        />
         <TouchableOpacity
-          style={styles.levelButton}
+          style={[
+            styles.levelButton,
+            selectedLevel === 'debutant' && styles.selectedLevelButton
+          ]}
           onPress={() => onLevelChange('debutant')}
           activeOpacity={0.7}
         >
@@ -49,7 +31,10 @@ const LevelSelector: React.FC<LevelSelectorProps> = ({
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
-          style={styles.levelButton}
+          style={[
+            styles.levelButton,
+            selectedLevel === 'avance' && styles.selectedLevelButton
+          ]}
           onPress={() => onLevelChange('avance')}
           activeOpacity={0.7}
         >
@@ -61,7 +46,10 @@ const LevelSelector: React.FC<LevelSelectorProps> = ({
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
-          style={styles.levelButton}
+          style={[
+            styles.levelButton,
+            selectedLevel === 'expert' && styles.selectedLevelButton
+          ]}
           onPress={() => onLevelChange('expert')}
           activeOpacity={0.7}
         >
@@ -83,36 +71,32 @@ const styles = StyleSheet.create({
     marginVertical: 10,
   },
   selectorContainer: {
-    width: 300,
-    height: 40,
     flexDirection: 'row',
-    backgroundColor: theme.colors.background.light,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
     borderRadius: 30,
-    position: 'relative',
-    overflow: 'hidden',
-  },
-  selectionIndicator: {
-    position: 'absolute',
-    width: 100,
-    height: 40,
-    backgroundColor: theme.colors.primary.main,
-    borderRadius: 30,
-    zIndex: 1,
+    padding: 6,
+    width: 300,
   },
   levelButton: {
     flex: 1,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 25,
     justifyContent: 'center',
     alignItems: 'center',
-    zIndex: 2,
+    marginHorizontal: 2,
+  },
+  selectedLevelButton: {
+    backgroundColor: '#F3FF90',
   },
   levelText: {
     fontSize: 14,
-    fontWeight: '600',
-    color: theme.colors.text.primary,
+    fontFamily: 'Arboria-Medium',
+    color: '#FFFFFF',
   },
   selectedLevelText: {
-    color: theme.colors.text.highlight,
-    fontWeight: '700',
+    color: '#0A0400',
+    fontFamily: 'Arboria-Bold',
   },
 });
 

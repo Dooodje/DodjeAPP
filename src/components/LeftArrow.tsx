@@ -2,17 +2,17 @@ import React from 'react';
 import { View, StyleSheet } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 
-interface RightArrowProps {
+interface LeftArrowProps {
   width?: number;
   height?: number;
 }
 
-const RightArrow: React.FC<RightArrowProps> = ({ width = 50, height = 50 }) => {
+const LeftArrow: React.FC<LeftArrowProps> = ({ width = 50, height = 50 }) => {
   return (
     <View style={[styles.container, { width, height }]}>
       <Svg width={width} height={height} viewBox="0 0 50 50">
         <Path
-          d="M16.6663 8.33331L33.333 25L16.6663 41.6666"
+          d="M33.3337 8.33331L16.667 25L33.3337 41.6666"
           stroke="white"
           strokeWidth="3"
           strokeLinecap="round"
@@ -31,4 +31,4 @@ const styles = StyleSheet.create({
   }
 });
 
-export default RightArrow; 
+export default LeftArrow; 

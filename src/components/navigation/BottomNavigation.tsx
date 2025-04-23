@@ -23,10 +23,10 @@ const BottomNavigation: React.FC<BottomNavigationProps> = ({
     <View style={styles.container}>
       {/* Fond avec dégradé */}
       <LinearGradient
-        colors={['rgba(10, 4, 0, 1)', 'rgba(0, 0, 0, 0)']}
+        colors={['rgba(10, 4, 0, 0.8)', 'rgba(0, 0, 0, 0.95)']}
         style={styles.gradientBackground}
-        start={{ x: 0.5, y: 0 }}
-        end={{ x: 0.5, y: 1 }}
+        start={{ x: 0.5, y: 1 }}
+        end={{ x: 0.5, y: 0 }}
       />
       
       {/* Rectangle arrondi semi-transparent */}
@@ -104,7 +104,7 @@ const TabButton: React.FC<TabButtonProps> = ({
           style={{
             width: 24,
             height: 24,
-            tintColor: isActive ? '#06D001' : '#FFFFFF'
+            tintColor: isActive ? '#F3FF90' : '#FFFFFF'
           }}
           resizeMode="contain"
         />
@@ -125,8 +125,9 @@ const TabButton: React.FC<TabButtonProps> = ({
 const styles = StyleSheet.create({
   container: {
     width: '100%',
-    position: 'relative',
-    height: 90,
+    position: 'absolute',
+    bottom: 0,
+    height: 85,
     alignItems: 'center',
     justifyContent: 'flex-end',
   },
@@ -141,12 +142,10 @@ const styles = StyleSheet.create({
   },
   menuBackground: {
     position: 'absolute',
-    top: 10,
-    width: '95%',
+    top: 0,
+    width: '100%',
     height: '100%',
-    borderTopLeftRadius: 40,
-    borderTopRightRadius: 40,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: 'rgba(0, 0, 0, 0.75)',
     ...Platform.select({
       ios: {
         shadowColor: '#000',
@@ -164,7 +163,7 @@ const styles = StyleSheet.create({
     width: '100%',
     paddingHorizontal: 25,
     paddingTop: 15,
-    paddingBottom: 20,
+    paddingBottom: 25,
     justifyContent: 'space-around',
     alignItems: 'center',
   },
@@ -173,24 +172,24 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   iconContainer: {
-    width: 50,
-    height: 50,
+    width: 35,
+    height: 35,
     justifyContent: 'center',
     alignItems: 'center',
-    borderRadius: 25,
+    borderRadius: 20,
   },
   activeIconContainer: {
-    backgroundColor: 'rgba(6, 208, 1, 0.1)',
+    backgroundColor: 'rgba(243, 255, 144, 0.15)',
   },
   tabLabel: {
     fontSize: 12,
     color: '#FFFFFF',
     marginTop: 4,
-    fontWeight: '400',
+    fontFamily: 'Arboria-Medium',
   },
   activeTabLabel: {
-    color: '#06D001',
-    fontWeight: '700',
+    color: '#F3FF90',
+    fontFamily: 'Arboria-Bold',
   },
 });
 

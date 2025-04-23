@@ -1,6 +1,6 @@
 import React from 'react';
 import { View } from 'react-native';
-import DailyStrikeSvg from '../../assets/DailyStrike.svg';
+import DailyStrikeSvg from '../assets/DailyStrike.svg';
 
 interface DailyStrikeProps {
   width?: number;

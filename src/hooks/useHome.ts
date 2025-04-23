@@ -124,7 +124,7 @@ export const useHome = () => {
       
       // Mettre à jour les statistiques basiques
       dispatch(setStreak(1)); // Valeur fixe pour éviter tout calcul
-      dispatch(setDodji(100)); // Valeur fixe pour éviter tout calcul
+      dispatch(setDodji(2170)); // Valeur modifiée de 100 à 2170
       
     } catch (error) {
       console.error("Erreur lors de la récupération des données:", error);
@@ -186,7 +186,7 @@ export const useHome = () => {
     loading,
     error,
     streak: streak || 0,
-    dodji: dodji || 0,
+    dodji: dodji || 2170,
     lastViewedCourse,
     totalCompletedCourses: 0,
     totalProgress: 0,

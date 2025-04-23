@@ -23,8 +23,11 @@ const app = initializeApp(firebaseConfig);
 
 // Exportation des services Firebase
 export const db = getFirestore(app);
-export const storage = getStorage(app);
 export const auth = getAuth(app);
+
+// Création et exportation explicite du service Storage
+const firebaseStorage = getStorage(app);
+export { firebaseStorage as storage };
 
 // Vérification que le storageBucket est correctement configuré
 console.log('Firebase Storage Bucket:', firebaseConfig.storageBucket);

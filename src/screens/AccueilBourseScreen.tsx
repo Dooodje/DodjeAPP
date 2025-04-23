@@ -16,8 +16,8 @@ import { Section, Level } from '../types/home';
 // Import components from the project - use named imports
 import { IlotMenu } from '../components/IlotMenu';
 import { Rectangle11 } from '../components/Rectangle11';
-import { ChoicePoint } from '../components/ChoicePoint';
 import RightArrow from '../components/RightArrow';
+import LeftArrow from '../components/LeftArrow';
 import DailyStrike from '../components/DailyStrike';
 import SymboleBlanc from '../components/SymboleBlanc';
 import { PastilleParcours } from '../components/PastilleParcours';
@@ -26,6 +26,7 @@ import { PastilleParcoursVariant2 } from '../components/PastilleParcoursVariant2
 import { PastilleParcoursVariant3 } from '../components/PastilleParcoursVariant3';
 import { CourseTree } from '../components/home/CourseTree';
 import { UserStats } from '../components/home/UserStats';
+import PositionIndicator from '../components/navigation/PositionIndicator';
 
 const AccueilBourseScreen = () => {
   const {
@@ -45,6 +46,8 @@ const AccueilBourseScreen = () => {
   } = useHome();
 
   const navigation = useNavigation();
+  const [currentPosition, setCurrentPosition] = useState<number>(0);
+  const totalPositions = 3;
 
   // Effect to fetch tree data when component mounts
   useEffect(() => {
@@ -63,6 +66,16 @@ const AccueilBourseScreen = () => {
     handlePositionPress(courseId);
   };
 
+  // Fonction pour naviguer à gauche dans l'arbre
+  const handleNavigateLeft = () => {
+    setCurrentPosition(prev => (prev > 0 ? prev - 1 : 0));
+  };
+  
+  // Fonction pour naviguer à droite dans l'arbre
+  const handleNavigateRight = () => {
+    setCurrentPosition(prev => (prev < totalPositions - 1 ? prev + 1 : totalPositions - 1));
+  };
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="light-content" backgroundColor="#0A0400" />
@@ -73,6 +86,9 @@ const AccueilBourseScreen = () => {
         <View style={styles.backgroundRect2Position}>
           <Rectangle11 width={400} height={400} />
         </View>
+        
+        {/* POINT ROUGE DE TEST */}
+        <View style={styles.redDot} />
         
         {/* Main content */}
         <ScrollView 
@@ -120,11 +136,15 @@ const AccueilBourseScreen = () => {
           
           {/* Course tree with navigation arrows */}
           <View style={styles.courseTreeContainer}>
-            {/* Left arrow (hidden in the design) */}
+            {/* Left arrow */}
             <View style={styles.leftArrowContainer}>
-              <TouchableOpacity style={styles.arrowButton}>
-                <View style={{opacity: 0}}>
-                  <RightArrow />
+              <TouchableOpacity 
+                style={styles.arrowButton}
+                onPress={handleNavigateLeft}
+                disabled={currentPosition === 0}
+              >
+                <View style={{opacity: currentPosition === 0 ? 0.5 : 1}}>
+                  <LeftArrow width={50} height={50} />
                 </View>
               </TouchableOpacity>
             </View>
@@ -157,15 +177,21 @@ const AccueilBourseScreen = () => {
             
             {/* Right arrow */}
             <View style={styles.rightArrowContainer}>
-              <TouchableOpacity style={styles.arrowButton}>
-                <RightArrow />
+              <TouchableOpacity 
+                style={styles.arrowButton} 
+                onPress={handleNavigateRight}
+                disabled={currentPosition === totalPositions - 1}
+              >
+                <View style={{opacity: currentPosition === totalPositions - 1 ? 0.5 : 1}}>
+                  <RightArrow width={50} height={50} />
+                </View>
               </TouchableOpacity>
             </View>
           </View>
           
-          {/* Choice points */}
-          <View style={styles.choicePointContainer}>
-            <ChoicePoint variant="choice1" />
+          {/* Position indicators */}
+          <View style={styles.positionIndicatorContainer}>
+            <PositionIndicator total={totalPositions} current={currentPosition} />
           </View>
         </ScrollView>
         
@@ -184,6 +210,18 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     position: 'relative',
+  },
+  redDot: {
+    position: 'absolute',
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'red',
+    top: '50%',
+    left: '50%',
+    marginLeft: -20,
+    marginTop: -20,
+    zIndex: 9999,
   },
   backgroundRect2Position: {
     position: 'absolute',
@@ -280,10 +318,12 @@ const styles = StyleSheet.create({
   arrowButton: {
     padding: 10,
   },
-  choicePointContainer: {
-    justifyContent: 'center',
+  positionIndicatorContainer: {
     alignItems: 'center',
-    marginVertical: 20,
+    justifyContent: 'center',
+    marginTop: 15,
+    marginBottom: 15,
+    height: 30,
   },
   errorContainer: {
     position: 'absolute',
@@ -298,38 +338,38 @@ const styles = StyleSheet.create({
   },
   errorText: {
     color: '#FFFFFF',
-    fontSize: 16,
+    fontSize: 18,
+    fontFamily: 'Arboria-Medium',
     textAlign: 'center',
-    marginBottom: 15,
-    fontFamily: 'Arboria-Book',
-  },
-  retryButton: {
-    backgroundColor: '#059212',
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 25,
-  },
-  retryText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontFamily: 'Arboria-Book',
+    marginBottom: 20,
   },
   warningContainer: {
     position: 'absolute',
-    top: 10,
-    left: 10,
-    right: 10,
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 5,
     padding: 10,
-    backgroundColor: 'rgba(10, 4, 0, 0.8)',
-    borderRadius: 8,
-    zIndex: 10,
+    backgroundColor: 'rgba(255, 107, 0, 0.8)',
+    borderRadius: 10,
   },
   warningText: {
-    color: '#F3FF90',
-    fontSize: 12,
-    textAlign: 'center',
+    color: '#FFFFFF',
+    fontSize: 14,
     fontFamily: 'Arboria-Book',
+    textAlign: 'center',
   },
+  retryButton: {
+    backgroundColor: '#F3FF90',
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 50,
+  },
+  retryText: {
+    color: '#0A0400',
+    fontSize: 16,
+    fontFamily: 'Arboria-Medium',
+  }
 });
 
 export default AccueilBourseScreen; 

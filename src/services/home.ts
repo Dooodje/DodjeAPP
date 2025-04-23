@@ -31,12 +31,22 @@ interface FirestoreCourseData {
  * si seulement le chemin est fourni
  */
 async function getImageUrlFromPath(imagePath: string | undefined): Promise<string> {
-  if (!imagePath) return '';
+  // Si le chemin est vide ou undefined, retourner une chaîne vide immédiatement
+  if (!imagePath || imagePath.trim() === '') {
+    console.log('Chemin d\'image vide ou non défini');
+    return '';
+  }
   
   try {
     // Vérifier si c'est déjà une URL complète
     if (imagePath.startsWith('http')) {
       return imagePath;
+    }
+    
+    // Vérifier que le service storage est correctement initialisé
+    if (!storage) {
+      console.error('Le service Firebase Storage n\'est pas initialisé');
+      return '';
     }
     
     // Sinon, récupérer l'URL depuis Firebase Storage

@@ -12,7 +12,7 @@ const HEADER_HEIGHT = 120;
 const REFERENCE_WIDTH = 550;
 
 interface TreeBackgroundProps {
-  imageUrl: string;
+  imageUrl?: string; // Rendre explicitement optionnel
   positions: Record<string, PositionData>;
   onPositionPress: (positionId: string, order?: number) => void;
   parcours?: Record<string, any>;
@@ -27,6 +27,7 @@ const TreeBackground: React.FC<TreeBackgroundProps> = ({
   const [imageDimensions, setImageDimensions] = useState({ width: 0, height: 0 });
   const [scrollViewHeight, setScrollViewHeight] = useState(screenHeight);
   const [scrollViewWidth, setScrollViewWidth] = useState(screenWidth);
+  const [imageLoadError, setImageLoadError] = useState(false);
   const scrollViewRef = useRef<ScrollView>(null);
   
   const onScrollViewLayout = (event: LayoutChangeEvent) => {
@@ -36,30 +37,45 @@ const TreeBackground: React.FC<TreeBackgroundProps> = ({
   };
   
   useEffect(() => {
-    if (imageUrl) {
-      Image.getSize(imageUrl, (width, height) => {
-        let finalWidth, finalHeight;
-        
-        if (screenWidth > REFERENCE_WIDTH) {
-          // Pour les écrans plus larges que la référence
-          finalWidth = REFERENCE_WIDTH;
-          finalHeight = (height * REFERENCE_WIDTH) / width;
-        } else {
-          // Pour les écrans plus petits que la référence
-          finalWidth = screenWidth;
-          finalHeight = (height * screenWidth) / width;
+    // Si l'URL est définie et non vide
+    if (imageUrl && imageUrl.trim() !== '') {
+      Image.getSize(
+        imageUrl, 
+        (width, height) => {
+          let finalWidth, finalHeight;
+          
+          if (screenWidth > REFERENCE_WIDTH) {
+            // Pour les écrans plus larges que la référence
+            finalWidth = REFERENCE_WIDTH;
+            finalHeight = (height * REFERENCE_WIDTH) / width;
+          } else {
+            // Pour les écrans plus petits que la référence
+            finalWidth = screenWidth;
+            finalHeight = (height * screenWidth) / width;
+          }
+          
+          setImageDimensions({
+            width: finalWidth,
+            height: finalHeight
+          });
+          setImageLoadError(false);
+        }, 
+        (error) => {
+          console.error('Erreur lors du chargement des dimensions de l\'image:', error);
+          setImageLoadError(true);
+          setImageDimensions({
+            width: screenWidth,
+            height: screenHeight * 2
+          });
         }
-        
-        setImageDimensions({
-          width: finalWidth,
-          height: finalHeight
-        });
-      }, (error) => {
-        console.error('Erreur lors du chargement des dimensions de l\'image:', error);
-        setImageDimensions({
-          width: screenWidth,
-          height: screenHeight * 2
-        });
+      );
+    } else {
+      // Si pas d'URL définie, définir les dimensions par défaut
+      console.log('Pas d\'URL d\'image définie, utilisation des dimensions par défaut');
+      setImageLoadError(true);
+      setImageDimensions({
+        width: screenWidth,
+        height: screenHeight * 2
       });
     }
   }, [imageUrl]);
@@ -98,8 +114,8 @@ const TreeBackground: React.FC<TreeBackgroundProps> = ({
         style={styles.gradient}
       />
       
-      {/* Image de parcours */}
-      {imageUrl ? (
+      {/* Image de parcours ou fond par défaut si l'image n'est pas disponible */}
+      {imageUrl && !imageLoadError ? (
         <Image
           source={{ uri: imageUrl }}
           style={[
@@ -111,9 +127,18 @@ const TreeBackground: React.FC<TreeBackgroundProps> = ({
             }
           ]}
           resizeMode="contain"
+          onError={() => setImageLoadError(true)}
         />
       ) : (
-        <View style={[styles.defaultBackground, { height: imageDimensions.height }]} />
+        <View 
+          style={[
+            styles.defaultBackground, 
+            { 
+              height: imageDimensions.height,
+              width: '100%'
+            }
+          ]} 
+        />
       )}
 
       {/* Points de parcours */}
@@ -163,7 +188,6 @@ const styles = StyleSheet.create({
   },
   defaultBackground: {
     backgroundColor: theme.colors.background.medium,
-    width: '100%',
     position: 'absolute',
     top: 0,
     left: 0,

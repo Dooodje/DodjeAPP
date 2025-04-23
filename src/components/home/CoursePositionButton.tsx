@@ -3,7 +3,10 @@ import { View, Text, TouchableOpacity, StyleSheet, ViewStyle, Platform } from 'r
 import { Parcours } from '../../types/firebase';
 import theme from '../../config/theme';
 import { AnneauVector } from '../ui/vectors/AnneauVectors';
-import { PastilleVector } from '../ui/vectors/PastilleVectors';
+import PastilleAnnexe from '../PastilleAnnexe';
+import { PastilleParcoursDefault } from '../PastilleParcoursDefault';
+import { PastilleParcoursVariant2 } from '../PastilleParcoursVariant2';
+import { PastilleParcoursVariant3 } from '../PastilleParcoursVariant3';
 
 interface CoursePositionButtonProps {
   parcours: Parcours;
@@ -77,6 +80,27 @@ const CoursePositionButton: React.FC<CoursePositionButtonProps> = ({
   const ringSize = size;
   const pastilleSize = size * 0.6;
 
+  // Sélectionner le composant de pastille approprié en fonction du statut
+  const renderPastille = () => {
+    // Si c'est une annexe, utiliser PastilleAnnexe
+    if (parcours.isAnnexe || parcours.isAnnex) {
+      return <PastilleAnnexe width={pastilleSize} height={pastilleSize} />;
+    }
+
+    // Si le parcours est terminé, utiliser PastilleParcoursVariant2 (vert)
+    if (parcours.isCompleted) {
+      return <PastilleParcoursVariant2 style={{ width: pastilleSize, height: pastilleSize }} />;
+    }
+
+    // Si le parcours est débloqué mais pas terminé, utiliser PastilleParcoursDefault (jaune)
+    if (isActive) {
+      return <PastilleParcoursDefault style={{ width: pastilleSize, height: pastilleSize }} />;
+    }
+
+    // Si le parcours est bloqué, utiliser PastilleParcoursVariant3 (gris/désactivé)
+    return <PastilleParcoursVariant3 style={{ width: pastilleSize, height: pastilleSize }} />;
+  };
+
   return (
     <TouchableOpacity
       style={[styles.container, { width: size, height: size }, style]}
@@ -93,13 +117,7 @@ const CoursePositionButton: React.FC<CoursePositionButtonProps> = ({
       
       {/* Pastille centrale */}
       <View style={styles.pastilleContainer}>
-        <PastilleVector 
-          type={positionType === 'annexe' ? 'annexe' : 'parcours'} 
-          size={pastilleSize} 
-          isActive={isActive} 
-          backgroundColor={getPrimaryColor()} 
-          borderColor={getSecondaryColor()} 
-        />
+        {renderPastille()}
       </View>
       
       {/* Badge d'ordre si fourni */}

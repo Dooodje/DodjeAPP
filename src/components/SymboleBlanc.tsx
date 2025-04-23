@@ -1,6 +1,6 @@
 import React from 'react';
 import { View } from 'react-native';
-import SymboleBlanc from '../../assets/SymboleBlanc.svg';
+import SymboleBlanc from '../assets/SymboleBlanc.svg';
 
 interface SymbleBlancProps {
   width?: number;

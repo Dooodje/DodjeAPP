@@ -12,13 +12,17 @@ import {
 import { useNavigation } from '@react-navigation/native';
 import theme from '../config/theme';
 import Header from '../components/home/Header';
-import ThemeSelector from '../components/home/ThemeSelector';
 import LevelSelector from '../components/home/LevelSelector';
 import CoursePositionButton from '../components/home/CoursePositionButton';
 import BottomNavigation from '../components/navigation/BottomNavigation';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from '@expo/vector-icons';
 import { Parcours } from '../types/firebase';
+import { Menu } from '../components/Menu';
+import { GlobalHeader } from '../components/ui/GlobalHeader';
+import RightArrow from '../components/RightArrow';
+import LeftArrow from '../components/LeftArrow';
+import PositionIndicator from '../components/navigation/PositionIndicator';
 
 // Dummy data pour les tests
 const dummyParcours: Parcours[] = [
@@ -107,6 +111,8 @@ const HomeScreen = () => {
   const [selectedLevel, setSelectedLevel] = useState<LevelType>('debutant');
   const [filteredParcours, setFilteredParcours] = useState<Parcours[]>([]);
   const [currentScreen, setCurrentScreen] = useState<ScreenName>('home');
+  const [currentPosition, setCurrentPosition] = useState<number>(0);
+  const totalPositions = 3;
 
   // Filtrer les parcours selon le thème et le niveau sélectionnés
   useEffect(() => {
@@ -133,32 +139,44 @@ const HomeScreen = () => {
     console.log(`Naviguer vers l'écran: ${screenName}`);
   };
 
+  // Fonction pour changer le thème (bourse/crypto)
+  const handleThemeChange = (theme: ThemeType) => {
+    setSelectedTheme(theme);
+  };
+
+  // Fonction pour naviguer à gauche dans l'arbre
+  const handleNavigateLeft = () => {
+    setCurrentPosition(prev => (prev > 0 ? prev - 1 : 0));
+  };
+  
+  // Fonction pour naviguer à droite dans l'arbre
+  const handleNavigateRight = () => {
+    setCurrentPosition(prev => (prev < totalPositions - 1 ? prev + 1 : totalPositions - 1));
+  };
+
+  // Conversion du thème pour le composant Menu
+  const activeMenu = selectedTheme === 'bourse' ? 'bourse' : 'crypto';
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar barStyle="light-content" backgroundColor={theme.colors.background.dark} />
       
       <View style={styles.container}>
-        {/* Header */}
-        <Header 
-          userName="Charles"
-          dodjiCount={250}
-          streak={3}
-          onProfilePress={() => handleScreenChange('profile')}
+        {/* GlobalHeader avec positionnement amélioré */}
+        <GlobalHeader
+          level={3}
+          points={250}
+          title={selectedLevel === 'debutant' 
+            ? 'DÉBUTANT' 
+            : selectedLevel === 'avance' 
+              ? 'AVANCÉ' 
+              : 'EXPERT'}
+          showSectionSelector={true}
+          selectedSection={selectedTheme === 'bourse' ? 'Bourse' : 'Crypto'}
+          onSectionChange={(section) => setSelectedTheme(section.toLowerCase() as ThemeType)}
         />
         
-        {/* Sélecteurs */}
-        <View style={styles.selectorsContainer}>
-          <ThemeSelector 
-            selectedTheme={selectedTheme} 
-            onThemeChange={setSelectedTheme} 
-          />
-          <LevelSelector 
-            selectedLevel={selectedLevel} 
-            onLevelChange={setSelectedLevel} 
-          />
-        </View>
-        
-        {/* Contenu principal - Arbre d'apprentissage */}
+        {/* Contenu principal - Arbre d'apprentissage avec padding ajusté */}
         <ScrollView 
           style={styles.scrollView}
           contentContainerStyle={styles.scrollViewContent}
@@ -171,6 +189,12 @@ const HomeScreen = () => {
             ]}
             style={styles.gradient}
           />
+          
+          {/* POINT ROUGE DE TEST */}
+          <View style={styles.redDot} />
+          
+          {/* Ajout d'un padding en haut pour laisser de l'espace au header */}
+          <View style={styles.contentPadding} />
           
           {/* Fond d'arbre d'apprentissage */}
           <Image 
@@ -206,20 +230,47 @@ const HomeScreen = () => {
           
           {/* Boutons de navigation d'arbre (gauche/droite) */}
           <View style={styles.treeNavigationContainer}>
-            <TouchableOpacity style={styles.treeNavButton}>
-              <Ionicons 
-                name="chevron-back" 
-                size={24} 
-                color={theme.colors.text.primary} 
-              />
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.treeNavButton}>
-              <Ionicons 
-                name="chevron-forward" 
-                size={24} 
-                color={theme.colors.text.primary} 
-              />
-            </TouchableOpacity>
+            <View style={styles.navigationButtonContainer}>
+              <TouchableOpacity 
+                onPress={handleNavigateLeft}
+                disabled={currentPosition === 0}
+                style={[
+                  styles.navigationArrowTouchable,
+                  currentPosition === 0 && styles.navigationArrowDisabled
+                ]}
+              >
+                <LeftArrow width={50} height={50} />
+              </TouchableOpacity>
+            </View>
+            
+            {/* Espace entre les flèches */}
+            <View style={{ flex: 1 }} />
+            
+            <View style={styles.navigationButtonContainer}>
+              <TouchableOpacity 
+                onPress={handleNavigateRight}
+                disabled={currentPosition === totalPositions - 1}
+                style={[
+                  styles.navigationArrowTouchable,
+                  currentPosition === totalPositions - 1 && styles.navigationArrowDisabled
+                ]}
+              >
+                <RightArrow width={50} height={50} />
+              </TouchableOpacity>
+            </View>
+          </View>
+          
+          {/* Indicateur de position - Utilisation du composant PositionIndicator */}
+          <View style={styles.positionIndicatorContainer}>
+            <PositionIndicator total={totalPositions} current={currentPosition} />
+          </View>
+          
+          {/* Sélecteur de niveau */}
+          <View style={styles.levelSelectorContainer}>
+            <LevelSelector 
+              selectedLevel={selectedLevel} 
+              onLevelChange={setSelectedLevel} 
+            />
           </View>
           
           {/* Bouton Dodji One */}
@@ -252,17 +303,30 @@ const styles = StyleSheet.create({
   },
   container: {
     flex: 1,
-    backgroundColor: theme.colors.background.dark,
-  },
-  selectorsContainer: {
-    paddingHorizontal: 16,
+    position: 'relative',
   },
   scrollView: {
     flex: 1,
   },
   scrollViewContent: {
-    minHeight: '100%',
+    flexGrow: 1,
     position: 'relative',
+    paddingBottom: 80,
+  },
+  redDot: {
+    position: 'absolute',
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'red',
+    top: '50%',
+    left: '50%',
+    marginLeft: -20,
+    marginTop: -20,
+    zIndex: 9999,
+  },
+  contentPadding: {
+    height: 120, // Ajusté pour la nouvelle disposition du header
   },
   gradient: {
     position: 'absolute',
@@ -273,46 +337,71 @@ const styles = StyleSheet.create({
   },
   treeBackground: {
     width: '100%',
-    height: undefined,
-    aspectRatio: 0.8, // Ajustez selon le ratio de votre image
-    opacity: 0.9,
+    height: 500,
+    opacity: 0.6,
   },
   coursePositionWrapper: {
     position: 'absolute',
-    transform: [{ translateX: -40 }, { translateY: -40 }], // Centrer (moitié de la taille)
+    transform: [{ translateX: -40 }, { translateY: -40 }],
   },
   treeNavigationContainer: {
+    position: 'absolute',
+    bottom: 120,
+    width: '100%',
     flexDirection: 'row',
     justifyContent: 'space-between',
     paddingHorizontal: 20,
-    position: 'absolute',
-    top: '50%',
-    left: 0,
-    right: 0,
-  },
-  treeNavButton: {
-    width: 40,
-    height: 40,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
+    zIndex: 5,
   },
   dodjiOneButton: {
-    alignSelf: 'center',
-    marginVertical: 20,
-    borderRadius: 20,
+    position: 'absolute',
+    bottom: 20,
+    left: 20,
     overflow: 'hidden',
+    borderRadius: 15,
   },
   dodjiOneGradient: {
     paddingVertical: 12,
-    paddingHorizontal: 24,
-    borderRadius: 20,
+    paddingHorizontal: 20,
+    borderRadius: 15,
   },
   dodjiOneText: {
     color: theme.colors.text.primary,
     fontSize: 16,
     fontWeight: 'bold',
+  },
+  levelSelectorContainer: {
+    position: 'absolute',
+    bottom: 85,
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+  },
+  navigationButtonContainer: {
+    borderRadius: 50,
+    width: 60,
+    height: 60,
+    justifyContent: 'center',
+    alignItems: 'center',
+    overflow: 'hidden',
+  },
+  navigationArrowTouchable: {
+    width: '100%',
+    height: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  navigationArrowDisabled: {
+    opacity: 0.5,
+  },
+  positionIndicatorContainer: {
+    position: 'absolute',
+    bottom: 180,
+    width: '100%',
+    alignItems: 'center',
+    height: 30,
+    justifyContent: 'center',
+    zIndex: 15,
   },
 });
 

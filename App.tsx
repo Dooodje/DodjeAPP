@@ -3,7 +3,7 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import HomeScreen from './src/screens/HomeScreen';
+import AccueilBourseScreen from './src/screens/AccueilBourseScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -19,7 +19,7 @@ export default function App() {
             contentStyle: { backgroundColor: '#0A0400' }
           }}
         >
-          <Stack.Screen name="Home" component={HomeScreen} />
+          <Stack.Screen name="Home" component={AccueilBourseScreen} />
           {/* D'autres écrans seront ajoutés ici */}
         </Stack.Navigator>
       </NavigationContainer>
