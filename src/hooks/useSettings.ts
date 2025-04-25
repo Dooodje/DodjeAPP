@@ -12,7 +12,6 @@ import {
 import { settingsService } from '../services/settingsService';
 import { useAuth } from './useAuth';
 import { Alert } from 'react-native';
-import { authService } from '../services';
 
 const defaultSettings: UserSettings = {
   userInfo: {
@@ -294,19 +293,6 @@ export function useSettings(): SettingsContextType {
         console.warn('Tentative de mise à jour des informations utilisateur sans utilisateur connecté');
         setError('Vous devez être connecté pour modifier vos informations');
         return; // Sortie anticipée sans lancer d'erreur
-      }
-
-      // Si l'email est modifié, utiliser la méthode spécifique d'authentification
-      if (userInfo.email && userInfo.email !== settings.userInfo.email) {
-        try {
-          await authService.updateEmail(userInfo.email);
-          // Note: L'email sera mis à jour dans Firestore après vérification
-          return; // Sortir sans mettre à jour les paramètres dans Firestore
-        } catch (error) {
-          // Propager l'erreur au composant pour qu'il puisse gérer la réauthentification
-          console.error('Erreur lors de la mise à jour de l\'email:', error);
-          throw error; // Relancer l'erreur pour que le composant puisse la gérer
-        }
       }
 
       const updatedUserInfo = {

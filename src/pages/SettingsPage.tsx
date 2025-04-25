@@ -63,7 +63,6 @@ export default function SettingsPage() {
         <UserInfoCard
           userInfo={settings.userInfo}
           onUpdateUsername={(username) => updateUserInfo({ username })}
-          onUpdateEmail={(email) => updateUserInfo({ email })}
           onResetPassword={resetPassword}
         />
 

@@ -14,6 +14,7 @@ import { NextVideo } from '../../components/NextVideo';
 import { LoadingSpinner } from '../ui/LoadingSpinner';
 import * as ScreenOrientation from 'expo-screen-orientation';
 import { videoService } from '../../services/video';
+import { useVideoTracking } from '../../hooks/useVideoTracking';
 
 const { width, height } = Dimensions.get('window');
 
@@ -44,6 +45,9 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ videoId: initialVideoI
   const router = useRouter();
   const dispatch = useDispatch();
   const [prevIsFullscreen, setPrevIsFullscreen] = useState(false);
+  const [currentTime, setCurrentTime] = useState<number>(0);
+  const [duration, setDuration] = useState<number>(0);
+  const [isPlaying, setIsPlaying] = useState(false);
 
   // Animation de pulsation pour le bouton play
   useEffect(() => {
@@ -63,29 +67,36 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ videoId: initialVideoI
     ).start();
   }, []);
 
-  // Utiliser le hook useVideo avec l'ID de vidéo actuel (qui peut changer)
+  // Get data from useVideo hook but rename the setter functions
   const {
     currentVideo,
     relatedVideos,
     nextVideo,
-    isPlaying,
-    currentTime,
-    duration,
     isLoading,
     error,
     isFullscreen,
     showControls,
     thumbnailUrl,
-    handleProgress,
+    handleProgress: originalHandleProgress,
     handleUnlock,
     handleVideoSelect: originalHandleVideoSelect,
-    togglePlayback,
+    togglePlayback: originalTogglePlayback,
     toggleFullscreen,
     toggleControls,
-    setPlaying,
-    setCurrentTime,
-    setDuration
+    setCurrentTime: updateReduxCurrentTime,
+    setDuration: updateReduxDuration
   } = useVideo(currentVideoId, userId);
+
+  // Add the video tracking hook
+  const videoTracking = useVideoTracking(
+    currentVideo?.id || initialVideoId,
+    {
+      courseId: currentVideo?.courseId || '',
+      videoTitle: currentVideo?.title || currentVideo?.titre || '',
+      videoSection: ''
+    },
+    1000 // Track every second for more accurate progress
+  );
 
   // Log pour faciliter le débogage
   useEffect(() => {
@@ -106,7 +117,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ videoId: initialVideoI
       
       // Réinitialiser les états pour la nouvelle vidéo
       setVideoStarted(false);
-      setPlaying(false);
+      setIsPlaying(false);
       setSavedPosition(0);
       setVideoError(null);
       
@@ -146,9 +157,9 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ videoId: initialVideoI
   useEffect(() => {
     if (videoRef.current) {
       if (isFullscreen) {
-        // Passer en mode paysage lorsqu'on entre en plein écran
-        ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE).catch(err => {
-          console.error('Erreur lors du passage en mode paysage:', err);
+        // Maintenir le mode portrait même lorsqu'on entre en plein écran
+        ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT).catch(err => {
+          console.error('Erreur lors du maintien du mode portrait:', err);
         });
         
         videoRef.current.presentFullscreenPlayer().catch(err => {
@@ -158,13 +169,13 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ videoId: initialVideoI
         // S'assurer que la vidéo est en lecture quand on passe en plein écran
         if (videoStarted && !isPlaying) {
           console.log('Forcer la lecture en mode plein écran');
-          setPlaying(true);
+          setIsPlaying(true);
           videoRef.current.playAsync().catch(err => {
             console.error('Erreur lors de la lecture forcée en plein écran:', err);
           });
         }
       } else {
-        // Revenir en mode portrait lorsqu'on quitte le plein écran
+        // Revenir en mode portrait lorsqu'on quitte le plein écran (déjà en portrait, mais on s'assure)
         ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT).catch(err => {
           console.error('Erreur lors du retour en mode portrait:', err);
         });
@@ -176,7 +187,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ videoId: initialVideoI
         // Mettre en pause la vidéo et afficher la miniature quand on quitte le plein écran
         if (videoStarted && isPlaying) {
           console.log('Mise en pause de la vidéo à la sortie du plein écran');
-          setPlaying(false);
+          setIsPlaying(false);
           // Sauvegarder la position actuelle pour une reprise ultérieure
           setSavedPosition(currentTime);
           videoRef.current.pauseAsync().catch(err => {
@@ -187,12 +198,12 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ videoId: initialVideoI
         }
       }
     }
-  }, [isFullscreen, setPlaying, videoStarted, isPlaying, currentTime]);
+  }, [isFullscreen, setIsPlaying, videoStarted, isPlaying, currentTime]);
 
   // Nettoyer et réinitialiser l'orientation lors du démontage du composant
   useEffect(() => {
     return () => {
-      // Réinitialiser l'orientation en portrait lorsqu'on quitte la page vidéo
+      // S'assurer que l'orientation reste en portrait lorsqu'on quitte la page vidéo
       ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT).catch(err => {
         console.error('Erreur lors de la réinitialisation en mode portrait:', err);
       });
@@ -229,40 +240,53 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ videoId: initialVideoI
 
   // Démarrer la lecture de la vidéo uniquement au clic sur le bouton play
   const startVideo = () => {
-    console.log('Démarrage de la vidéo au clic sur le bouton play');
-    setVideoStarted(true);
-    setPlaying(true);
-    
-    // Si nous avons une position sauvegardée, l'utiliser
-    if (savedPosition > 0 && videoRef.current) {
-      console.log(`Reprise de la vidéo à la position ${savedPosition.toFixed(2)}s`);
-      videoRef.current.setPositionAsync(savedPosition * 1000).catch(err => {
-        console.error('Erreur lors de la reprise à la position sauvegardée:', err);
-      });
-    }
-    
-    // Passer en mode plein écran immédiatement
-    setTimeout(() => {
-      if (videoRef.current) {
-        console.log('Passage en mode plein écran automatique');
-        // Activer le plein écran via le state
-        dispatch(setFullscreen(true));
-        // Forcer également l'API native de la vidéo pour le mode plein écran
-        videoRef.current.presentFullscreenPlayer().catch(err => {
-          console.error('Erreur lors du passage en plein écran:', err);
+    try {
+      if (!videoRef.current) return;
+      
+      setVideoStarted(true);
+      setIsPlaying(true);
+      
+      // Start tracking when video starts playing
+      videoTracking.startTracking(0, duration);
+      
+      // Si nous avons une position sauvegardée, l'utiliser
+      if (savedPosition > 0) {
+        console.log(`Reprise de la vidéo à la position ${savedPosition.toFixed(2)}s`);
+        videoRef.current.setPositionAsync(savedPosition * 1000).catch(err => {
+          console.error('Erreur lors de la reprise à la position sauvegardée:', err);
         });
-        
-        // Forcer la lecture après le passage en plein écran
-        setTimeout(() => {
-          if (videoRef.current) {
-            console.log('Forcer la lecture après passage en plein écran');
-            videoRef.current.playAsync().catch(err => {
-              console.error('Erreur lors de la lecture forcée:', err);
-            });
-          }
-        }, 500);
       }
-    }, 300); // Petit délai pour permettre à la vidéo de se charger correctement
+      
+      // S'assurer que l'orientation reste en portrait avant de passer en plein écran
+      ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT).catch(err => {
+        console.error('Erreur lors du verrouillage en mode portrait:', err);
+      });
+      
+      // Passer en mode plein écran immédiatement
+      setTimeout(() => {
+        if (videoRef.current) {
+          console.log('Passage en mode plein écran automatique');
+          // Activer le plein écran via le state
+          dispatch(setFullscreen(true));
+          // Forcer également l'API native de la vidéo pour le mode plein écran
+          videoRef.current.presentFullscreenPlayer().catch(err => {
+            console.error('Erreur lors du passage en plein écran:', err);
+          });
+          
+          // Forcer la lecture après le passage en plein écran
+          setTimeout(() => {
+            if (videoRef.current) {
+              console.log('Forcer la lecture après passage en plein écran');
+              videoRef.current.playAsync().catch(err => {
+                console.error('Erreur lors de la lecture forcée:', err);
+              });
+            }
+          }, 500);
+        }
+      }, 300); // Petit délai pour permettre à la vidéo de se charger correctement
+    } catch (error) {
+      console.error('Erreur lors du démarrage de la vidéo:', error);
+    }
   };
 
   // Gérer les mises à jour de l'état du plein écran (entrée/sortie)
@@ -275,6 +299,19 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ videoId: initialVideoI
       // - FULLSCREEN_UPDATE_PLAYER_DID_DISMISS: La vidéo a quitté le plein écran
       
       console.log(`Mise à jour du plein écran: ${event.fullscreenUpdate}`);
+
+      // Maintenir l'orientation portrait pendant les transitions de plein écran
+      if (event.fullscreenUpdate === FULLSCREEN_UPDATE_PLAYER_WILL_PRESENT) {
+        // Avant de passer en plein écran, s'assurer que l'orientation reste en portrait
+        ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT).catch(err => {
+          console.error('Erreur lors du maintien du mode portrait pour le plein écran:', err);
+        });
+      } else if (event.fullscreenUpdate === FULLSCREEN_UPDATE_PLAYER_DID_PRESENT) {
+        // Une fois en plein écran, s'assurer encore que l'orientation reste en portrait
+        ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT).catch(err => {
+          console.error('Erreur lors du maintien du mode portrait après passage en plein écran:', err);
+        });
+      }
 
       if (event.fullscreenUpdate === FULLSCREEN_UPDATE_PLAYER_DID_DISMISS) {
         // L'utilisateur a quitté le mode plein écran manuellement
@@ -292,7 +329,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ videoId: initialVideoI
         
         // Revenir à l'état initial (thumbnail + bouton play)
         setVideoStarted(false);
-        setPlaying(false);
+        setIsPlaying(false);
         
         // Sauvegarder la position actuelle pour pouvoir reprendre plus tard
         if (videoRef.current) {
@@ -326,7 +363,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ videoId: initialVideoI
       
       // Réinitialiser l'interface utilisateur pour afficher la vignette avec le bouton play
       setVideoStarted(false);
-      setPlaying(false);
+      setIsPlaying(false);
       
       // Sauvegarder la position pour pouvoir reprendre plus tard
       if (videoRef.current) {
@@ -357,6 +394,33 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ videoId: initialVideoI
     }
   }, [nextVideo]);
 
+  // Modify handleProgress to update tracking position
+  const handleProgress = useCallback((progress: number) => {
+    if (!currentVideo) return;
+    
+    // Existing progress code
+    // ... existing code ...
+    
+    // Update the tracking position
+    videoTracking.updatePosition(currentTime, duration);
+  }, [currentTime, duration, videoTracking, currentVideo]);
+  
+  // ... existing code ...
+  
+  // Modify togglePlayback to pause/resume tracking
+  const togglePlayback = useCallback(() => {
+    setIsPlaying(prev => !prev);
+    
+    // Update tracking based on new play state
+    if (isPlaying) {
+      videoTracking.pauseTracking();
+    } else {
+      videoTracking.startTracking(currentTime, duration);
+    }
+  }, [isPlaying, videoTracking, currentTime, duration]);
+  
+  // ... existing code ...
+  
   if (isLoading && !currentVideo) {
     console.log('⏳ Affichage du spinner de chargement');
     return (
@@ -468,15 +532,31 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ videoId: initialVideoI
           onFullscreenUpdate={onFullscreenUpdate}
           onPlaybackStatusUpdate={(status) => {
             if (status.isLoaded) {
-              setCurrentTime(status.positionMillis / 1000);
-              setDuration(status.durationMillis ? status.durationMillis / 1000 : 0);
+              // Update both local state and Redux state
+              const newCurrentTime = status.positionMillis / 1000;
+              const newDuration = status.durationMillis ? status.durationMillis / 1000 : 0;
               
-              // Mettre à jour la progression si la vidéo est en lecture et a progressé
+              setCurrentTime(newCurrentTime);
+              setDuration(newDuration);
+              
+              // Also update Redux state
+              updateReduxCurrentTime(newCurrentTime);
+              updateReduxDuration(newDuration);
+              
+              // Calculate progress percentage
               if (status.positionMillis > 0 && !status.didJustFinish) {
                 const progress = status.durationMillis
                   ? (status.positionMillis / status.durationMillis) * 100
                   : 0;
-                handleProgress(progress);
+                originalHandleProgress(progress);
+                
+                // Update tracking position with each status update
+                videoTracking.updatePosition(newCurrentTime, newDuration);
+              }
+              
+              // Handle video completion
+              if (status.didJustFinish) {
+                videoTracking.completeVideo();
               }
             }
           }}

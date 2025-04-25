@@ -5,10 +5,6 @@ import {
   onAuthStateChanged,
   User,
   sendPasswordResetEmail,
-  updateEmail,
-  verifyBeforeUpdateEmail,
-  reauthenticateWithCredential,
-  EmailAuthProvider,
 } from 'firebase/auth';
 import {
   collection,
@@ -20,7 +16,8 @@ import {
   where,
   getDocs,
   QueryDocumentSnapshot,
-  DocumentData
+  DocumentData,
+  Timestamp
 } from 'firebase/firestore';
 import {
   ref,
@@ -31,6 +28,7 @@ import {
 import { auth, db, storage } from './config';
 import { UserData, Parcours, UserProgress } from '../../types/firebase';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Platform } from 'react-native';
 
 const STORAGE_KEYS = {
   USER: '@dodje_user',
@@ -45,6 +43,64 @@ export const firestoreService = {
       return userDoc.exists() ? userDoc.data() as UserData : null;
     } catch (error) {
       console.error('Erreur lors de la récupération des données utilisateur:', error);
+      throw error;
+    }
+  },
+
+  // Créer les sous-collections vides pour un nouvel utilisateur
+  initializeUserSubcollections: async (uid: string): Promise<void> => {
+    try {
+      console.log(`Initialisation des sous-collections pour l'utilisateur ${uid}...`);
+      
+      // Créer un document vide dans chaque sous-collection pour les initialiser
+      const subcollections = [
+        'profil-invest', 
+        'dodjelabs', 
+        'jeton_dodji', 
+        'dodjeone', 
+        'video', 
+        'quiz', 
+        'connexion', 
+        'parcours', 
+        'historique'
+      ];
+      
+      // Créer les sous-collections avec un document initial vide
+      for (const subcollection of subcollections) {
+        const initialDocRef = doc(db, 'users', uid, subcollection, 'init');
+        
+        // Définir des données initiales différentes selon la sous-collection
+        let initialData: Record<string, any> = {
+          createdAt: Timestamp.now(),
+          initialized: true
+        };
+        
+        // Données spécifiques par sous-collection
+        if (subcollection === 'connexion') {
+          initialData = {
+            ...initialData,
+            firstLogin: Timestamp.now()
+          };
+        } else if (subcollection === 'jeton_dodji') {
+          initialData = {
+            ...initialData,
+            balance: 0,
+            transactions: []
+          };
+        } else if (subcollection === 'dodjeone') {
+          initialData = {
+            ...initialData,
+            status: 'free',
+            since: Timestamp.now()
+          };
+        }
+        
+        await setDoc(initialDocRef, initialData);
+      }
+      
+      console.log(`Sous-collections initialisées avec succès pour l'utilisateur ${uid}`);
+    } catch (error) {
+      console.error('Erreur lors de l\'initialisation des sous-collections:', error);
       throw error;
     }
   },
@@ -69,13 +125,16 @@ export const firestoreService = {
         dodji: 0,
         streak: 0,
         isDodjeOne: false,
-        createdAt: new Date().toISOString(),
-        lastLogin: new Date().toISOString(),
+        createdAt: Timestamp.now().toDate().toISOString(),
+        lastLogin: Timestamp.now().toDate().toISOString(),
       };
       
       // Créer le document utilisateur dans Firestore
       await setDoc(doc(db, 'users', firebaseUser.uid), newUserData);
       console.log(`Document utilisateur créé avec succès pour ${firebaseUser.uid}`);
+      
+      // Initialiser les sous-collections pour le nouvel utilisateur
+      await firestoreService.initializeUserSubcollections(firebaseUser.uid);
       
       return newUserData;
     } catch (error) {
@@ -170,7 +229,7 @@ export const authService = {
       const user = userCredential.user;
       console.log('Compte créé avec succès dans Firebase Auth, UID:', user.uid);
       
-      // Créer le document utilisateur dans Firestore
+      // Créer le document utilisateur dans Firestore avec toutes les données requises
       const userData: UserData = {
         uid: user.uid,
         email: user.email!,
@@ -179,14 +238,19 @@ export const authService = {
         dodji: 0,
         streak: 0,
         isDodjeOne: false,
-        createdAt: new Date().toISOString(),
-        lastLogin: new Date().toISOString(),
+        createdAt: Timestamp.now().toDate().toISOString(),
+        lastLogin: Timestamp.now().toDate().toISOString(),
       };
 
       console.log('Tentative de création du document utilisateur dans Firestore...');
       try {
         await setDoc(doc(db, 'users', user.uid), userData);
         console.log('Document utilisateur créé avec succès dans Firestore');
+        
+        // Initialiser les sous-collections pour le nouvel utilisateur
+        await firestoreService.initializeUserSubcollections(user.uid);
+        console.log('Sous-collections initialisées avec succès');
+        
       } catch (firestoreError: any) {
         console.error('Erreur lors de la création du document Firestore:', firestoreError);
         
@@ -249,29 +313,38 @@ export const authService = {
       
       // Mettre à jour la dernière connexion
       await updateDoc(doc(db, 'users', user.uid), {
-        lastLogin: new Date().toISOString(),
+        lastLogin: Timestamp.now().toDate().toISOString(),
       });
 
-      // Mettre à jour les données utilisateur avec la dernière connexion
-      const updatedUserData = {
-        ...userData,
-        lastLogin: new Date().toISOString(),
-      };
-      
-      // Sauvegarder l'utilisateur dans le stockage local
-      await AsyncStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(updatedUserData));
+      // Mettre à jour également AsyncStorage
+      await AsyncStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(userData));
 
-      return updatedUserData;
+      // Ajouter une entrée dans la sous-collection connexion
+      try {
+        const connexionRef = doc(collection(db, 'users', user.uid, 'connexion'));
+        await setDoc(connexionRef, {
+          timestamp: Timestamp.now(),
+          device: 'mobile', // À améliorer pour détecter réellement l'appareil
+          platform: Platform.OS
+        });
+      } catch (connexionError) {
+        console.warn('Erreur lors de l\'enregistrement de la connexion:', connexionError);
+        // Ne pas bloquer la connexion si cet enregistrement échoue
+      }
+
+      return userData;
     } catch (error: any) {
       console.error('Erreur lors de la connexion:', error);
       
-      // Catégorisation des erreurs Firebase
-      if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password') {
-        throw new Error('Adresse e-mail ou mot de passe incorrect');
-      } else if (error.code === 'auth/invalid-email') {
+      // Catégorisation des erreurs
+      if (error.code === 'auth/invalid-email') {
         throw new Error('Adresse e-mail invalide');
       } else if (error.code === 'auth/user-disabled') {
         throw new Error('Ce compte a été désactivé');
+      } else if (error.code === 'auth/user-not-found') {
+        throw new Error('Aucun compte trouvé avec cette adresse e-mail');
+      } else if (error.code === 'auth/wrong-password') {
+        throw new Error('Mot de passe incorrect');
       } else if (error.code === 'auth/too-many-requests') {
         throw new Error('Trop de tentatives de connexion. Veuillez réessayer plus tard');
       }
@@ -284,35 +357,36 @@ export const authService = {
   async logout(): Promise<void> {
     try {
       await signOut(auth);
-      // Supprimer les données utilisateur du stockage local
       await AsyncStorage.removeItem(STORAGE_KEYS.USER);
-    } catch (error: any) {
+    } catch (error) {
       console.error('Erreur lors de la déconnexion:', error);
-      throw new Error(error.message || 'Erreur lors de la déconnexion');
+      throw error;
     }
   },
 
-  // Récupérer l'utilisateur courant depuis le stockage local
+  // Vérification d'un utilisateur actuellement connecté
   async getCurrentUser(): Promise<UserData | null> {
     try {
-      const userJson = await AsyncStorage.getItem(STORAGE_KEYS.USER);
-      return userJson ? JSON.parse(userJson) : null;
+      // Vérifier d'abord dans le stockage local pour une expérience plus rapide
+      const storedUser = await AsyncStorage.getItem(STORAGE_KEYS.USER);
+      if (storedUser) {
+        return JSON.parse(storedUser) as UserData;
+      }
+      return null;
     } catch (error) {
-      console.error('Erreur lors de la récupération de l\'utilisateur:', error);
+      console.error('Erreur lors de la récupération de l\'utilisateur actuel:', error);
       return null;
     }
   },
 
-  // Vérifier si le token est valide
+  // Vérification de la validité du token
   async isTokenValid(): Promise<boolean> {
     try {
       const currentUser = auth.currentUser;
-      if (!currentUser) {
-        return false;
-      }
+      if (!currentUser) return false;
       
-      // Forcer le rafraîchissement du token pour vérifier sa validité
-      await currentUser.getIdToken(true);
+      // Tenter de récupérer le token ID pour vérifier sa validité
+      await currentUser.getIdToken(false);
       return true;
     } catch (error) {
       console.error('Erreur lors de la vérification du token:', error);
@@ -320,20 +394,15 @@ export const authService = {
     }
   },
 
-  // Rafraîchir le token d'authentification
+  // Rafraîchissement du token
   async refreshToken(): Promise<string | null> {
     try {
       const currentUser = auth.currentUser;
-      if (!currentUser) {
-        console.warn('Tentative de rafraîchissement de token sans utilisateur connecté');
-        return null;
-      }
+      if (!currentUser) return null;
       
-      console.log('Rafraîchissement du token pour l\'utilisateur:', currentUser.uid);
-      // Forcer l'obtention d'un nouveau token
-      const newToken = await currentUser.getIdToken(true);
-      console.log('Token rafraîchi avec succès');
-      return newToken;
+      // Forcer le rafraîchissement du token
+      const token = await currentUser.getIdToken(true);
+      return token;
     } catch (error) {
       console.error('Erreur lors du rafraîchissement du token:', error);
       return null;
@@ -343,7 +412,6 @@ export const authService = {
   // Réinitialisation du mot de passe
   async resetPassword(email: string): Promise<void> {
     try {
-      // Validation de l'email
       if (!this.validateEmail(email)) {
         throw new Error('Adresse e-mail invalide');
       }
@@ -352,114 +420,34 @@ export const authService = {
     } catch (error: any) {
       console.error('Erreur lors de la réinitialisation du mot de passe:', error);
       
-      // Catégorisation des erreurs Firebase
-      if (error.code === 'auth/user-not-found') {
-        throw new Error('Aucun compte associé à cette adresse e-mail');
-      } else if (error.code === 'auth/invalid-email') {
+      // Catégorisation des erreurs
+      if (error.code === 'auth/invalid-email') {
         throw new Error('Adresse e-mail invalide');
+      } else if (error.code === 'auth/user-not-found') {
+        // Pour des raisons de sécurité, on pourrait vouloir ne pas indiquer que l'utilisateur n'existe pas
+        // Mais cela peut nuire à l'expérience utilisateur
+        throw new Error('Aucun compte trouvé avec cette adresse e-mail');
       }
       
       throw new Error(error.message || 'Erreur lors de la réinitialisation du mot de passe');
     }
   },
 
-  // Écouter les changements d'état d'authentification
+  // Observer les changements d'état de l'authentification
   onAuthStateChange(callback: (user: UserData | null) => void): () => void {
-    return onAuthStateChanged(auth, async (user) => {
-      if (user) {
+    return onAuthStateChanged(auth, async (firebaseUser) => {
+      if (firebaseUser) {
         try {
-          // S'assurer que l'utilisateur existe dans Firestore et obtenir ses données
-          const userData = await firestoreService.ensureUserExists(user);
+          const userData = await firestoreService.ensureUserExists(firebaseUser);
           callback(userData);
         } catch (error) {
-          console.error('Erreur dans onAuthStateChange:', error);
+          console.error('Erreur lors de la récupération des données utilisateur:', error);
           callback(null);
         }
       } else {
         callback(null);
       }
     });
-  },
-
-  // Update user email
-  async updateEmail(newEmail: string): Promise<void> {
-    try {
-      // Validation des entrées
-      if (!this.validateEmail(newEmail)) {
-        throw new Error('Adresse e-mail invalide');
-      }
-      
-      const currentUser = auth.currentUser;
-      if (!currentUser) {
-        throw new Error('Vous devez être connecté pour modifier votre adresse e-mail');
-      }
-
-      // Vérifier si l'adresse e-mail est différente
-      if (currentUser.email === newEmail) {
-        throw new Error('La nouvelle adresse e-mail doit être différente de l\'actuelle');
-      }
-
-      console.log('Tentative de mise à jour de l\'adresse e-mail...');
-      try {
-        // Utiliser la méthode qui envoie un email de vérification
-        await verifyBeforeUpdateEmail(currentUser, newEmail);
-        console.log('Email de vérification envoyé à la nouvelle adresse');
-      } catch (error: any) {
-        // Si l'erreur est due à un besoin de réauthentification, lancer une erreur spécifique
-        if (error.code === 'auth/requires-recent-login') {
-          throw new Error('Pour des raisons de sécurité, vous devez vous reconnecter avant de modifier votre adresse e-mail');
-        }
-        throw error;
-      }
-
-      // Mettre à jour l'e-mail dans les données utilisateur de Firestore
-      // Nous mettrons à jour le Firestore uniquement après vérification
-      return;
-    } catch (error: any) {
-      console.error('Erreur lors de la mise à jour de l\'adresse e-mail:', error);
-      
-      // Catégorisation des erreurs Firebase
-      if (error.code === 'auth/email-already-in-use') {
-        throw new Error('Cette adresse e-mail est déjà utilisée');
-      } else if (error.code === 'auth/invalid-email') {
-        throw new Error('Adresse e-mail invalide');
-      } else if (error.code === 'auth/requires-recent-login') {
-        throw new Error('Pour des raisons de sécurité, vous devez vous reconnecter avant de modifier votre adresse e-mail');
-      }
-      
-      throw error;
-    }
-  },
-
-  // Reauthenticate user with credentials
-  async reauthenticate(password: string): Promise<void> {
-    try {
-      const currentUser = auth.currentUser;
-      if (!currentUser || !currentUser.email) {
-        throw new Error('Utilisateur non connecté ou email manquant');
-      }
-
-      const credential = EmailAuthProvider.credential(
-        currentUser.email,
-        password
-      );
-
-      await reauthenticateWithCredential(currentUser, credential);
-      console.log('Réauthentification réussie');
-      return;
-    } catch (error: any) {
-      console.error('Erreur lors de la réauthentification:', error);
-      
-      if (error.code === 'auth/wrong-password') {
-        throw new Error('Mot de passe incorrect');
-      } else if (error.code === 'auth/too-many-requests') {
-        throw new Error('Trop de tentatives échouées. Veuillez réessayer plus tard');
-      } else if (error.code === 'auth/user-mismatch') {
-        throw new Error('Les identifiants ne correspondent pas à l\'utilisateur actuel');
-      }
-      
-      throw new Error('Échec de la réauthentification. Veuillez réessayer.');
-    }
   },
 };
 
