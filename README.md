@@ -137,3 +137,95 @@ Si vous rencontrez des problèmes avec Redux :
 1. Vérifiez que tous les reducers sont enregistrés dans `src/store/index.ts`
 2. Assurez-vous que les types sont correctement définis
 3. Vérifiez que les actions sont correctement importées
+
+## Instructions pour résoudre les problèmes d'authentification et de Firestore
+
+Si vous rencontrez l'erreur "FirebaseError: Missing or insufficient permissions" lors de la création d'un compte ou de la connexion, suivez ces étapes :
+
+### 1. Configuration des règles Firestore
+
+Les règles Firestore contrôlent les accès en lecture et écriture à votre base de données. Sans les bonnes règles, vous obtiendrez des erreurs de permission.
+
+Les fichiers nécessaires ont été créés dans le projet :
+- `firestore.rules` - Les règles de sécurité pour Firestore
+- `.firebaserc` - Configuration du projet Firebase
+- `firebase.json` - Configuration des services Firebase
+- `firestore.indexes.json` - Index pour optimiser les requêtes
+
+### 2. Déploiement des règles Firestore
+
+Pour déployer ces règles sur votre projet Firebase :
+
+```bash
+# Installer Firebase CLI (si ce n'est pas déjà fait)
+npm install -g firebase-tools
+
+# Se connecter à Firebase
+firebase login
+
+# Déployer les règles Firestore
+firebase deploy --only firestore:rules
+```
+
+### 3. Vérification de la configuration
+
+Les règles devraient maintenant permettre à chaque utilisateur d'accéder à son propre document dans la collection "users" et d'autres collections liées.
+
+Si les problèmes persistent :
+- Vérifiez que vous utilisez le bon projet Firebase dans `.firebaserc`
+- Assurez-vous que l'authentification par email/mot de passe est activée dans la console Firebase
+- Vérifiez les journaux dans la console de votre navigateur ou dans l'application pour des erreurs plus spécifiques
+
+### 4. Travail en mode test
+
+Pour travailler en mode test (npx expo start), les émulateurs Firebase peuvent être utiles :
+
+```bash
+# Démarrer les émulateurs
+firebase emulators:start
+```
+
+Cela démarre des versions locales de Firebase Auth et Firestore que vous pouvez utiliser pour le développement.
+
+## Gestion optimisée des tokens d'authentification
+
+Nous avons implémenté un système avancé de gestion des tokens d'authentification Firebase pour améliorer la sécurité et l'expérience utilisateur :
+
+### Fonctionnalités ajoutées
+
+1. **Rafraîchissement automatique des tokens** 
+   - Les tokens sont automatiquement rafraîchis 15 minutes avant leur expiration (par défaut après 45 minutes)
+   - Évite les déconnexions inattendues dues à l'expiration des tokens
+
+2. **Double système de sécurité**
+   - Système principal : Rafraîchissement proactif planifié
+   - Système de secours : Vérification périodique du token toutes les 15 minutes
+
+3. **Gestion intelligente des erreurs**
+   - Tentative de rafraîchissement avant déconnexion en cas de problème
+   - Remontée d'erreurs détaillées pour faciliter le débogage
+
+4. **Nettoyage propre des ressources**
+   - Les timers sont correctement annulés lors de la déconnexion ou du démontage des composants
+   - Évite les fuites mémoire et les comportements inattendus
+
+### Comment ça fonctionne
+
+1. À la connexion/inscription, le token est obtenu automatiquement et un rafraîchissement est planifié
+2. 45 minutes après, le token est automatiquement rafraîchi et un nouveau cycle commence
+3. En parallèle, une vérification est effectuée toutes les 15 minutes comme filet de sécurité
+4. Si un problème est détecté, le système tente de rafraîchir le token avant de déconnecter l'utilisateur
+
+### API exposée
+
+Le hook `useAuth` expose désormais les fonctions suivantes liées aux tokens :
+- `isTokenValid` : Indique si le token actuel est valide
+- `checkTokenValidity()` : Vérifie manuellement la validité du token et tente un rafraîchissement si nécessaire
+- `refreshToken()` : Force un rafraîchissement manuel du token
+
+### Avantages pour l'utilisateur final
+
+- Sessions plus longues sans interruption
+- Transitions transparentes lors du rafraîchissement des tokens
+- Meilleure récupération après une perte de connectivité
+- Réduction des déconnexions inattendues

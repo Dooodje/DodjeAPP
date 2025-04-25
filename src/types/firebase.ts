@@ -1,15 +1,41 @@
 import { User } from 'firebase/auth';
+import { Timestamp } from 'firebase/firestore';
 
+/**
+ * Interface définissant la structure des données utilisateur dans Firestore
+ * Cette interface est utilisée pour tous les services liés à l'authentification
+ */
 export interface UserData {
+  // Champs d'identification
   uid: string;
   email: string;
   displayName: string;
   photoURL: string | null;
+  
+  // Statistiques utilisateur
   dodji: number;
   streak: number;
   isDodjeOne: boolean;
+  
+  // Horodatages importants
   createdAt: string;
   lastLogin: string;
+  
+  // Champs optionnels
+  settings?: {
+    notifications: boolean;
+    language: string;
+    theme: 'light' | 'dark' | 'system';
+  };
+  
+  // Champs de l'abonnement
+  subscription?: {
+    plan: 'monthly' | 'yearly';
+    status: 'active' | 'cancelled' | 'expired';
+    startDate: string;
+    endDate: string;
+    autoRenewal: boolean;
+  };
 }
 
 export interface Parcours {

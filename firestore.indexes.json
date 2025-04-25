@@ -1,0 +1,22 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "parcours",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "theme", "order": "ASCENDING" },
+        { "fieldPath": "level", "order": "ASCENDING" },
+        { "fieldPath": "order", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "videos",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "parcoursId", "order": "ASCENDING" },
+        { "fieldPath": "order", "order": "ASCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+} 

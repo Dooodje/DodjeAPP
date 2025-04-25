@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { View, StyleSheet, ScrollView, TouchableOpacity, Text } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useProfile } from '../../hooks/useProfile';
 import { LoadingSpinner } from '../../components/ui/LoadingSpinner';
@@ -17,7 +17,7 @@ function Profile() {
   const router = useRouter();
   const [userId, setUserId] = useState<string | null>(null);
   
-  // Appel du hook useProfile avec un userId par défaut (vide si non défini)
+  // Appel du hook useProfile avec un userId valide
   const {
     profile,
     isLoading: profileIsLoading,
@@ -32,7 +32,10 @@ function Profile() {
     const getCurrentUser = () => {
       const user = auth.currentUser;
       if (user) {
+        console.log('Current user found:', user.uid);
         setUserId(user.uid);
+      } else {
+        console.log('No current user found');
       }
     };
     
@@ -41,8 +44,10 @@ function Profile() {
     // Écouter les changements d'authentification
     const unsubscribe = auth.onAuthStateChanged((user) => {
       if (user) {
+        console.log('Auth state changed, user found:', user.uid);
         setUserId(user.uid);
       } else {
+        console.log('Auth state changed, no user found, redirecting to login');
         // Rediriger vers la page de connexion si non connecté
         router.replace('/(auth)/login' as AppRoute);
       }
@@ -51,8 +56,20 @@ function Profile() {
     return () => unsubscribe();
   }, [router]);
   
-  // Si userId n'est pas encore défini ou profile est en cours de chargement
-  if (!userId || profileIsLoading) {
+  // Si userId n'est pas encore défini
+  if (!userId) {
+    return (
+      <View style={styles.container}>
+        <LoadingSpinner />
+        <View style={styles.loadingTextContainer}>
+          <Text style={styles.loadingText}>Vérification de l'authentification...</Text>
+        </View>
+      </View>
+    );
+  }
+
+  // Si le profil est en cours de chargement
+  if (profileIsLoading) {
     return (
       <View style={styles.container}>
         <LoadingSpinner />
@@ -113,7 +130,7 @@ function Profile() {
           <View style={styles.profileData}>
             <View style={styles.balanceContainer}>
               <ProfileHeader 
-                username={`Dodji\n${profile.dodjiBalance || 800} ฿`}
+                username={`Dodji\n${profile.dodjiBalance || 0} ฿`}
                 showAvatar={false}
                 textAlign="right"
               />
@@ -121,7 +138,7 @@ function Profile() {
             
             <View style={styles.usernameContainer}>
               <ProfileHeader 
-                username={`#${profile.displayName || 'RonanL99'}`}
+                username={`#${profile.displayName || 'Utilisateur'}`}
                 showAvatar={false}
                 textAlign="center"
                 containerStyle={styles.usernameTag}
@@ -298,4 +315,13 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     marginBottom: 16,
   },
+  loadingTextContainer: {
+    marginTop: 20,
+    alignItems: 'center',
+  },
+  loadingText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    textAlign: 'center',
+  }
 }); 

@@ -25,6 +25,12 @@ export const useProfile = (userId: string) => {
 
   // Charger le profil
   const loadProfile = useCallback(async () => {
+    // Ne pas charger le profil si userId est vide
+    if (!userId) {
+      console.log('loadProfile: userId est vide, opération annulée');
+      return;
+    }
+
     try {
       dispatch(setLoading(true));
       const userProfile = await profileService.getUserProfile(userId);
@@ -34,6 +40,7 @@ export const useProfile = (userId: string) => {
         dispatch(setError('Profil non trouvé'));
       }
     } catch (error) {
+      console.error('Erreur lors du chargement du profil:', error);
       dispatch(setError('Erreur lors du chargement du profil'));
     } finally {
       dispatch(setLoading(false));
@@ -42,11 +49,17 @@ export const useProfile = (userId: string) => {
 
   // Mettre à jour le profil
   const updateUserProfile = useCallback(async (updates: Partial<UserProfile>) => {
+    if (!userId) {
+      console.log('updateUserProfile: userId est vide, opération annulée');
+      return;
+    }
+
     try {
       dispatch(setLoading(true));
       await profileService.updateProfile(userId, updates);
       dispatch(updateProfile(updates));
     } catch (error) {
+      console.error('Erreur lors de la mise à jour du profil:', error);
       dispatch(setError('Erreur lors de la mise à jour du profil'));
     } finally {
       dispatch(setLoading(false));
@@ -55,6 +68,11 @@ export const useProfile = (userId: string) => {
 
   // Mettre à jour le streak
   const updateStreak = useCallback(async () => {
+    if (!userId) {
+      console.log('updateStreak: userId est vide, opération annulée');
+      return;
+    }
+
     try {
       dispatch(setLoading(true));
       await profileService.updateStreak(userId);
@@ -63,6 +81,7 @@ export const useProfile = (userId: string) => {
         dispatch(setProfile(updatedProfile));
       }
     } catch (error) {
+      console.error('Erreur lors de la mise à jour du streak:', error);
       dispatch(setError('Erreur lors de la mise à jour du streak'));
     } finally {
       dispatch(setLoading(false));
@@ -71,6 +90,11 @@ export const useProfile = (userId: string) => {
 
   // Mettre à jour la progression
   const updateProgress = useCallback(async (category: 'bourse' | 'crypto', progress: number) => {
+    if (!userId) {
+      console.log('updateProgress: userId est vide, opération annulée');
+      return;
+    }
+
     try {
       dispatch(setLoading(true));
       await profileService.updateProgress(userId, category, progress);
@@ -79,6 +103,7 @@ export const useProfile = (userId: string) => {
         dispatch(setProfile(updatedProfile));
       }
     } catch (error) {
+      console.error('Erreur lors de la mise à jour de la progression:', error);
       dispatch(setError('Erreur lors de la mise à jour de la progression'));
     } finally {
       dispatch(setLoading(false));
@@ -87,6 +112,11 @@ export const useProfile = (userId: string) => {
 
   // Ajouter un badge
   const addBadge = useCallback(async (badge: Badge) => {
+    if (!userId) {
+      console.log('addBadge: userId est vide, opération annulée');
+      return;
+    }
+
     try {
       dispatch(setLoading(true));
       await profileService.addBadge(userId, badge);
@@ -95,6 +125,7 @@ export const useProfile = (userId: string) => {
         dispatch(setProfile(updatedProfile));
       }
     } catch (error) {
+      console.error('Erreur lors de l\'ajout du badge:', error);
       dispatch(setError('Erreur lors de l\'ajout du badge'));
     } finally {
       dispatch(setLoading(false));
@@ -103,6 +134,11 @@ export const useProfile = (userId: string) => {
 
   // Mettre à jour une quête
   const updateUserQuest = useCallback(async (questId: string, updates: Partial<Quest>) => {
+    if (!userId) {
+      console.log('updateUserQuest: userId est vide, opération annulée');
+      return;
+    }
+
     try {
       dispatch(setLoading(true));
       await profileService.updateQuest(userId, questId, updates);
@@ -111,6 +147,7 @@ export const useProfile = (userId: string) => {
         dispatch(setProfile(updatedProfile));
       }
     } catch (error) {
+      console.error('Erreur lors de la mise à jour de la quête:', error);
       dispatch(setError('Erreur lors de la mise à jour de la quête'));
     } finally {
       dispatch(setLoading(false));
@@ -132,10 +169,16 @@ export const useProfile = (userId: string) => {
     dispatch(resetProfile());
   }, [dispatch]);
 
-  // Charger le profil au montage
+  // Charger le profil au montage si userId est défini
   useEffect(() => {
-    loadProfile();
-  }, [loadProfile]);
+    if (userId) {
+      loadProfile();
+    } else {
+      // Réinitialiser l'état du profil si userId est vide
+      console.log('useEffect: userId est vide, profil réinitialisé');
+      dispatch(resetProfile());
+    }
+  }, [loadProfile, userId, dispatch]);
 
   return {
     profile,

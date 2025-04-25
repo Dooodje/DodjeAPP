@@ -25,24 +25,85 @@ export class ProfileService {
     return ProfileService.instance;
   }
 
-  // Récupérer le profil complet d'un utilisateur
+  // Obtenir le profil d'un utilisateur
   async getUserProfile(userId: string): Promise<UserProfile | null> {
+    if (!userId) {
+      console.error("getUserProfile: userId est vide ou null");
+      throw new Error("ID utilisateur invalide");
+    }
+
+    console.log(`Récupération du profil pour l'utilisateur: ${userId}`);
+    
     try {
-      const userDoc = await getDoc(doc(db, this.COLLECTION, userId));
+      // Utiliser doc() avec userId pour référencer un document spécifique
+      const userRef = doc(db, this.COLLECTION, userId);
+      const userDoc = await getDoc(userRef);
+
       if (!userDoc.exists()) {
+        console.log(`Aucun profil trouvé pour l'utilisateur: ${userId}`);
         return null;
       }
 
       const data = userDoc.data();
+      
+      // Fonction utilitaire pour traiter les dates (Timestamp ou ISO string)
+      const processDate = (dateField: any, defaultDate: Date = new Date()): Date => {
+        if (!dateField) return defaultDate;
+        
+        // Si c'est un Timestamp Firestore
+        if (dateField.toDate && typeof dateField.toDate === 'function') {
+          return dateField.toDate();
+        }
+        
+        // Si c'est une chaîne ISO
+        if (typeof dateField === 'string') {
+          try {
+            return new Date(dateField);
+          } catch (e) {
+            console.warn(`Impossible de convertir la chaîne en date: ${dateField}`);
+            return defaultDate;
+          }
+        }
+        
+        // Si c'est déjà un objet Date
+        if (dateField instanceof Date) {
+          return dateField;
+        }
+        
+        console.warn(`Format de date non reconnu:`, dateField);
+        return defaultDate;
+      };
+
       return {
-        ...data,
         id: userDoc.id,
-        lastLoginDate: data.lastLoginDate?.toDate(),
-        createdAt: data.createdAt?.toDate(),
-        updatedAt: data.updatedAt?.toDate()
-      } as UserProfile;
-    } catch (error) {
+        displayName: data.displayName || '',
+        avatarUrl: data.avatarUrl || '',
+        streak: data.streak || 0,
+        lastLoginDate: processDate(data.lastLoginDate),
+        progress: data.progress || {
+          bourse: { percentage: 0, completedCourses: 0, totalCourses: 0 },
+          crypto: { percentage: 0, completedCourses: 0, totalCourses: 0 }
+        },
+        badges: data.badges || [],
+        quests: data.quests || [],
+        dodjiBalance: data.dodjiBalance || 0,
+        isDodjeOne: data.isDodjeOne || false,
+        createdAt: processDate(data.createdAt),
+        updatedAt: processDate(data.updatedAt)
+      };
+    } catch (error: any) {
       console.error('Erreur lors de la récupération du profil:', error);
+      
+      // Gestion spécifique des erreurs de permissions Firestore
+      if (error.code === 'permission-denied' || 
+          (error.message && (
+            error.message.includes('permission') || 
+            error.message.includes('Missing or insufficient permissions')
+          ))) {
+        console.error('Erreur de permission Firestore: Vérifiez les règles de sécurité dans firestore.rules');
+        throw new Error('Permissions insuffisantes pour accéder à votre profil. Veuillez contacter le support.');
+      }
+      
       throw error;
     }
   }
@@ -128,8 +189,18 @@ export class ProfileService {
   async addBadge(userId: string, badge: Badge): Promise<void> {
     try {
       const userRef = doc(db, this.COLLECTION, userId);
+      const userDoc = await getDoc(userRef);
+      
+      if (!userDoc.exists()) {
+        throw new Error('Utilisateur non trouvé');
+      }
+      
+      const data = userDoc.data();
+      const currentBadges = data.badges || [];
+      
+      // Ajouter le nouveau badge au tableau existant
       await updateDoc(userRef, {
-        badges: [...badge],
+        badges: [...currentBadges, badge],
         updatedAt: Timestamp.now()
       });
     } catch (error) {
@@ -172,10 +243,13 @@ export class ProfileService {
       const userRef = doc(db, this.COLLECTION, userId);
       const now = Timestamp.now();
 
+      // Pour assurer la compatibilité avec l'interface UserProfile qui attend des Date
+      const nowDate = now.toDate();
+
       const newProfile: Omit<UserProfile, 'id'> = {
         displayName,
         streak: 0,
-        lastLoginDate: now,
+        lastLoginDate: nowDate,
         progress: {
           bourse: { percentage: 0, completedCourses: 0, totalCourses: 0 },
           crypto: { percentage: 0, completedCourses: 0, totalCourses: 0 }
@@ -184,11 +258,17 @@ export class ProfileService {
         quests: [],
         dodjiBalance: 0,
         isDodjeOne: false,
-        createdAt: now,
-        updatedAt: now
+        createdAt: nowDate,
+        updatedAt: nowDate
       };
 
-      await setDoc(userRef, newProfile);
+      await setDoc(userRef, {
+        ...newProfile,
+        // Reconversion en Timestamp pour le stockage dans Firestore
+        lastLoginDate: now,
+        createdAt: now,
+        updatedAt: now
+      });
     } catch (error) {
       console.error('Erreur lors de la création du profil:', error);
       throw error;
