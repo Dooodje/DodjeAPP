@@ -112,6 +112,7 @@ const PositionButton: React.FC<PositionButtonProps> = ({
         size={size}
         title={parcoursData?.titre || parcoursData?.title}
         onPress={handlePress}
+        parcoursId={parcoursData?.id}
       />
     </View>
   );

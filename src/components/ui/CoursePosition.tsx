@@ -1,10 +1,13 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ViewStyle } from 'react-native';
 import { AnneauVector } from './vectors/AnneauVectors';
+import { ProgressRing } from './vectors/ProgressRing';
 import { PastilleParcoursDefault } from '../PastilleParcoursDefault';
 import { PastilleParcoursVariant2 } from '../PastilleParcoursVariant2';
 import { PastilleParcoursVariant3 } from '../PastilleParcoursVariant3';
 import PastilleAnnexe from '../PastilleAnnexe';
+import { useParcoursVideos } from '@/hooks/useParcoursVideos';
+import { useParcours } from '@/hooks/useParcours';
 
 export type CoursePositionType = 'standard' | 'important' | 'special' | 'annexe';
 export type CourseStatus = 'blocked' | 'unblocked' | 'completed' | 'in_progress';
@@ -17,6 +20,7 @@ interface CoursePositionProps {
   size?: number;
   isActive?: boolean;
   style?: ViewStyle;
+  parcoursId?: string;
 }
 
 export const CoursePosition: React.FC<CoursePositionProps> = ({
@@ -26,8 +30,22 @@ export const CoursePosition: React.FC<CoursePositionProps> = ({
   onPress,
   size = 60,
   isActive = false,
-  style
+  style,
+  parcoursId
 }) => {
+  // Récupérer les données des vidéos et du parcours
+  const videosData = parcoursId 
+    ? useParcoursVideos(parcoursId) 
+    : { totalVideos: 0, completedVideos: 0, loading: false, error: null };
+  
+  const { parcoursData, loading: parcoursLoading } = useParcours(parcoursId);
+
+  // Déterminer si l'anneau de progression doit être affiché
+  const shouldShowProgressRing = !!parcoursId && 
+    !videosData.error && 
+    !parcoursLoading &&
+    parcoursData?.videoCount > 0;
+
   // Détermine la couleur de l'anneau en fonction du type et de l'état actif
   const getRingColor = (): string => {
     if (status === 'completed') {
@@ -72,7 +90,6 @@ export const CoursePosition: React.FC<CoursePositionProps> = ({
       return <PastilleAnnexe width={pastilleSize} height={pastilleSize} />;
     }
 
-    // Sélection basée uniquement sur le statut du parcours
     switch (status) {
       case 'completed':
         return <PastilleParcoursVariant2 style={{ width: pastilleSize, height: pastilleSize }} />;
@@ -98,12 +115,23 @@ export const CoursePosition: React.FC<CoursePositionProps> = ({
         onPress={onPress}
         activeOpacity={0.8}
       >
-        {/* Anneau extérieur */}
-        <AnneauVector 
-          size={anneauSize} 
-          color={getRingColor()}
-          type={getAnneauType()}
-        />
+        {/* Anneau extérieur - Utilise l'anneau de progression si un ID de parcours est fourni */}
+        {shouldShowProgressRing ? (
+          <ProgressRing 
+            size={anneauSize} 
+            totalSegments={parcoursData?.videoCount || 0}
+            completedSegments={videosData.completedVideos}
+            completedColor="#06D001"
+            incompleteColor={getRingColor()}
+            isActive={isActive}
+          />
+        ) : (
+          <AnneauVector 
+            size={anneauSize} 
+            color={getRingColor()}
+            type={getAnneauType()}
+          />
+        )}
         
         {/* Pastille centrale */}
         <View style={styles.pastilleContainer}>

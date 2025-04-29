@@ -1,9 +1,10 @@
 import { db } from '@/config/firebase';
-import { doc, getDoc, setDoc, collection, query, where, getDocs } from 'firebase/firestore';
+import { doc, getDoc, setDoc, collection, query, where, getDocs, updateDoc } from 'firebase/firestore';
 import { ParcoursStatus } from '@/types/parcours';
 
 export class ParcoursService {
     private static readonly COLLECTION_NAME = 'userParcours';
+    private static readonly PARCOURS_COLLECTION = 'parcours';
 
     /**
      * Initialize parcours statuses for a new user
@@ -82,6 +83,32 @@ export class ParcoursService {
             }
         } catch (error) {
             console.error('Error updating parcours status:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Met à jour le nombre de vidéos d'un parcours
+     */
+    static async updateVideoCount(parcoursId: string): Promise<void> {
+        try {
+            const parcoursRef = doc(db, this.PARCOURS_COLLECTION, parcoursId);
+            const parcoursDoc = await getDoc(parcoursRef);
+
+            if (!parcoursDoc.exists()) {
+                throw new Error('Parcours non trouvé');
+            }
+
+            const data = parcoursDoc.data();
+            const videoIds = data.videoIds || [];
+            
+            await updateDoc(parcoursRef, {
+                videoCount: videoIds.length
+            });
+
+            console.log(`Nombre de vidéos mis à jour pour le parcours ${parcoursId}: ${videoIds.length}`);
+        } catch (error) {
+            console.error('Erreur lors de la mise à jour du nombre de vidéos:', error);
             throw error;
         }
     }

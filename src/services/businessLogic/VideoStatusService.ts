@@ -121,14 +121,20 @@ export class VideoStatusService {
         parcoursId: string
     ): Promise<UserVideo[]> {
         try {
+            // Temporairement : retirer le orderBy pour éviter l'erreur d'index
             const videosQuery = query(
                 collection(db, this.USERS_COLLECTION, userId, 'video'),
-                where('parcoursId', '==', parcoursId),
-                orderBy('ordre', 'asc')
+                where('parcoursId', '==', parcoursId)
+                // Le orderBy a été retiré pour éviter l'erreur d'index
             );
 
             const videosSnapshot = await getDocs(videosQuery);
-            return videosSnapshot.docs.map(doc => doc.data() as UserVideo);
+            const videos = videosSnapshot.docs.map(doc => doc.data() as UserVideo);
+            
+            // Trier côté client
+            videos.sort((a, b) => a.ordre - b.ordre);
+            
+            return videos;
         } catch (error) {
             console.error('Error getting user videos in parcours:', error);
             throw error;
@@ -160,14 +166,22 @@ export class VideoStatusService {
     static async initializeParcoursVideos(userId: string, parcoursId: string): Promise<void> {
         try {
             // Get all videos from the parcours
+            // Temporairement : retirer le orderBy pour éviter l'erreur d'index
             const videosQuery = query(
                 collection(db, this.VIDEOS_COLLECTION),
-                where('parcoursId', '==', parcoursId),
-                orderBy('ordre', 'asc')
+                where('parcoursId', '==', parcoursId)
+                // Le orderBy a été retiré pour éviter l'erreur d'index
             );
 
             const videosSnapshot = await getDocs(videosQuery);
             const videos = videosSnapshot.docs;
+            
+            // Trier côté client
+            videos.sort((a, b) => {
+                const dataA = a.data();
+                const dataB = b.data();
+                return (dataA.ordre || 0) - (dataB.ordre || 0);
+            });
 
             if (videos.length === 0) return;
 
