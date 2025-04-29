@@ -367,7 +367,7 @@ async function unlockNextCourse(userId: string, completedCourseId: string) {
 /**
  * Récupère le design de la page d'accueil et les parcours associés
  */
-export async function getHomeDesignWithParcours(section: Section, level: Level): Promise<{ imageUrl: string; positions: Record<string, { x: number; y: number; order?: number; isAnnex: boolean }>; parcours?: Record<string, any> }> {
+export async function getHomeDesignWithParcours(section: Section, level: Level, userId?: string): Promise<{ imageUrl: string; positions: Record<string, { x: number; y: number; order?: number; isAnnex: boolean }>; parcours?: Record<string, any> }> {
   try {
     // Obtenir d'abord le design de la page (image et positions)
     const homeDesignData = await homeService.getHomeDesign(section, level);
@@ -382,16 +382,36 @@ export async function getHomeDesignWithParcours(section: Section, level: Level):
     const parcoursSnapshot = await getDocs(parcoursQuery);
     const parcours: Record<string, any> = {};
     
+    // Récupérer les statuts des parcours si l'utilisateur est connecté
+    let parcoursStatuses: Record<string, any> = {};
+    if (userId) {
+      try {
+        // Récupérer les documents de statut de parcours pour l'utilisateur
+        const userParcoursSnapshot = await getDocs(collection(db, `users/${userId}/parcours`));
+        userParcoursSnapshot.forEach(doc => {
+          parcoursStatuses[doc.id] = doc.data();
+        });
+        console.log(`Statuts des parcours récupérés pour l'utilisateur ${userId}:`, parcoursStatuses);
+      } catch (statusError) {
+        console.error('Erreur lors de la récupération des statuts des parcours:', statusError);
+      }
+    }
+    
     // Traiter les parcours et les associer à leurs positions
     if (!parcoursSnapshot.empty) {
       parcoursSnapshot.forEach(doc => {
         const parcoursData = doc.data();
         const ordre = parcoursData.ordre || 0;
         
+        // Récupérer le statut du parcours s'il existe
+        const parcoursStatus = parcoursStatuses[doc.id];
+        
         // Sauvegarder les données du parcours avec l'ordre comme clé
         parcours[ordre.toString()] = {
           id: doc.id,
-          ...parcoursData
+          ...parcoursData,
+          // Utiliser le statut du parcours s'il existe, sinon utiliser 'blocked' par défaut
+          status: parcoursStatus?.status || 'blocked'
         };
       });
     }

@@ -1,35 +1,114 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Règle permettant aux utilisateurs authentifiés d'accéder à leur propre document
+    // FONCTIONS DE VALIDATION
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    
+    function isCurrentUser(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+    
+    function isAdmin() {
+      return isSignedIn() && request.auth.token.email == "charlesrambert.pro@gmail.com";
+    }
+    
+    // ACCÈS ADMIN - L'administrateur a accès à tout
+    match /{document=**} {
+      allow read, write: if isAdmin();
+    }
+    
+    // RÈGLE GLOBALE - LECTURE DE TOUTES LES COLLECTIONS GÉNÉRALES
+    // Permet la lecture de toutes les collections qui ne contiennent pas de données utilisateur
+    match /{collection}/{document=**} {
+      allow read: if isSignedIn() && collection != "users" && collection != "user_settings";
+    }
+    
+    // DOCUMENTS UTILISATEUR - ACCÈS LIMITÉ AU PROPRIÉTAIRE
     match /users/{userId} {
-      allow create: if request.auth != null && request.auth.uid == userId;
-      allow read, update: if request.auth != null && request.auth.uid == userId;
+      // Lecture de son propre document uniquement
+      allow read: if isCurrentUser(userId);
+      
+      // Création initiale autorisée avec tous les champs nécessaires
+      allow create: if isCurrentUser(userId);
+      
+      // Mise à jour avec plus de flexibilité pour l'initialisation
+      allow update: if isCurrentUser(userId);
+      
+      // TOUTES LES SOUS-COLLECTIONS - ACCÈS LIMITÉ AU PROPRIÉTAIRE
+      match /{subcollection}/{docId} {
+        // Lecture et création de toutes ses sous-collections
+        allow read: if isCurrentUser(userId);
+        allow create: if isCurrentUser(userId);
+      }
+      
+      // SOUS-COLLECTION PROFIL-INVEST
+      match /profil-invest/{docId} {
+        allow create, update: if isCurrentUser(userId);
+      }
+      
+      // SOUS-COLLECTION DODJELABS
+      match /dodjelabs/{docId} {
+        allow create, update: if isCurrentUser(userId);
+      }
+      
+      // SOUS-COLLECTION JETON_DODJI
+      match /jeton_dodji/{docId} {
+        // Permettre l'initialisation et les mises à jour
+        allow create, update: if isCurrentUser(userId);
+        allow read: if isCurrentUser(userId);
+      }
+      
+      // SOUS-COLLECTION DODJEONE
+      match /dodjeone/{docId} {
+        allow create, update: if isCurrentUser(userId);
+      }
+      
+      // SOUS-COLLECTION VIDEO - DONNÉES BRUTES
+      match /video/{videoId} {
+        // Permettre l'initialisation et les mises à jour avec validation souple
+        allow create, update: if isCurrentUser(userId);
+        allow read: if isCurrentUser(userId);
+      }
+      
+      // SOUS-COLLECTION QUIZ - DONNÉES BRUTES
+      match /quiz/{quizId} {
+        // Permettre l'initialisation et les mises à jour avec validation souple
+        allow create, update: if isCurrentUser(userId);
+        allow read: if isCurrentUser(userId);
+      }
+      
+      // SOUS-COLLECTION CONNEXION - DONNÉES BRUTES
+      match /connexion/{docId} {
+        // Permettre l'initialisation avec validation souple
+        allow create, update: if isCurrentUser(userId);
+        allow read: if isCurrentUser(userId);
+      }
+      
+      // SOUS-COLLECTION PARCOURS
+      match /parcours/{docId} {
+        // Permettre l'initialisation et les mises à jour
+        allow create, update: if isCurrentUser(userId);
+        allow read: if isCurrentUser(userId);
+      }
+      
+      // SOUS-COLLECTION HISTORIQUE - DONNÉES BRUTES
+      match /historique/{sessionId} {
+        // Permettre l'initialisation avec validation souple
+        allow create, update: if isCurrentUser(userId);
+        allow read: if isCurrentUser(userId);
+      }
+      
+      // SOUS-COLLECTIONS SETTINGS
+      match /settings/{document} {
+        allow read, write: if isCurrentUser(userId);
+      }
     }
     
-    // Règle pour les paramètres utilisateur
+    // COLLECTION USER_SETTINGS
     match /user_settings/{userId} {
-      allow create, read, update: if request.auth != null && request.auth.uid == userId;
-    }
-    
-    // Règle pour les progressions des utilisateurs
-    match /userProgress/{progressId} {
-      allow create, read, update: if request.auth != null && progressId.split('_')[0] == request.auth.uid;
-    }
-    
-    // Accès en lecture seule aux parcours pour tous les utilisateurs authentifiés
-    match /parcours/{parcoursId} {
-      allow read: if request.auth != null;
-    }
-    
-    // Accès en lecture seule aux vidéos pour tous les utilisateurs authentifiés
-    match /videos/{videoId} {
-      allow read: if request.auth != null;
-    }
-    
-    // Accès en lecture seule aux quiz pour tous les utilisateurs authentifiés
-    match /quiz/{quizId} {
-      allow read: if request.auth != null;
+      allow read, write: if isCurrentUser(userId);
     }
   }
 } 

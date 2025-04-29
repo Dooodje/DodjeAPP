@@ -2,6 +2,7 @@ import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { View, Text, StyleSheet, ActivityIndicator, TouchableOpacity, StatusBar, Alert, Dimensions } from 'react-native';
 import { useLocalSearchParams, useRouter, router as globalRouter } from 'expo-router';
 import { courseService } from '../../src/services/course';
+import { ParcoursStatusService } from '../../src/services/businessLogic/ParcoursStatusService';
 import CourseBackground from '../../src/components/course/CourseBackground';
 import VideoButton from '../../src/components/course/VideoButton';
 import QuizButton from '../../src/components/course/QuizButton';
@@ -19,6 +20,7 @@ interface ParcoursData {
   titre?: string;
   description?: string;
   quizId?: string; // ID du quiz associé au parcours
+  domaine?: string;
   videos?: Array<{
     id: string;
     title?: string;
@@ -62,6 +64,7 @@ export default function CoursePage() {
   const [lastViewedVideoId, setLastViewedVideoId] = useState<string | undefined>(undefined);
   const [videoStatus, setVideoStatus] = useState<VideoStatus>({});
   const [imageDimensions, setImageDimensions] = useState({ width: screenWidth, height: screenHeight });
+  const [parcoursStatus, setParcoursStatus] = useState<'blocked' | 'unblocked' | 'in_progress' | 'completed' | null>(null);
   
   // Référence pour stocker la fonction de désabonnement
   const unsubscribeRef = useRef<(() => void) | null>(null);
@@ -122,6 +125,57 @@ export default function CoursePage() {
     }
   }, [user?.uid, id]);
 
+  // Vérifier le statut du parcours
+  useEffect(() => {
+    const checkParcoursStatus = async () => {
+      if (!user?.uid || !id) return;
+
+      try {
+        const status = await ParcoursStatusService.getParcoursStatus(user.uid, id);
+        if (status) {
+          setParcoursStatus(status.status);
+          if (status.status === 'blocked') {
+            Alert.alert(
+              "Parcours bloqué",
+              "Vous devez d'abord terminer les parcours précédents pour accéder à celui-ci.",
+              [{ text: "OK", onPress: () => globalRouter.back() }]
+            );
+          }
+        }
+      } catch (error) {
+        console.error('Erreur lors de la vérification du statut du parcours:', error);
+      }
+    };
+
+    checkParcoursStatus();
+  }, [user?.uid, id]);
+
+  // Charger les données du parcours
+  useEffect(() => {
+    const loadParcoursData = async () => {
+      if (!id) return;
+
+      try {
+        setLoading(true);
+        const data = await courseService.getCourseById(id);
+        if (data) {
+          setParcoursData(data);
+        }
+      } catch (error) {
+        console.error('Erreur lors du chargement du parcours:', error);
+        Alert.alert(
+          "Erreur",
+          "Impossible de charger le parcours. Veuillez réessayer plus tard.",
+          [{ text: "OK", onPress: () => globalRouter.back() }]
+        );
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadParcoursData();
+  }, [id]);
+
   // Configurer l'observation en temps réel
   useEffect(() => {
     // Vérifier que nous avons un ID
@@ -171,6 +225,14 @@ export default function CoursePage() {
 
   // Naviguer vers la page de la vidéo
   const handleVideoPress = (videoId: string) => {
+    if (parcoursStatus === 'blocked') {
+      Alert.alert(
+        "Parcours bloqué",
+        "Vous devez d'abord terminer les parcours précédents pour accéder à celui-ci."
+      );
+      return;
+    }
+
     console.log(`Navigation vers la vidéo ID=${videoId}`);
     
     // Vérifier si la vidéo est bloquée
@@ -254,6 +316,14 @@ export default function CoursePage() {
 
   // Naviguer vers la page du quiz
   const handleQuizPress = (quizId: string) => {
+    if (parcoursStatus === 'blocked') {
+      Alert.alert(
+        "Parcours bloqué",
+        "Vous devez d'abord terminer les parcours précédents pour accéder à celui-ci."
+      );
+      return;
+    }
+
     console.log(`Navigation vers le quiz ID=${quizId}`);
     
     // Mode test : accès direct sans aucune restriction

@@ -101,7 +101,7 @@ export const useHome = () => {
       }
       
       // Récupérer le design de la page d'accueil avec les parcours
-      const designData = await getHomeDesignWithParcours(sectionToUse, levelToUse);
+      const designData = await getHomeDesignWithParcours(sectionToUse, levelToUse, user?.uid);
       
       // Mettre à jour le design de la page d'accueil
       const safeDesign = {
@@ -136,7 +136,7 @@ export const useHome = () => {
     } finally {
       dispatch(setLoading(false));
     }
-  }, [dispatch, currentSection, currentLevel]);
+  }, [dispatch, currentSection, currentLevel, user?.uid]);
   
   // Fonction pour réinitialiser les erreurs
   const resetError = useCallback(() => {

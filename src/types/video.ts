@@ -1,6 +1,15 @@
 import { Section, Level } from './home';
 
-export type VideoStatus = 'blocked' | 'unlocked' | 'completed';
+export type VideoStatus = {
+    userId: string;
+    videoId: string;
+    parcoursId: string;
+    status: 'blocked' | 'unblocked' | 'completed';
+    progress: VideoProgress | null;
+    createdAt: Date;
+    updatedAt: Date;
+    history: VideoHistory[];
+};
 
 export interface Video {
   id: string;
@@ -43,12 +52,37 @@ export interface VideoState {
   thumbnailUrl: string | null;
 }
 
-export interface VideoProgress {
-  videoId: string;
-  progress: number;
-  lastWatchedPosition: number;
-  lastWatchedDate: Date;
+export type VideoProgress = {
+    currentTime: number;
+    duration: number;
+    percentage: number;
+};
+
+export type VideoHistory = {
+    date: Date;
+    duration: number;
+    completed: boolean;
+};
+
+export interface UserVideo {
+    userId: string;
+    videoId: string;
+    parcoursId: string;
+    status: 'blocked' | 'unblocked' | 'completed';
+    progress: VideoProgress;
+    history: VideoHistory[];
+    createdAt: string;
+    updatedAt: string;
+    ordre: number;
 }
+
+export type VideoStatusUpdate = {
+    userId: string;
+    videoId: string;
+    parcoursId: string;
+    status: UserVideo['status'];
+    progress?: VideoProgress;
+};
 
 export interface VideoControlsProps {
   isPlaying: boolean;

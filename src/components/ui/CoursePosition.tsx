@@ -1,36 +1,37 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ViewStyle } from 'react-native';
 import { AnneauVector } from './vectors/AnneauVectors';
-import { PastilleVector } from './vectors/PastilleVectors';
+import { PastilleParcoursDefault } from '../PastilleParcoursDefault';
+import { PastilleParcoursVariant2 } from '../PastilleParcoursVariant2';
+import { PastilleParcoursVariant3 } from '../PastilleParcoursVariant3';
+import PastilleAnnexe from '../PastilleAnnexe';
 
 export type CoursePositionType = 'standard' | 'important' | 'special' | 'annexe';
+export type CourseStatus = 'blocked' | 'unblocked' | 'completed' | 'in_progress';
 
-export interface CoursePositionProps {
+interface CoursePositionProps {
   title?: string;
   type?: CoursePositionType;
+  status?: CourseStatus;
   onPress?: () => void;
-  size: number;
-  isActive: boolean;
+  size?: number;
+  isActive?: boolean;
   style?: ViewStyle;
 }
 
 export const CoursePosition: React.FC<CoursePositionProps> = ({
   title,
   type = 'standard',
+  status = 'blocked',
   onPress,
   size = 60,
   isActive = false,
   style
 }) => {
-  // Convertit le type de CoursePosition en type pour PastilleVector
-  const getPastilleType = (): 'parcours' | 'annexe' => {
-    return type === 'annexe' ? 'annexe' : 'parcours';
-  };
-
   // Détermine la couleur de l'anneau en fonction du type et de l'état actif
   const getRingColor = (): string => {
-    if (isActive) {
-      return '#06D001'; // Vert vif pour l'état actif
+    if (status === 'completed') {
+      return '#06D001'; // Vert vif pour les parcours terminés
     }
     
     switch (type) {
@@ -61,32 +62,35 @@ export const CoursePosition: React.FC<CoursePositionProps> = ({
     }
   };
 
-  // Détermine la couleur de la pastille en fonction du type et de l'état actif
-  const getPastilleBackgroundColor = (): string => {
-    if (type === 'annexe') {
-      return '#F1E61C'; // Jaune doré pour les annexes
-    }
-    return '#0A0400'; // Noir pour les parcours standards
-  };
-
-  const getPastilleBorderColor = (): string => {
-    if (isActive) {
-      return '#06D001'; // Vert vif pour l'état actif
-    }
-    return type === 'annexe' ? '#FFFFFF' : '#F1E61C'; // Blanc pour annexes, jaune pour autres
-  };
-
-  const getPastilleIconColor = (): string => {
-    if (isActive) {
-      return '#06D001'; // Vert vif pour l'état actif
-    }
-    return '#F3FF90'; // Jaune clair par défaut
-  };
-
   // Calcule les tailles proportionnelles
   const anneauSize = size;
   const pastilleSize = size * 0.8;
+
+  // Sélectionne le composant de pastille approprié en fonction du statut
+  const renderPastille = () => {
+    if (type === 'annexe') {
+      return <PastilleAnnexe width={pastilleSize} height={pastilleSize} />;
+    }
+
+    // Sélection basée uniquement sur le statut du parcours
+    switch (status) {
+      case 'completed':
+        return <PastilleParcoursVariant2 style={{ width: pastilleSize, height: pastilleSize }} />;
+      case 'unblocked':
+        return <PastilleParcoursDefault style={{ width: pastilleSize, height: pastilleSize }} />;
+      case 'in_progress':
+        return <PastilleParcoursDefault style={{ width: pastilleSize, height: pastilleSize }} />;
+      case 'blocked':
+      default:
+        return <PastilleParcoursVariant3 style={{ width: pastilleSize, height: pastilleSize }} />;
+    }
+  };
   
+  // Détermine la couleur du titre en fonction du statut
+  const getTitleColor = (): string => {
+    return status === 'completed' ? '#06D001' : '#FFFFFF';
+  };
+
   return (
     <View style={[styles.container, style]}>
       <TouchableOpacity
@@ -103,20 +107,13 @@ export const CoursePosition: React.FC<CoursePositionProps> = ({
         
         {/* Pastille centrale */}
         <View style={styles.pastilleContainer}>
-          <PastilleVector
-            type={getPastilleType()}
-            size={pastilleSize}
-            isActive={isActive}
-            backgroundColor={getPastilleBackgroundColor()}
-            borderColor={getPastilleBorderColor()}
-            iconColor={getPastilleIconColor()}
-          />
+          {renderPastille()}
         </View>
       </TouchableOpacity>
       
       {/* Titre en dessous du bouton */}
       {title && (
-        <Text style={styles.title} numberOfLines={2} ellipsizeMode="tail">
+        <Text style={[styles.title, { color: getTitleColor() }]} numberOfLines={2}>
           {title}
         </Text>
       )}
@@ -128,6 +125,7 @@ const styles = StyleSheet.create({
   container: {
     alignItems: 'center',
     marginVertical: 10,
+    width: 180,
   },
   button: {
     justifyContent: 'center',
@@ -148,8 +146,16 @@ const styles = StyleSheet.create({
     marginTop: 8,
     textAlign: 'center',
     color: '#FFFFFF',
-    fontSize: 12,
+    fontSize: 18,
+    fontFamily: 'Arboria-Medium',
     fontWeight: 'bold',
-    maxWidth: 100,
+    lineHeight: 18,
+    opacity: 0.8,
+    maxWidth: 170,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.8,
+    shadowRadius: 15,
+    elevation: 5,
   },
 }); 

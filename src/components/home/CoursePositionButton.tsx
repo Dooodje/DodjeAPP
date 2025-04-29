@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ViewStyle, Platform } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ViewStyle, Alert } from 'react-native';
 import { Parcours } from '../../types/firebase';
 import theme from '../../config/theme';
 import { AnneauVector } from '../ui/vectors/AnneauVectors';
@@ -70,7 +70,6 @@ const CoursePositionButton: React.FC<CoursePositionButtonProps> = ({
         return '#FF9A00';
       case 'annexe':
         return theme.colors.primary.main;
-      case 'standard':
       default:
         return theme.colors.primary.light;
     }
@@ -88,12 +87,12 @@ const CoursePositionButton: React.FC<CoursePositionButtonProps> = ({
     }
 
     // Si le parcours est terminé, utiliser PastilleParcoursVariant2 (vert)
-    if (parcours.isCompleted) {
+    if (parcours.status === 'completed') {
       return <PastilleParcoursVariant2 style={{ width: pastilleSize, height: pastilleSize }} />;
     }
 
-    // Si le parcours est débloqué mais pas terminé, utiliser PastilleParcoursDefault (jaune)
-    if (isActive) {
+    // Si le parcours est débloqué ou en cours, utiliser PastilleParcoursDefault (jaune)
+    if (parcours.status === 'unblocked' || parcours.status === 'in_progress') {
       return <PastilleParcoursDefault style={{ width: pastilleSize, height: pastilleSize }} />;
     }
 
@@ -101,11 +100,22 @@ const CoursePositionButton: React.FC<CoursePositionButtonProps> = ({
     return <PastilleParcoursVariant3 style={{ width: pastilleSize, height: pastilleSize }} />;
   };
 
+  const handlePress = () => {
+    if (parcours.status === 'blocked') {
+      Alert.alert(
+        "Parcours bloqué",
+        "Vous devez d'abord terminer les parcours précédents pour accéder à celui-ci."
+      );
+      return;
+    }
+    onPress(parcours.id);
+  };
+
   return (
     <TouchableOpacity
       style={[styles.container, { width: size, height: size }, style]}
-      onPress={() => onPress(parcours.id)}
-      activeOpacity={0.7}
+      onPress={handlePress}
+      activeOpacity={parcours.status === 'blocked' ? 1 : 0.7}
     >
       {/* Anneau extérieur */}
       <AnneauVector 
@@ -121,9 +131,9 @@ const CoursePositionButton: React.FC<CoursePositionButtonProps> = ({
       </View>
       
       {/* Badge d'ordre si fourni */}
-      {parcours.order !== undefined && (
+      {parcours.ordre !== undefined && (
         <View style={styles.orderBadge}>
-          <Text style={styles.orderText}>{parcours.order}</Text>
+          <Text style={styles.orderText}>{parcours.ordre}</Text>
         </View>
       )}
       
@@ -141,59 +151,39 @@ const CoursePositionButton: React.FC<CoursePositionButtonProps> = ({
 
 const styles = StyleSheet.create({
   container: {
-    position: 'relative',
-    justifyContent: 'center',
     alignItems: 'center',
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 3 },
-        shadowOpacity: 0.5,
-        shadowRadius: 5,
-      },
-      android: {
-        elevation: 8,
-      },
-      web: {
-        boxShadow: '0px 4px 8px rgba(0, 0, 0, 0.5)',
-      },
-    }),
+    justifyContent: 'center',
   },
   pastilleContainer: {
     position: 'absolute',
-    justifyContent: 'center',
     alignItems: 'center',
+    justifyContent: 'center',
   },
   orderBadge: {
     position: 'absolute',
     top: 0,
     right: 0,
-    backgroundColor: '#FF6B00',
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    justifyContent: 'center',
+    backgroundColor: theme.colors.primary.main,
+    borderRadius: 10,
+    width: 20,
+    height: 20,
     alignItems: 'center',
-    zIndex: 10,
+    justifyContent: 'center',
   },
   orderText: {
+    color: '#FFF',
     fontSize: 12,
     fontWeight: 'bold',
-    color: '#FFFFFF',
   },
   titleContainer: {
     position: 'absolute',
-    bottom: -40,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
-    borderRadius: 10,
-    padding: 5,
-    width: 100,
+    bottom: -24,
+    width: '100%',
     alignItems: 'center',
   },
   titleText: {
-    color: '#FFFFFF',
+    color: '#FFF',
     fontSize: 12,
-    fontWeight: 'bold',
     textAlign: 'center',
   },
 });

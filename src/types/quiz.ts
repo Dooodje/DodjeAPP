@@ -48,12 +48,90 @@ export interface QuizState {
   showResults: boolean;
 }
 
+export type QuizStatus = 'blocked' | 'unblocked' | 'completed';
+
 export interface QuizProgress {
-  quizId: string;
-  score: number;
-  answers: Record<string, string[]>;
+  score: number;           // Score de la dernière tentative
+  attempts: number;        // Nombre de tentatives
+  bestScore: number;       // Meilleur score obtenu
+  lastAttemptAt: string;  // Date de la dernière tentative
+  averageScore: number;   // Moyenne des scores de toutes les tentatives
+  totalTimeSpent: number; // Temps total passé sur le quiz
+  successRate: number;    // Taux de réussite (pourcentage de tentatives réussies)
+}
+
+export interface QuizAnswerDetail {
+  questionId: string;
+  selectedAnswers: string[];
+  isCorrect: boolean;
   timeSpent: number;
-  completedAt: Date;
+}
+
+export interface QuizAttemptDetails {
+  totalQuestions: number;
+  correctAnswers: number;
+  answers: QuizAnswerDetail[];
+  timeSpent: number;
+}
+
+export interface QuizAttempt {
+  attemptedAt: string;    // Date de la tentative
+  score: number;          // Score obtenu
+  completed: boolean;     // Si le quiz a été terminé
+  duration: number;       // Durée de la tentative en secondes
+  details: QuizAttemptDetails; // Détails de la tentative
+}
+
+export interface QuizLastResults {
+  score: number;
+  completedAt: string;
+  details: QuizAnswerDetail[];
+  timeSpent: number;
+}
+
+export interface QuizResult {
+    score: number;
+    totalQuestions: number;
+    correctAnswers: number;
+    timeSpent: number;
+    answers: QuizAnswerDetail[];
+}
+
+export interface UserQuiz {
+  quizId: string;
+  parcoursId: string;
+  status: QuizStatus;
+  progress: QuizProgress;
+  attempts: QuizAttempt[];
+  createdAt: string;
+  updatedAt: string;
+  ordre: number;         // Position dans le parcours
+  lastResults?: QuizLastResults; // Résultats de la dernière tentative (optionnel)
+}
+
+export interface QuizStatusUpdate {
+  userId: string;
+  quizId: string;
+  parcoursId: string;
+  status: QuizStatus;
+  progress?: Partial<QuizProgress>;
+}
+
+export interface QuizControlsProps {
+  quiz: UserQuiz;
+  onStart: () => void;
+  onSubmit: () => void;
+  onRetry: () => void;
+}
+
+export interface QuizInfoProps {
+  quiz: UserQuiz;
+  onUnlock?: () => void;
+}
+
+export interface QuizPlayerProps {
+  quizId: string;
+  userId: string;
 }
 
 export interface QuizHeaderProps {

@@ -1,9 +1,13 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
-import { useAppDispatch, useAppSelector } from './useRedux';
-import { setUser } from '../store/slices/authSlice';
-import { authService, firestoreService } from '../services';
-import { UserData } from '../types/firebase';
-import { getAuth, onAuthStateChanged } from 'firebase/auth';
+import { useAppDispatch, useAppSelector } from '@/hooks/useRedux';
+import { setUser } from '@/store/slices/authSlice';
+import { authService, firestoreService } from '@/services';
+import { UserData } from '@/types/firebase';
+import { getAuth, onAuthStateChanged, User } from 'firebase/auth';
+import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { auth, db } from '@/config/firebase';
+import { ParcoursInitializationService } from '@/services/businessLogic/ParcoursInitializationService';
+import { UserInitializationService } from '@/services/businessLogic/UserInitializationService';
 
 // Durée de vie d'un token (en millisecondes) - 45 minutes
 // Note: Firebase ID tokens expirent après 1 heure, mais on rafraîchit 15 minutes avant
@@ -156,6 +160,31 @@ export const useAuth = () => {
             
             // Démarrer le cycle de rafraîchissement du token
             scheduleTokenRefresh();
+
+            // Vérifier si c'est la première connexion
+            const userDocRef = doc(db, 'users', firebaseUser.uid);
+            const userDoc = await getDoc(userDocRef);
+
+            if (!userDoc.exists()) {
+              // Première connexion : initialiser les données utilisateur
+              await setDoc(userDocRef, {
+                email: firebaseUser.email,
+                createdAt: new Date().toISOString(),
+                lastLogin: new Date().toISOString()
+              });
+
+              // Initialiser les statuts des parcours et autres données utilisateur
+              await Promise.all([
+                ParcoursInitializationService.initializeUserParcours(firebaseUser.uid),
+                UserInitializationService.initializeUserDodji(firebaseUser.uid),
+                UserInitializationService.initializeUserVideoStatus(firebaseUser.uid)
+              ]);
+            } else {
+              // Mettre à jour la date de dernière connexion
+              await setDoc(userDocRef, {
+                lastLogin: new Date().toISOString()
+              }, { merge: true });
+            }
           } catch (profileError: any) {
             console.error('Erreur lors de la récupération/création du profil:', profileError);
             
@@ -242,6 +271,11 @@ export const useAuth = () => {
       console.log('Tentative d\'inscription pour:', email);
       const userData = await authService.register(email, password, username);
       console.log('Inscription réussie pour:', userData.uid);
+      
+      // Initialiser les statuts de l'utilisateur
+      await UserInitializationService.initializeUser(userData.uid);
+      console.log('Statuts initialisés avec succès pour:', userData.uid);
+      
       dispatch(setUser(userData));
       setTokenValid(true);
       

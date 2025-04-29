@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { View, StyleSheet, ViewStyle } from 'react-native';
 import { Parcours } from '../../types/firebase';
-import { CoursePosition, CoursePositionType } from '../ui/CoursePosition';
+import { CoursePosition, CoursePositionType, CourseStatus } from '../ui/CoursePosition';
 
 interface PositionButtonProps {
   id: string;
@@ -54,14 +54,13 @@ const PositionButton: React.FC<PositionButtonProps> = ({
     };
   }, [x, y, imageWidth, imageHeight, containerWidth, containerHeight]);
 
-  // Déterminer le type de position et si elle est active
-  const { type, isActive } = useMemo(() => {
+  // Déterminer le type de position et le statut
+  const { type, status } = useMemo(() => {
     // Si pas de données de parcours, utiliser les valeurs par défaut
     if (!parcoursData) {
-      const defaultType: CoursePositionType = isAnnex ? 'annexe' : 'standard';
       return {
-        type: defaultType,
-        isActive: false
+        type: isAnnex ? 'annexe' : 'standard' as CoursePositionType,
+        status: 'blocked' as CourseStatus
       };
     }
 
@@ -69,33 +68,23 @@ const PositionButton: React.FC<PositionButtonProps> = ({
     if (isAnnex) {
       return {
         type: 'annexe' as CoursePositionType,
-        isActive: parcoursData.status === 'completed'
+        status: parcoursData.status as CourseStatus || 'blocked'
       };
     }
 
-    // En fonction du statut du parcours
-    if (parcoursData.status === 'completed') {
-      return {
-        type: 'standard' as CoursePositionType,
-        isActive: true
-      };
-    } else if (parcoursData.status === 'in_progress') {
-      return {
-        type: 'important' as CoursePositionType,
-        isActive: false
-      };
-    } else if (parcoursData.status === 'blocked') {
-      return {
-        type: 'special' as CoursePositionType,
-        isActive: false
-      };
-    } else {
-      // Statut par défaut (available)
-      return {
-        type: 'standard' as CoursePositionType,
-        isActive: false
-      };
+    // Type de position en fonction du parcours
+    let positionType: CoursePositionType = 'standard';
+    if (parcoursData.isBonus || parcoursData.isIntroduction) {
+      positionType = 'important';
+    } else if (parcoursData.isSpecial) {
+      positionType = 'special';
     }
+
+    // Utiliser directement le statut du parcours
+    return {
+      type: positionType,
+      status: parcoursData.status as CourseStatus || 'blocked'
+    };
   }, [parcoursData, isAnnex]);
 
   const handlePress = () => {
@@ -119,12 +108,10 @@ const PositionButton: React.FC<PositionButtonProps> = ({
     >
       <CoursePosition
         type={type}
+        status={status}
         size={size}
-        isActive={isActive}
         title={parcoursData?.titre || parcoursData?.title}
         onPress={handlePress}
-        order={order}
-        parcours={parcoursData}
       />
     </View>
   );

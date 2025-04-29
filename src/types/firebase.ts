@@ -45,12 +45,13 @@ export interface Parcours {
   description: string;
   theme: 'bourse' | 'crypto';
   level: 'debutant' | 'avance' | 'expert';
-  order: number;
+  ordre: number;
+  order?: number;
   imageUrl: string;
   thumbnail?: string;
   videoCount?: number;
   videoIds?: string[];
-  status?: 'blocked' | 'available' | 'in_progress' | 'completed';
+  status?: 'blocked' | 'unblocked' | 'in_progress' | 'completed';
   position: {
     x: number;
     y: number;
