@@ -1,6 +1,7 @@
 import { db } from '@/config/firebase';
 import { collection, doc, getDoc, getDocs, query, setDoc, where, orderBy } from 'firebase/firestore';
 import { ParcoursStatus, UserParcours } from '@/types/parcours';
+import { ParcoursProgressionService } from './ParcoursProgressionService';
 
 export class ParcoursStatusService {
     private static readonly USERS_COLLECTION = 'users';
@@ -16,6 +17,13 @@ export class ParcoursStatusService {
         status: ParcoursStatus
     ): Promise<void> {
         try {
+            console.log(`Début de mise à jour du statut pour le parcours ${parcoursId}:`, {
+                userId,
+                parcoursId,
+                domaine,
+                status
+            });
+
             const parcoursRef = doc(
                 db,
                 this.USERS_COLLECTION,
@@ -24,19 +32,34 @@ export class ParcoursStatusService {
                 parcoursId
             );
 
+            // Vérifier l'état actuel avant la mise à jour
+            const currentDoc = await getDoc(parcoursRef);
+            if (currentDoc.exists()) {
+                console.log('État actuel du parcours:', currentDoc.data());
+            }
+
             const now = new Date();
             const parcoursData: UserParcours = {
                 userId,
                 parcoursId,
                 domaine,
                 status,
-                createdAt: now,
+                createdAt: currentDoc.exists() ? currentDoc.data().createdAt : now,
                 updatedAt: now
             };
 
-            await setDoc(parcoursRef, parcoursData, { merge: true });
+            console.log('Données à mettre à jour:', parcoursData);
 
-            console.log(`Updated parcours ${parcoursId} status to ${status} for user ${userId}`);
+            await setDoc(parcoursRef, parcoursData, { merge: true });
+            console.log(`Mise à jour effectuée pour le parcours ${parcoursId}`);
+
+            // Si le parcours est marqué comme complété, débloquer le prochain parcours
+            if (status === 'completed') {
+                console.log(`Le parcours ${parcoursId} est complété, appel de handleParcoursCompletion`);
+                await ParcoursProgressionService.handleParcoursCompletion(userId, parcoursId);
+            }
+
+            console.log(`Mise à jour terminée avec succès pour le parcours ${parcoursId}`);
         } catch (error) {
             console.error('Error updating parcours status:', error);
             throw new Error('Failed to update parcours status');

@@ -56,6 +56,7 @@ export interface VideoProgress {
   duration: number;
   completionStatus: 'blocked' | 'unblocked' | 'completed';
   lastUpdated: Date | Timestamp;
+  percentage: number;
   metadata: {
     videoId: string;
     courseId: string;

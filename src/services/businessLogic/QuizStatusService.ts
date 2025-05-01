@@ -1,6 +1,7 @@
 import { db } from '../../config/firebase';
 import { doc, getDoc, setDoc, collection, query, where, getDocs, orderBy } from 'firebase/firestore';
 import { QuizStatus, UserQuiz, QuizProgress, QuizAttempt, QuizStatusUpdate, QuizResult } from '../../types/quiz';
+import { Timestamp } from 'firebase/firestore';
 
 export class QuizStatusService {
     private static readonly USERS_COLLECTION = 'users';
@@ -240,32 +241,149 @@ export class QuizStatusService {
     }
 
     /**
-     * Vérifie et débloque les quiz associés à un parcours quand une vidéo est complétée
+     * Vérifie et débloque les quiz d'un parcours si toutes les vidéos sont complétées
      */
     static async checkAndUnlockQuizzes(userId: string, parcoursId: string, videoId: string): Promise<void> {
         try {
-            // Récupérer tous les quiz du parcours qui sont liés à cette vidéo
-            const quizzesQuery = query(
-                collection(db, this.QUIZZES_COLLECTION),
-                where('parcoursId', '==', parcoursId),
-                where('videoId', '==', videoId)
-            );
+            console.log(`Checking quizzes for parcours ${parcoursId}, triggered by video ${videoId}`);
 
-            const quizzesSnapshot = await getDocs(quizzesQuery);
-            const quizzes = quizzesSnapshot.docs;
+            // 1. Récupérer le parcours
+            const parcoursRef = doc(db, 'parcours', parcoursId);
+            const parcoursDoc = await getDoc(parcoursRef);
+            
+            if (!parcoursDoc.exists()) {
+                console.warn(`Parcours ${parcoursId} not found`);
+                return;
+            }
 
-            // Pour chaque quiz trouvé, le débloquer
-            for (const quiz of quizzes) {
-                await this.updateQuizStatus({
-                    userId,
-                    quizId: quiz.id,
+            const parcoursData = parcoursDoc.data();
+            console.log('Parcours data:', parcoursData);
+
+            // Si videoIds n'existe pas, récupérer toutes les vidéos du parcours
+            let videoIds = parcoursData.videoIds;
+            if (!videoIds || !Array.isArray(videoIds) || videoIds.length === 0) {
+                console.log('No videoIds found in parcours, fetching videos from videos collection...');
+                const videosQuery = query(
+                    collection(db, 'videos'),
+                    where('parcoursId', '==', parcoursId)
+                );
+                const videosSnapshot = await getDocs(videosQuery);
+                videoIds = videosSnapshot.docs.map(doc => doc.id);
+                console.log('Found videos:', videoIds);
+
+                // Mettre à jour le document du parcours avec les videoIds
+                await setDoc(parcoursRef, { videoIds }, { merge: true });
+            }
+
+            const quizId = parcoursData.quizId;
+            console.log(`Found parcours with ${videoIds.length} videos and quiz ID: ${quizId}`);
+
+            if (!quizId) {
+                console.warn(`No quiz found for parcours ${parcoursId}`);
+                return;
+            }
+
+            // 2. Vérifier si toutes les vidéos sont complétées
+            const allCompleted = await this.checkAllVideosCompleted(userId, videoIds);
+            console.log(`All videos completed check for parcours ${parcoursId}: ${allCompleted}`);
+
+            if (allCompleted) {
+                console.log(`All videos completed for parcours ${parcoursId}, unlocking quiz ${quizId}`);
+                
+                // 3. Débloquer le quiz
+                const quizRef = doc(db, this.USERS_COLLECTION, userId, 'quiz', quizId);
+                
+                // Vérifier d'abord l'état actuel du quiz
+                const currentQuizDoc = await getDoc(quizRef);
+                const currentQuizData = currentQuizDoc.exists() ? currentQuizDoc.data() : null;
+                console.log('Current quiz status:', currentQuizData);
+
+                const updatedQuizData = {
+                    quizId,
                     parcoursId,
-                    status: 'unblocked'
-                });
+                    status: 'unblocked',
+                    createdAt: currentQuizData?.createdAt || Timestamp.now(),
+                    updatedAt: Timestamp.now(),
+                    attempts: currentQuizData?.attempts || 0,
+                    ordre: currentQuizData?.ordre || 0,
+                    progress: {
+                        attempts: currentQuizData?.progress?.attempts || 0,
+                        averageScore: currentQuizData?.progress?.averageScore || 0,
+                        bestScore: currentQuizData?.progress?.bestScore || 0,
+                        lastAttemptAt: currentQuizData?.progress?.lastAttemptAt || null,
+                        score: currentQuizData?.progress?.score || 0,
+                        successRate: currentQuizData?.progress?.successRate || 0,
+                        totalTimeSpent: currentQuizData?.progress?.totalTimeSpent || 0
+                    }
+                };
+
+                await setDoc(quizRef, updatedQuizData);
+                console.log('Quiz data updated:', updatedQuizData);
+
+                // Vérifier que le quiz a bien été débloqué
+                const updatedQuizDoc = await getDoc(quizRef);
+                console.log('Updated quiz status:', updatedQuizDoc.data());
+            } else {
+                console.log(`Not all videos are completed for parcours ${parcoursId}, quiz remains blocked`);
             }
         } catch (error) {
-            console.error('Erreur lors du déblocage des quiz après complétion de la vidéo:', error);
+            console.error('Error checking and unlocking quizzes:', error);
             throw error;
+        }
+    }
+
+    /**
+     * Vérifie si toutes les vidéos d'une liste sont complétées
+     */
+    private static async checkAllVideosCompleted(userId: string, videoIds: string[]): Promise<boolean> {
+        try {
+            if (!videoIds.length) {
+                console.warn('No videos to check for completion');
+                return false;
+            }
+
+            console.log(`Checking completion for videos: ${JSON.stringify(videoIds)}`);
+
+            const videoStatuses = await Promise.all(
+                videoIds.map(async videoId => {
+                    const videoRef = doc(db, this.USERS_COLLECTION, userId, 'video', videoId);
+                    return getDoc(videoRef);
+                })
+            );
+
+            // Vérifier que toutes les vidéos existent et sont complétées
+            const statusChecks = videoStatuses.map(status => {
+                if (!status.exists()) {
+                    console.log(`Video document ${status.id} does not exist`);
+                    return false;
+                }
+
+                const data = status.data();
+                console.log(`Video ${status.id} data:`, JSON.stringify(data, null, 2));
+
+                // Vérifier tous les champs possibles pour le statut de complétion
+                const checks = {
+                    byStatus: data.status === 'completed',
+                    byCompletionStatus: data.completionStatus === 'completed',
+                    byProgress: (data.progress || 0) >= 90,
+                    byCurrentTime: data.currentTime && data.duration && 
+                                 (data.currentTime / data.duration) >= 0.9
+                };
+
+                console.log(`Video ${status.id} completion checks:`, checks);
+
+                // Une vidéo est considérée comme complétée si l'un des critères est vrai
+                return Object.values(checks).some(check => check === true);
+            });
+
+            const allCompleted = statusChecks.every(isCompleted => isCompleted);
+            console.log('Individual video completion results:', statusChecks);
+            console.log(`Final completion check result: ${allCompleted}`);
+
+            return allCompleted;
+        } catch (error) {
+            console.error('Error checking video completion status:', error);
+            return false;
         }
     }
 } 

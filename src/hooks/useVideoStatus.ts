@@ -39,10 +39,19 @@ export const useVideoStatus = (videoId: string, parcoursId: string) => {
             setError(null);
             
             // Get current progress if it exists
-            const currentProgress = videoStatus?.progress || {
+            const currentProgress: VideoProgress = videoStatus?.progress || {
                 currentTime: 0,
                 duration: 0,
-                percentage: 0
+                completionStatus: status,
+                lastUpdated: new Date(),
+                percentage: 0,
+                metadata: {
+                    videoId: videoId,
+                    courseId: parcoursId,
+                    videoSection: '',
+                    videoTitle: '',
+                    progress: 0
+                }
             };
 
             await VideoStatusService.updateVideoStatus({

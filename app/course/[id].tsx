@@ -10,6 +10,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import { Course, CourseContent } from '../../src/types/course';
 import { useAuth } from '../../src/hooks/useAuth';
+import { QuizStatusService } from '../../src/services/businessLogic/QuizStatusService';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
@@ -315,7 +316,15 @@ export default function CoursePage() {
   };
 
   // Naviguer vers la page du quiz
-  const handleQuizPress = (quizId: string) => {
+  const handleQuizPress = async (quizId: string) => {
+    if (!user?.uid) {
+      Alert.alert(
+        "Connexion requise",
+        "Vous devez être connecté pour accéder aux quiz."
+      );
+      return;
+    }
+
     if (parcoursStatus === 'blocked') {
       Alert.alert(
         "Parcours bloqué",
@@ -324,13 +333,27 @@ export default function CoursePage() {
       return;
     }
 
-    console.log(`Navigation vers le quiz ID=${quizId}`);
-    
-    // Mode test : accès direct sans aucune restriction
-    console.log("Mode test : accès direct au quiz sans vérification");
-    
-    // Rediriger vers la page du quiz
-    router.push(`/quiz/${quizId}?parcoursId=${id}` as any);
+    try {
+      // Vérifier le statut du quiz
+      const quizStatus = await QuizStatusService.getQuizStatus(user.uid, quizId);
+      
+      if (!quizStatus || quizStatus.status === 'blocked') {
+        Alert.alert(
+          "Quiz verrouillé",
+          "Vous devez d'abord terminer toutes les vidéos du parcours pour accéder à ce quiz."
+        );
+        return;
+      }
+
+      console.log(`Navigation vers le quiz ID=${quizId}`);
+      router.push(`/quiz/${quizId}?parcoursId=${id}` as any);
+    } catch (error) {
+      console.error('Erreur lors de la vérification du statut du quiz:', error);
+      Alert.alert(
+        "Erreur",
+        "Une erreur est survenue lors de l'accès au quiz. Veuillez réessayer."
+      );
+    }
   };
 
   // Gérer les retours en arrière

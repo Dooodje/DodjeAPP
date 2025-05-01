@@ -15,48 +15,39 @@ export class VideoStatusService {
         try {
             const { userId, videoId, parcoursId, status, progress } = update;
             const videoRef = doc(db, this.USERS_COLLECTION, userId, 'video', videoId);
-            const videoDoc = await getDoc(videoRef);
 
-            // Get video order from videos collection
+            // Get video metadata from videos collection
             const videoOrderDoc = await getDoc(doc(db, this.VIDEOS_COLLECTION, videoId));
-            const ordre = videoOrderDoc.exists() ? videoOrderDoc.data().ordre || 0 : 0;
+            const videoMetadata = videoOrderDoc.exists() ? videoOrderDoc.data() : null;
 
             const now = new Date();
-            const videoData: UserVideo = {
-                userId,
-                videoId,
-                parcoursId,
-                status,
-                progress: progress || {
-                    currentTime: 0,
-                    duration: 0,
-                    percentage: 0
+            const currentProgress = progress?.currentTime || 0;
+            const videoDuration = videoMetadata?.duration || 0;
+            const progressPercentage = videoDuration > 0 ? Math.floor((currentProgress / videoDuration) * 100) : 0;
+
+            // Create the document data
+            const videoDoc = {
+                completionStatus: status,
+                currentTime: currentProgress,
+                duration: videoDuration,
+                lastUpdated: now.toISOString(),
+                metadata: {
+                    courseId: parcoursId,
+                    videoSection: videoMetadata?.section || '',
+                    videoTitle: videoMetadata?.title || videoMetadata?.titre || ''
                 },
-                createdAt: videoDoc.exists() ? (videoDoc.data() as UserVideo).createdAt : now.toISOString(),
-                updatedAt: now.toISOString(),
-                history: videoDoc.exists() ? (videoDoc.data() as UserVideo).history || [] : [],
-                ordre
+                progress: progressPercentage,
+                videoId: videoId
             };
 
-            if (progress && videoDoc.exists()) {
-                const existingData = videoDoc.data() as UserVideo;
-                if (existingData.progress) {
-                    videoData.history = [
-                        ...existingData.history,
-                        {
-                            date: now,
-                            duration: progress.currentTime,
-                            completed: progress.percentage >= 90
-                        }
-                    ];
-                }
-            }
+            await setDoc(videoRef, videoDoc);
 
-            await setDoc(videoRef, videoData);
-
-            // If video is completed, try to unlock next video
+            // Si la vidéo est complétée
             if (status === 'completed') {
-                await this.unlockNextVideo(userId, parcoursId, videoId);
+                console.log(`Video ${videoId} marked as completed for user ${userId}`);
+                
+                // Vérifier et débloquer le quiz si toutes les vidéos sont complétées
+                await QuizStatusService.checkAndUnlockQuizzes(userId, parcoursId, videoId);
             }
         } catch (error) {
             console.error('Error updating video status:', error);
@@ -166,11 +157,9 @@ export class VideoStatusService {
     static async initializeParcoursVideos(userId: string, parcoursId: string): Promise<void> {
         try {
             // Get all videos from the parcours
-            // Temporairement : retirer le orderBy pour éviter l'erreur d'index
             const videosQuery = query(
                 collection(db, this.VIDEOS_COLLECTION),
                 where('parcoursId', '==', parcoursId)
-                // Le orderBy a été retiré pour éviter l'erreur d'index
             );
 
             const videosSnapshot = await getDocs(videosQuery);
@@ -185,21 +174,29 @@ export class VideoStatusService {
 
             if (videos.length === 0) return;
 
+            const now = new Date();
+
             // First video is unblocked, others are blocked
             for (let i = 0; i < videos.length; i++) {
                 const video = videos[i];
                 const videoData = video.data();
-                await this.updateVideoStatus({
-                    userId,
-                    videoId: video.id,
-                    parcoursId,
-                    status: i === 0 ? 'unblocked' : 'blocked',
-                    progress: {
-                        currentTime: 0,
-                        duration: videoData.duration || 0,
-                        percentage: 0
-                    }
-                });
+                const status = i === 0 ? 'unblocked' : 'blocked';
+
+                const videoDoc = {
+                    completionStatus: status,
+                    currentTime: 0,
+                    duration: videoData.duration || 0,
+                    lastUpdated: now.toISOString(),
+                    metadata: {
+                        courseId: parcoursId,
+                        videoSection: videoData.section || '',
+                        videoTitle: videoData.title || videoData.titre || ''
+                    },
+                    progress: 0,
+                    videoId: video.id
+                };
+
+                await setDoc(doc(db, this.USERS_COLLECTION, userId, 'video', video.id), videoDoc);
             }
         } catch (error) {
             console.error('Error initializing parcours videos:', error);

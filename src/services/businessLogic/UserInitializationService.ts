@@ -44,55 +44,17 @@ export class UserInitializationService {
      */
     static async initializeUser(userId: string): Promise<void> {
         try {
+            console.log('Début de l\'initialisation de l\'utilisateur...');
+            
             // Initialize Dodji account
             await DodjiService.initializeUserDodji(userId);
+            console.log('Compte Dodji initialisé');
 
-            // Get all parcours
-            const parcoursQuery = query(collection(db, this.PARCOURS_COLLECTION));
-            const parcoursSnapshot = await getDocs(parcoursQuery);
-            const allParcours = parcoursSnapshot.docs.map(doc => ({
-                id: doc.id,
-                ...doc.data()
-            })) as Parcours[];
+            // Initialize all statuses (parcours, videos, and quizzes)
+            await this.initializeAllStatuses(userId);
+            console.log('Tous les statuts ont été initialisés');
 
-            // Group parcours by theme and level
-            const parcoursByThemeAndLevel = new Map<string, Map<string, Parcours[]>>();
-            
-            allParcours.forEach(parcours => {
-                if (!parcoursByThemeAndLevel.has(parcours.domaine)) {
-                    parcoursByThemeAndLevel.set(parcours.domaine, new Map());
-                }
-                
-                const themeMap = parcoursByThemeAndLevel.get(parcours.domaine)!;
-                if (!themeMap.has(parcours.niveau)) {
-                    themeMap.set(parcours.niveau, []);
-                }
-                
-                themeMap.get(parcours.niveau)!.push(parcours);
-            });
-
-            // Initialize parcours for each theme and level
-            for (const [theme, levelMap] of parcoursByThemeAndLevel) {
-                for (const [level, parcours] of levelMap) {
-                    // Sort parcours by order
-                    parcours.sort((a, b) => a.ordre - b.ordre);
-                    
-                    // Initialize each parcours
-                    for (let i = 0; i < parcours.length; i++) {
-                        const parcours_i = parcours[i];
-                        await ParcoursStatusService.updateParcoursStatus(
-                            userId,
-                            parcours_i.id,
-                            theme,
-                            i === 0 ? 'unblocked' : 'blocked' // Only the first parcours in each theme/level is unblocked
-                        );
-                        
-                        console.log(`Initialized parcours ${parcours_i.id} (${theme}/${level}) with status ${i === 0 ? 'unblocked' : 'blocked'}`);
-                    }
-                }
-            }
-
-            console.log('User initialization completed successfully');
+            console.log('Initialisation de l\'utilisateur terminée avec succès');
         } catch (error) {
             console.error('Error initializing user:', error);
             throw new Error('Failed to initialize user');
@@ -280,22 +242,50 @@ export class UserInitializationService {
      */
     private static async initializeQuizStatuses(userId: string, themes: ThemeLevel[]) {
         try {
-            // Block all quizzes initially
-            for (const theme of themes) {
-                for (const parcours of theme.parcours) {
+            console.log('Initialisation des statuts des quiz...');
+            
+            // Récupérer tous les quiz de tous les parcours
+            const allQuizIds = new Set<string>();
+            const quizParcoursMap = new Map<string, string>();
+
+            // Collecter tous les IDs de quiz
+            themes.forEach(theme => {
+                theme.parcours.forEach(parcours => {
                     if (parcours.quizId) {
-                        const update: QuizStatusUpdate = {
-                            userId,
-                            quizId: parcours.quizId,
-                            parcoursId: parcours.id,
-                            status: 'blocked'
-                        };
-                        await QuizStatusService.updateQuizStatus(update);
+                        allQuizIds.add(parcours.quizId);
+                        quizParcoursMap.set(parcours.quizId, parcours.id);
                     }
-                }
+                });
+            });
+
+            // Initialiser chaque quiz en statut 'blocked'
+            for (const quizId of allQuizIds) {
+                const parcoursId = quizParcoursMap.get(quizId);
+                if (!parcoursId) continue;
+
+                const update: QuizStatusUpdate = {
+                    userId,
+                    quizId,
+                    parcoursId,
+                    status: 'blocked',
+                    progress: {
+                        score: 0,
+                        attempts: 0,
+                        bestScore: 0,
+                        lastAttemptAt: new Date().toISOString(),
+                        averageScore: 0,
+                        totalTimeSpent: 0,
+                        successRate: 0
+                    }
+                };
+
+                await QuizStatusService.updateQuizStatus(update);
+                console.log(`Quiz ${quizId} initialisé comme 'blocked' pour l'utilisateur ${userId}`);
             }
+
+            console.log('Initialisation des quiz terminée avec succès');
         } catch (error) {
-            console.error('Error initializing quiz statuses:', error);
+            console.error('Erreur lors de l\'initialisation des statuts des quiz:', error);
             throw error;
         }
     }
