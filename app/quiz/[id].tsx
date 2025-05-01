@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, StatusBar, Alert, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert, ScrollView } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
@@ -7,6 +7,7 @@ import { useAuth } from '../../src/hooks/useAuth';
 import { quizService } from '../../src/services/quiz';
 import { dodjiService } from '../../src/services/dodji';
 import { Quiz, Question, Answer } from '../../src/types/quiz';
+import type { QuizProgress } from '../../src/types/quiz';
 
 console.log('Quiz page loaded - full implementation!');
 
@@ -381,9 +382,13 @@ export default function QuizPage() {
           const progressData = {
             quizId: quiz.id,
             score: scorePercentage,
-            answers: { ...answers }, // Créer une copie pour éviter les références circulaires
-            timeSpent: 0, // À implémenter plus tard
-            completedAt: new Date()
+            attempts: 1, // Premier essai ou incrémenter si déjà des tentatives précédentes
+            bestScore: scorePercentage, // Si c'est la première tentative, c'est le meilleur score
+            lastAttemptAt: new Date().toISOString(),
+            averageScore: scorePercentage, // Si c'est la première tentative, c'est la moyenne
+            totalTimeSpent: 0, // À implémenter plus tard
+            successRate: isPassed ? 100 : 0, // 100% si réussi, 0% sinon
+            completedAt: new Date() // Nécessaire car utilisé dans saveQuizProgress
           };
           
           await quizService.saveQuizProgress(user.uid, progressData);
@@ -637,7 +642,6 @@ export default function QuizPage() {
   
   return (
     <>
-      <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
       <SafeAreaView style={styles.container} edges={['top', 'right', 'left']}>
         <QuizHeader 
           title={quiz?.titre || quiz?.title || "Quiz"} 

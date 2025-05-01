@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, StyleSheet, ActivityIndicator, Text, StatusBar } from 'react-native';
+import { View, StyleSheet, ActivityIndicator, Text } from 'react-native';
 import { useRouter } from 'expo-router';
 import { DodjeOneScreen } from '../src/screens/dodjeone';
 import { useAuth } from '../src/hooks/useAuth';
@@ -27,7 +27,6 @@ export default function DodjeOnePage() {
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor="#F3FF90" translucent />
       <DodjeOneScreen />
     </View>
   );

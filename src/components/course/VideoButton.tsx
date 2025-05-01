@@ -1,13 +1,13 @@
 import React, { useMemo } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Dimensions, StatusBar, Platform } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Dimensions, Platform } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 
 // Constantes pour les dimensions
 const { width: screenWidth } = Dimensions.get('window');
 const DEFAULT_BUTTON_SIZE = 60; // Taille par défaut du bouton
 // Valeurs approximatives pour le header incluant la StatusBar
-const STATUS_BAR_HEIGHT = Platform.OS === 'ios' ? 44 : StatusBar.currentHeight || 0;
-const HEADER_HEIGHT = 56; // Hauteur du header sans la barre d'état
+const STATUS_BAR_HEIGHT = Platform.OS === 'ios' ? 44 : 24; // Valeur fixe pour Android
+const HEADER_HEIGHT = 60; // Hauteur approximative du header sans StatusBar
 
 interface VideoButtonProps {
   id: string;

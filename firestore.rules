@@ -110,5 +110,13 @@ service cloud.firestore {
     match /user_settings/{userId} {
       allow read, write: if isCurrentUser(userId);
     }
+
+    // Règles pour la collection videos (vidéos publiques)
+    match /videos/{videoId} {
+      // Tout utilisateur authentifié peut lire les vidéos
+      allow read: if isSignedIn();
+      // Seuls les admins peuvent modifier les vidéos (à implémenter plus tard)
+      allow write: if isAdmin();
+    }
   }
 } 

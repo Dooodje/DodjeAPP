@@ -7,12 +7,16 @@
     "icon": "./assets/images/icon.png",
     "scheme": "myapp",
     "userInterfaceStyle": "automatic",
-    "newArchEnabled": true,
+    "newArchEnabled": false,
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "xyz.dodje.app",
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "UIViewControllerBasedStatusBarAppearance": false,
+        "UIStatusBarHidden": true,
+        "UIRequiresFullScreen": true,
+        "UIApplicationSupportsIndirectInputEvents": true
       },
       "runtimeVersion": "1.0.0"
     },

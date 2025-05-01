@@ -1,4 +1,5 @@
 import { Section, Level } from './home';
+import { Timestamp } from 'firebase/firestore';
 
 export type VideoStatus = {
     userId: string;
@@ -16,17 +17,14 @@ export interface Video {
   title: string;
   titre?: string;
   description: string;
-  courseId: string;
   videoUrl: string;
-  duration: number | string;
+  duration: number;
   duree?: string;
+  thumbnail: string;
   order: number;
-  progress?: number;
+  courseId: string;
+  isUnlocked: boolean;
   lastWatchedPosition?: number;
-  lastWatchedDate?: Date;
-  isUnlocked?: boolean;
-  status?: 'new' | 'started' | 'completed';
-  thumbnail?: string;
 }
 
 export interface RelatedVideo {
@@ -50,12 +48,28 @@ export interface VideoState {
   adLoaded: boolean;
   adError: string | null;
   thumbnailUrl: string | null;
+  progress: number;
 }
 
-export type VideoProgress = {
-    currentTime: number;
-    duration: number;
-    percentage: number;
+export interface VideoProgress {
+  currentTime: number;
+  duration: number;
+  completionStatus: 'blocked' | 'unblocked' | 'completed';
+  lastUpdated: Date | Timestamp;
+  metadata: {
+    videoId: string;
+    courseId: string;
+    videoSection: string;
+    videoTitle: string;
+    progress: number;
+  };
+}
+
+// Ajout du type FirebaseTimestamp pour la compatibilité avec Firestore
+type FirebaseTimestamp = {
+  toDate(): Date;
+  seconds: number;
+  nanoseconds: number;
 };
 
 export type VideoHistory = {

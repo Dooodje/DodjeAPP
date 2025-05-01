@@ -1,5 +1,5 @@
 import React, { useEffect, ReactNode } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Image, ImageBackground, ViewStyle, StatusBar } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Image, ImageBackground, ViewStyle } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -155,7 +155,6 @@ export function DodjeOneScreen() {
   // Display subscription options - new design based on the provided image
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
-      <StatusBar barStyle="dark-content" backgroundColor="#F3FF90" />
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollViewContent}>
         {/* Card with yellow background and pattern */}
         <YellowPatternBackground style={styles.subscriptionCard}>

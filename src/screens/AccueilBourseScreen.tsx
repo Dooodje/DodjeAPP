@@ -3,7 +3,6 @@ import {
   View, 
   StyleSheet, 
   SafeAreaView, 
-  StatusBar, 
   ScrollView,
   TouchableOpacity,
   Text
@@ -78,8 +77,6 @@ const AccueilBourseScreen = () => {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="light-content" backgroundColor="#0A0400" />
-      
       <View style={styles.container}>
         {/* Background rectangles */}
         <Rectangle11 width={400} height={400} />

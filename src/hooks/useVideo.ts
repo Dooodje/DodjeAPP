@@ -21,6 +21,8 @@ import {
   resetVideo
 } from '../store/slices/videoSlice';
 import { RootState } from '../store';
+import { videoTrackingService } from '../services/firebase/videoTrackingService';
+import * as ScreenOrientation from 'expo-screen-orientation';
 
 export const useVideo = (videoId: string, userId: string) => {
   const dispatch = useDispatch();
@@ -87,9 +89,9 @@ export const useVideo = (videoId: string, userId: string) => {
           try {
             const progress = await videoService.getVideoProgress(userId, videoId);
             if (progress) {
-              video.progress = progress.progress;
-              video.lastWatchedPosition = progress.lastWatchedPosition;
-              video.lastWatchedDate = progress.lastWatchedDate;
+              video.progress = progress.percentage;
+              video.lastWatchedPosition = progress.currentTime;
+              console.log('Last watched time:', progress.currentTime);
             }
           } catch (progressErr) {
             console.error('Erreur lors de la récupération de la progression:', progressErr);
@@ -194,22 +196,91 @@ export const useVideo = (videoId: string, userId: string) => {
     };
   }, [videoId, userId, dispatch]);
 
-  // Mettre à jour la progression de la vidéo
-  const handleProgress = useCallback((progress: number) => {
-    if (videoId && userId && currentTime > 0) {
-      dispatch(updateVideoProgress(progress));
-      try {
-        videoService.updateVideoProgress(userId, {
-          videoId,
-          progress,
-          lastWatchedPosition: currentTime,
-          lastWatchedDate: new Date()
-        }).catch(err => console.error('Erreur lors de la mise à jour de la progression:', err));
-      } catch (err) {
-        console.error('Erreur lors de la mise à jour de la progression:', err);
-      }
+  // Convertir la durée de format "MM:SS" en secondes
+  const convertDurationToSeconds = (duration: string): number => {
+    if (!duration) return 0;
+    const [minutes, seconds] = duration.split(':').map(Number);
+    return (minutes * 60) + seconds;
+  };
+
+  // Gérer la progression de la vidéo
+  const handleProgress = useCallback(async (currentTime: number) => {
+    if (!currentVideo) return;
+    
+    // Update the state
+    dispatch(setCurrentTime(currentTime));
+    
+    // Calculate progress percentage
+    const progressPercentage = duration > 0 ? (currentTime / duration) * 100 : 0;
+    
+    // Update Redux state
+    dispatch(updateVideoProgress(progressPercentage));
+    
+    // Check for completion threshold (90%)
+    const VIDEO_COMPLETION_THRESHOLD = 90;
+    const completionStatus: VideoProgress['completionStatus'] = 
+      progressPercentage >= VIDEO_COMPLETION_THRESHOLD ? 'completed' : 'unblocked';
+
+    try {
+      await videoService.updateVideoProgress(userId, currentVideo.id, {
+        currentTime,
+        completionStatus
+      });
+      
+      await videoTrackingService.updateProgress(
+        userId,
+        videoId,
+        currentTime,
+        duration,
+        {
+          courseId: currentVideo.courseId || '',
+          videoTitle: currentVideo.title || currentVideo.titre || '',
+          videoSection: ''
+        }
+      );
+    } catch (err) {
+      console.error('Error updating video progress:', err);
     }
-  }, [videoId, userId, currentTime, dispatch]);
+  }, [currentVideo, dispatch, duration, userId, videoId]);
+
+  // Add function to save final progress when user leaves the page
+  const saveProgress = useCallback(async () => {
+    if (!userId || !currentVideo?.id || currentTime <= 0 || duration <= 0) return;
+    
+    try {
+      const progressPercentage = (currentTime / duration) * 100;
+      const completionStatus: VideoProgress['completionStatus'] = 
+        progressPercentage >= 90 ? 'completed' : 'unblocked';
+
+      await videoService.updateVideoProgress(userId, currentVideo.id, {
+        currentTime,
+        completionStatus
+      });
+      
+      await videoTrackingService.updateProgress(
+        userId,
+        currentVideo.id,
+        currentTime,
+        duration,
+        {
+          courseId: currentVideo.courseId || '',
+          videoTitle: currentVideo.title || currentVideo.titre || '',
+          videoSection: ''
+        }
+      );
+      
+      console.log('Video progress saved successfully');
+    } catch (error) {
+      console.error('Failed to save video progress:', error);
+    }
+  }, [userId, currentVideo, currentTime, duration]);
+
+  // Add cleanup effect to save progress on unmount
+  useEffect(() => {
+    return () => {
+      saveProgress();
+    };
+  }, [saveProgress]);
 
   // Marquer la vidéo comme débloquée
   const handleUnlock = useCallback(async () => {
@@ -304,8 +375,20 @@ export const useVideo = (videoId: string, userId: string) => {
   }, [isPlaying, dispatch]);
 
   // Basculer le mode plein écran
-  const toggleFullscreen = useCallback(() => {
-    dispatch(setFullscreen(!isFullscreen));
+  const toggleFullscreen = useCallback(async () => {
+    try {
+      if (isFullscreen) {
+        // Quitter le plein écran
+        await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP);
+        dispatch(setFullscreen(false));
+      } else {
+        // Passer en plein écran
+        await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE_RIGHT);
+        dispatch(setFullscreen(true));
+      }
+    } catch (error) {
+      console.error('Erreur lors du basculement du mode plein écran:', error);
+    }
   }, [isFullscreen, dispatch]);
 
   // Afficher/masquer les contrôles

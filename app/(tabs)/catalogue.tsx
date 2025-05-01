@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, StyleSheet, ScrollView, SafeAreaView, StatusBar, Text, TouchableOpacity, ImageBackground } from 'react-native';
+import { View, StyleSheet, ScrollView, SafeAreaView, Text, TouchableOpacity, ImageBackground } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import SearchBar from '../../src/components/catalogue/SearchBar';
@@ -60,8 +60,6 @@ export default function CataloguePage() {
   return (
     <View style={styles.container}>
       <SafeAreaView style={styles.container}>
-        <StatusBar barStyle="light-content" backgroundColor="#0A0400" />
-        
         <View style={[styles.content, { paddingTop: insets.top > 0 ? 0 : 10 }]}>
           {/* Header avec GlobalHeader */}
           <GlobalHeader

@@ -5,7 +5,6 @@ import { Provider } from 'react-redux';
 import { PersistGate } from 'redux-persist/integration/react';
 import { store, persistor } from '../src/store';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { StatusBar } from 'expo-status-bar';
 import { View, Text, ActivityIndicator, StyleSheet, TouchableOpacity, Platform, LogBox } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { iapService } from '../src/services/iap';
@@ -178,7 +177,6 @@ export default function RootLayout() {
       <Provider store={store}>
         <PersistGate loading={renderLoading()} persistor={persistor}>
           <SafeAreaProvider>
-            <StatusBar style="light" />
             <RootLayoutNav />
           </SafeAreaProvider>
         </PersistGate>
@@ -240,7 +238,6 @@ function RootLayoutNav() {
         name="video"
         options={{
           headerShown: false, // Toujours masquer le header pour ces routes
-          statusBarHidden: true,
         }}
       />
       <Stack.Screen

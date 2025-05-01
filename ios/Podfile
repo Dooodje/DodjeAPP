@@ -62,34 +62,5 @@ target 'dodje' do
         end
       end
     end
-    
-    # Fix RCTKeyCommands private API usage that causes TestFlight rejections
-    find_and_replace("#{installer.sandbox.root}/React-Core/React/Base/RCTKeyCommands.m",
-                     "_modifierFlags",
-                     "_modifierEventFlags")
-    find_and_replace("#{installer.sandbox.root}/React-Core/React/Base/RCTKeyCommands.m",
-                     "_modifiedInput",
-                     "_modifiedEventInput")
-    find_and_replace("#{installer.sandbox.root}/React-Core/React/Base/RCTKeyCommands.m",
-                     "_isKeyDown",
-                     "_isKeyEventDown")
-    find_and_replace("#{installer.sandbox.root}/React-Core/React/DevSupport/RCTPackagerClient.h",
-                     "handleNotification:",
-                     "handlePackageNotification:")
-    find_and_replace("#{installer.sandbox.root}/React-Core/React/DevSupport/RCTPackagerConnection.mm",
-                     "handleNotification:",
-                     "handlePackageNotification:")
-  end
-end
-
-# Helper method to find and replace text in files
-def find_and_replace(path, find_text, replace_text)
-  if File.exist?(path)
-    text = File.read(path)
-    replaced_text = text.gsub(find_text, replace_text)
-    if text != replaced_text
-      puts "Fixing private API usage in: #{path}"
-      File.open(path, "w") { |file| file.puts replaced_text }
-    end
   end
 end

@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator, TouchableOpacity, StatusBar, Alert, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, ActivityIndicator, TouchableOpacity, Alert, Dimensions } from 'react-native';
 import { useLocalSearchParams, useRouter, router as globalRouter } from 'expo-router';
 import { courseService } from '../../src/services/course';
 import { ParcoursStatusService } from '../../src/services/businessLogic/ParcoursStatusService';
@@ -342,8 +342,6 @@ export default function CoursePage() {
 
   return (
     <>
-      <StatusBar barStyle="light-content" translucent backgroundColor="transparent" />
-
       {error ? (
         <SafeAreaView style={styles.container} edges={['right', 'left', 'top']}>
           <View style={styles.errorContainer}>

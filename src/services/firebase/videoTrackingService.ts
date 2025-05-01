@@ -35,7 +35,9 @@ export interface VideoWatchingProgress {
 export class VideoTrackingService {
   private static instance: VideoTrackingService;
   
-  private constructor() {}
+  private constructor() {
+    // Private constructor to prevent direct construction calls with the `new` operator
+  }
   
   /**
    * Gets the singleton instance of VideoTrackingService
@@ -69,12 +71,14 @@ export class VideoTrackingService {
         return;
       }
       
+      console.log(`Updating progress for user ${userId}, video ${videoId}: ${currentTime}/${duration}s`);
+      
       // Calculate progress percentage
       const progress = duration > 0 ? Math.min(Math.round((currentTime / duration) * 100), 100) : 0;
       
-      // Determine completion status
+      // Determine completion status - marking as completed at 90% instead of 95%
       let completionStatus: 'notStarted' | 'inProgress' | 'completed' = 'notStarted';
-      if (progress >= 95) {
+      if (progress >= 90) { // Changed from 95 to 90 as per requirement
         completionStatus = 'completed';
       } else if (progress > 0) {
         completionStatus = 'inProgress';
@@ -104,20 +108,23 @@ export class VideoTrackingService {
         if (progress > existingData.progress || 
             (existingData.lastUpdated && 
              (Timestamp.now().seconds - existingData.lastUpdated.seconds) > 5)) {
+          console.log(`Updating existing progress document: ${progress}% (status: ${completionStatus})`);
           await updateDoc(videoProgressRef, progressData);
         }
       } else {
         // Create new document
+        console.log(`Creating new progress document: ${progress}% (status: ${completionStatus})`);
         await setDoc(videoProgressRef, progressData);
       }
       
       // If video is completed, update the user's statistics
       if (completionStatus === 'completed') {
+        console.log(`Video ${videoId} marked as completed for user ${userId}`);
         await this.updateVideoCompletionStats(userId, videoId, metadata?.courseId);
       }
     } catch (error) {
       console.error('Error updating video progress:', error);
-      throw error;
+      // Don't throw the error to avoid crashing the app - just log it
     }
   }
   
@@ -131,12 +138,18 @@ export class VideoTrackingService {
     try {
       if (!userId || !videoId) return null;
       
+      console.log(`Getting progress for user ${userId}, video ${videoId}`);
       const progressRef = doc(db, `users/${userId}/video/${videoId}`);
       const progressDoc = await getDoc(progressRef);
       
-      if (!progressDoc.exists()) return null;
+      if (!progressDoc.exists()) {
+        console.log(`No progress found for video ${videoId}`);
+        return null;
+      }
       
-      return progressDoc.data() as VideoWatchingProgress;
+      const data = progressDoc.data() as VideoWatchingProgress;
+      console.log(`Found progress: ${data.progress}% (${data.currentTime}/${data.duration}s)`);
+      return data;
     } catch (error) {
       console.error('Error getting video progress:', error);
       return null;
@@ -153,13 +166,16 @@ export class VideoTrackingService {
     try {
       if (!userId || !courseId) return [];
       
+      console.log(`Getting all progress for user ${userId} in course ${courseId}`);
       const videosQuery = query(
         collection(db, `users/${userId}/video`),
         where('metadata.courseId', '==', courseId)
       );
       
       const querySnapshot = await getDocs(videosQuery);
-      return querySnapshot.docs.map(doc => doc.data() as VideoWatchingProgress);
+      const progressList = querySnapshot.docs.map(doc => doc.data() as VideoWatchingProgress);
+      console.log(`Found ${progressList.length} videos with progress for course ${courseId}`);
+      return progressList;
     } catch (error) {
       console.error('Error getting course video progress:', error);
       return [];
@@ -180,17 +196,19 @@ export class VideoTrackingService {
     try {
       // Create a record in the user's video completion history
       const completionRef = doc(db, `users/${userId}/video_completions/${videoId}`);
+      
+      console.log(`Updating completion stats for video ${videoId} in course ${courseId || 'unknown'}`);
+      
       await setDoc(completionRef, {
         videoId,
         completedAt: Timestamp.now(),
         courseId
       }, { merge: true });
       
-      // If courseId is provided, update course progress
+      // If courseId is provided, we could update course progress here
       if (courseId) {
-        // Update course progress (to be implemented in a dedicated service)
-        // This is a placeholder for future implementation
-        console.log(`User ${userId} completed video ${videoId} in course ${courseId}`);
+        console.log(`Video ${videoId} completed in course ${courseId} by user ${userId}`);
+        // This is where you would add additional course progress updates if needed
       }
     } catch (error) {
       console.error('Error updating video completion stats:', error);

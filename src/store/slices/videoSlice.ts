@@ -13,7 +13,8 @@ const initialState: VideoState = {
   showControls: true,
   adLoaded: false,
   adError: null,
-  thumbnailUrl: null
+  thumbnailUrl: null,
+  progress: 0
 };
 
 const videoSlice = createSlice({
@@ -59,9 +60,7 @@ const videoSlice = createSlice({
       state.thumbnailUrl = action.payload;
     },
     updateVideoProgress: (state, action: PayloadAction<number>) => {
-      if (state.currentVideo) {
-        state.currentVideo.progress = action.payload;
-      }
+      state.progress = action.payload;
     },
     resetVideo: () => initialState
   }

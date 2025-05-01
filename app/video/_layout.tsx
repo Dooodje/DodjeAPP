@@ -1,22 +1,7 @@
 import React from 'react';
 import { Stack } from 'expo-router';
-import { Platform, StatusBar } from 'react-native';
 
 export default function VideoLayout() {
-  // Cacher la barre de statut sur Android
-  React.useEffect(() => {
-    if (Platform.OS === 'android') {
-      StatusBar.setTranslucent(true);
-      StatusBar.setBackgroundColor('transparent');
-    }
-    return () => {
-      if (Platform.OS === 'android') {
-        StatusBar.setTranslucent(false);
-        StatusBar.setBackgroundColor('#000000');
-      }
-    };
-  }, []);
-
   return (
     <Stack 
       initialRouteName="[id]"
@@ -27,7 +12,6 @@ export default function VideoLayout() {
         contentStyle: {
           backgroundColor: '#0A0400'
         },
-        statusBarHidden: true,
         headerBackVisible: false,
         header: () => null,
       }}

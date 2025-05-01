@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { View, StyleSheet, StatusBar, SafeAreaView, Text } from 'react-native';
+import { View, StyleSheet, Text } from 'react-native';
 import { useLocalSearchParams, useRouter, Stack } from 'expo-router';
 import { VideoPlayer } from '../../src/components/video/VideoPlayer';
 import { useAuth } from '../../src/hooks/useAuth';
@@ -50,8 +50,7 @@ export default function VideoPage() {
 
   return (
     <>
-      <Stack.Screen options={{ headerShown: false, statusBarHidden: true }} />
-      <StatusBar hidden translucent backgroundColor="transparent" />
+      <Stack.Screen options={{ headerShown: false }} />
       <View style={styles.container}>
         <VideoPlayer videoId={id} userId={user.uid} />
       </View>

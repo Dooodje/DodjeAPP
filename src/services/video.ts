@@ -1,9 +1,9 @@
-import { collection, doc, getDoc, getDocs, query, where, updateDoc, setDoc, Timestamp } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs, query, where, updateDoc, setDoc, Timestamp, FieldValue } from 'firebase/firestore';
 import { db } from './firebase';
 import { Video, VideoProgress, RelatedVideo } from '../types/video';
 
 const VIDEOS_COLLECTION = 'videos';
-const PROGRESS_COLLECTION = 'video_progress';
+const USERS_COLLECTION = 'users';
 
 export const videoService = {
   // Récupérer une vidéo par son ID
@@ -83,9 +83,9 @@ export const videoService = {
         return {
           id: videoData.id,
           title: videoData.title,
-          thumbnail: videoData.videoUrl, // Utiliser videoUrl comme fallback pour thumbnail
+          thumbnail: videoData.thumbnail || videoData.videoUrl, // Utiliser thumbnail ou videoUrl comme fallback
           duration: videoData.duration,
-          progress: videoData.progress
+          progress: 0 // Valeur par défaut, à mettre à jour si nécessaire
         } as RelatedVideo;
       });
     } catch (error) {
@@ -95,33 +95,92 @@ export const videoService = {
   },
 
   // Mettre à jour la progression d'une vidéo
-  async updateVideoProgress(userId: string, progress: VideoProgress): Promise<void> {
+  async updateVideoProgress(
+    userId: string, 
+    videoId: string, 
+    progressUpdate: {
+      currentTime: number;
+      completionStatus: 'blocked' | 'unblocked' | 'completed';
+    }
+  ): Promise<void> {
     try {
-      const progressRef = doc(db, PROGRESS_COLLECTION, `${userId}_${progress.videoId}`);
-      await setDoc(progressRef, {
-        ...progress,
-        lastWatchedDate: Timestamp.fromDate(progress.lastWatchedDate)
-      }, { merge: true });
+      if (!userId || !videoId) {
+        throw new Error('userId et videoId sont requis');
+      }
+
+      // Récupérer d'abord les métadonnées de la vidéo depuis la collection videos
+      const videoRef = doc(db, VIDEOS_COLLECTION, videoId);
+      const videoDoc = await getDoc(videoRef);
+
+      if (!videoDoc.exists()) {
+        throw new Error(`La vidéo ${videoId} n'existe pas dans la collection videos`);
+      }
+
+      const videoData = videoDoc.data();
+      // Convertir la durée du format "MM:SS" en secondes
+      const durationParts = (videoData.duree || "00:00").split(":");
+      const durationInSeconds = parseInt(durationParts[0]) * 60 + parseInt(durationParts[1]);
+
+      const userVideoRef = doc(db, `${USERS_COLLECTION}/${userId}/video/${videoId}`);
+      
+      const progressData: VideoProgress = {
+        currentTime: progressUpdate.currentTime,
+        duration: durationInSeconds,
+        completionStatus: progressUpdate.completionStatus,
+        lastUpdated: Timestamp.now(),
+        metadata: {
+          videoId: videoId,
+          courseId: videoData.parcoursId || videoData.courseId || '',
+          videoSection: videoData.section || '',
+          videoTitle: videoData.titre || videoData.title || '',
+          progress: Math.floor((progressUpdate.currentTime / durationInSeconds) * 100)
+        }
+      };
+
+      await setDoc(userVideoRef, progressData, { merge: true });
+
+      console.log(`✅ Progression mise à jour pour la vidéo ${videoId}`);
+      console.log(`📊 Durée: ${durationInSeconds}s, Progression: ${progressUpdate.currentTime}s`);
     } catch (error) {
-      console.error('Erreur lors de la mise à jour de la progression:', error);
+      console.error('❌ Erreur lors de la mise à jour de la progression:', error);
       throw error;
     }
   },
 
-  // Récupérer la progression d'une vidéo pour un utilisateur
-  async getVideoProgress(userId: string, videoId: string): Promise<VideoProgress | null> {
+  // Récupérer la progression d'une vidéo
+  async getVideoProgress(userId: string, videoId: string): Promise<{
+    currentTime: number;
+    duration: number;
+    completionStatus: string;
+    lastUpdated: Date;
+  } | null> {
     try {
-      const progressDoc = await getDoc(doc(db, PROGRESS_COLLECTION, `${userId}_${videoId}`));
-      if (!progressDoc.exists()) {
-        return null;
+      if (!userId || !videoId) {
+        throw new Error('userId et videoId sont requis');
       }
-      const data = progressDoc.data();
+
+      const videoRef = doc(db, `${USERS_COLLECTION}/${userId}/video/${videoId}`);
+      const videoDoc = await getDoc(videoRef);
+
+      if (!videoDoc.exists()) {
+        // Retourner un objet par défaut si aucune progression n'existe
+        return {
+          currentTime: 0,
+          duration: 0,
+          completionStatus: 'notStarted',
+          lastUpdated: new Date()
+        };
+      }
+
+      const data = videoDoc.data();
       return {
-        ...data,
-        lastWatchedDate: data.lastWatchedDate?.toDate() || new Date()
-      } as VideoProgress;
+        currentTime: data.currentTime || 0,
+        duration: data.duration || 0,
+        completionStatus: data.completionStatus || 'notStarted',
+        lastUpdated: data.lastUpdated?.toDate() || new Date()
+      };
     } catch (error) {
-      console.error('Erreur lors de la récupération de la progression:', error);
+      console.error('❌ Erreur lors de la récupération de la progression:', error);
       throw error;
     }
   },
@@ -159,11 +218,9 @@ export const videoService = {
   async markVideoAsCompleted(userId: string, videoId: string): Promise<void> {
     try {
       // Mettre à jour la progression
-      await this.updateVideoProgress(userId, {
-        videoId,
-        progress: 100,
-        lastWatchedPosition: 0,
-        lastWatchedDate: new Date()
+      await this.updateVideoProgress(userId, videoId, {
+        currentTime: 0,
+        completionStatus: 'completed'
       });
       
       // Enregistrer que la vidéo a été complétée

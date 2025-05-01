@@ -4,7 +4,6 @@ import {
   StyleSheet, 
   Image, 
   SafeAreaView, 
-  StatusBar, 
   ScrollView,
   TouchableOpacity,
   Text
@@ -33,6 +32,7 @@ const dummyParcours: Parcours[] = [
     theme: 'bourse',
     level: 'debutant',
     order: 1,
+    ordre: 1,
     imageUrl: '',
     position: { x: 30, y: 20 },
     videos: [],
@@ -48,6 +48,7 @@ const dummyParcours: Parcours[] = [
     theme: 'bourse',
     level: 'debutant',
     order: 2,
+    ordre: 2,
     imageUrl: '',
     position: { x: 50, y: 40 },
     videos: [],
@@ -62,6 +63,7 @@ const dummyParcours: Parcours[] = [
     theme: 'bourse',
     level: 'debutant',
     order: 3,
+    ordre: 3,
     imageUrl: '',
     position: { x: 70, y: 35 },
     videos: [],
@@ -77,6 +79,7 @@ const dummyParcours: Parcours[] = [
     theme: 'bourse',
     level: 'avance',
     order: 1,
+    ordre: 4,
     imageUrl: '',
     position: { x: 40, y: 30 },
     videos: [],
@@ -91,6 +94,7 @@ const dummyParcours: Parcours[] = [
     theme: 'crypto',
     level: 'debutant',
     order: 1,
+    ordre: 5,
     imageUrl: '',
     position: { x: 25, y: 25 },
     videos: [],
@@ -158,9 +162,7 @@ const HomeScreen = () => {
   const activeMenu = selectedTheme === 'bourse' ? 'bourse' : 'crypto';
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="light-content" backgroundColor={theme.colors.background.dark} />
-      
+    <View style={{ flex: 1, backgroundColor: theme.colors.background.dark }}>
       <View style={styles.container}>
         {/* GlobalHeader avec positionnement amélioré */}
         <GlobalHeader
@@ -292,15 +294,11 @@ const HomeScreen = () => {
           onScreenChange={handleScreenChange}
         />
       </View>
-    </SafeAreaView>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: theme.colors.background.dark,
-  },
   container: {
     flex: 1,
     position: 'relative',
