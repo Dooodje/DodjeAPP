@@ -1,6 +1,8 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ViewStyle } from 'react-native';
-import { AnneauVector } from './vectors/AnneauVectors';
+// import { AnneauVector } from './vectors/AnneauVectors';
+import Color0 from '../../components/Color0';
+import SegmentedRing from '../../components/SegmentedRing';
 import { ProgressRing } from './vectors/ProgressRing';
 import { PastilleParcoursDefault } from '../PastilleParcoursDefault';
 import { PastilleParcoursVariant2 } from '../PastilleParcoursVariant2';
@@ -40,11 +42,14 @@ export const CoursePosition: React.FC<CoursePositionProps> = ({
   
   const { parcoursData, loading: parcoursLoading } = useParcours(parcoursId);
 
-  // Déterminer si l'anneau de progression doit être affiché
-  const shouldShowProgressRing = !!parcoursId && 
-    !videosData.error && 
-    !parcoursLoading &&
-    parcoursData?.videoCount > 0;
+  // Déterminer si les données du parcours sont disponibles
+  const hasParcoursData = !!parcoursId && !parcoursLoading && parcoursData;
+
+  // Obtenir le nombre total de vidéos
+  const videoCount = hasParcoursData ? (parcoursData?.videoCount || 0) : 0;
+
+  // Nombre de vidéos complétées
+  const completedVideos = videosData.completedVideos || 0;
 
   // Détermine la couleur de l'anneau en fonction du type et de l'état actif
   const getRingColor = (): string => {
@@ -61,27 +66,15 @@ export const CoursePosition: React.FC<CoursePositionProps> = ({
         return '#059212'; // Vert foncé
       case 'standard':
       default:
-        return '#F1E61C'; // Jaune doré (par défaut)
-    }
-  };
-
-  // Détermine le type d'anneau en fonction du type de Course
-  const getAnneauType = (): 'anneau1' | 'anneau2' | 'anneau3' | 'anneau5' => {
-    switch (type) {
-      case 'important':
-        return 'anneau3';
-      case 'special':
-        return 'anneau5';
-      case 'annexe':
-        return 'anneau2';
-      case 'standard':
-      default:
-        return 'anneau1';
+        return '#F3FF90'; // Jaune doré (par défaut)
     }
   };
 
   // Calcule les tailles proportionnelles
-  const anneauSize = size;
+  const anneauSize = size * 1.2;
+  // Maintenir le ratio width/height du SVG (101/82)
+  const ringWidth = anneauSize;
+  const ringHeight = anneauSize * (82/101);
   const pastilleSize = size * 0.8;
 
   // Sélectionne le composant de pastille approprié en fonction du statut
@@ -115,23 +108,15 @@ export const CoursePosition: React.FC<CoursePositionProps> = ({
         onPress={onPress}
         activeOpacity={0.8}
       >
-        {/* Anneau extérieur - Utilise l'anneau de progression si un ID de parcours est fourni */}
-        {shouldShowProgressRing ? (
-          <ProgressRing 
-            size={anneauSize} 
-            totalSegments={parcoursData?.videoCount || 0}
-            completedSegments={videosData.completedVideos}
-            completedColor="#06D001"
-            incompleteColor={getRingColor()}
-            isActive={isActive}
-          />
-        ) : (
-          <AnneauVector 
-            size={anneauSize} 
-            color={getRingColor()}
-            type={getAnneauType()}
-          />
-        )}
+        {/* Anneau segmenté en fonction du nombre de vidéos */}
+        <SegmentedRing 
+          width={ringWidth}
+          height={ringHeight}
+          totalSegments={videoCount}
+          completedSegments={completedVideos}
+          ringColor={getRingColor()}
+          ringWidth={6}
+        />
         
         {/* Pastille centrale */}
         <View style={styles.pastilleContainer}>

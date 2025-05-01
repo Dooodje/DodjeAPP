@@ -2,7 +2,8 @@ import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ViewStyle, Alert } from 'react-native';
 import { Parcours } from '../../types/firebase';
 import theme from '../../config/theme';
-import { AnneauVector } from '../ui/vectors/AnneauVectors';
+// import { AnneauVector } from '../ui/vectors/AnneauVectors';
+import Color0 from '../Color0';
 import PastilleAnnexe from '../PastilleAnnexe';
 import { PastilleParcoursDefault } from '../PastilleParcoursDefault';
 import { PastilleParcoursVariant2 } from '../PastilleParcoursVariant2';
@@ -117,13 +118,8 @@ const CoursePositionButton: React.FC<CoursePositionButtonProps> = ({
       onPress={handlePress}
       activeOpacity={parcours.status === 'blocked' ? 1 : 0.7}
     >
-      {/* Anneau extérieur */}
-      <AnneauVector 
-        type={getRingType()} 
-        size={ringSize} 
-        color={getPrimaryColor()} 
-        secondaryColor={getSecondaryColor()} 
-      />
+      {/* Anneau extérieur - remplacé par Color0 */}
+      <Color0 width={ringSize} height={ringSize} />
       
       {/* Pastille centrale */}
       <View style={styles.pastilleContainer}>
