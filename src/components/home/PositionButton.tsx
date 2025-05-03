@@ -47,10 +47,10 @@ const PositionButton: React.FC<PositionButtonProps> = ({
     // Calculer la marge horizontale si l'image est centrée
     const horizontalMargin = Math.max(0, (containerWidth - imageWidth) / 2);
 
-    // Position finale en pixels
+    // Position finale en pixels, ajustée pour le centrage
     return {
-      left: horizontalMargin + absoluteX,
-      top: absoluteY,
+      left: Math.round(horizontalMargin + absoluteX),
+      top: Math.round(absoluteY),
     };
   }, [x, y, imageWidth, imageHeight, containerWidth, containerHeight]);
 
@@ -103,6 +103,7 @@ const PositionButton: React.FC<PositionButtonProps> = ({
           top: position.top,
           width: size,
           height: size,
+          transform: [{ translateX: -size / 2 }, { translateY: -size / 2 }],
         } as ViewStyle,
       ]}
     >
@@ -123,7 +124,6 @@ const styles = StyleSheet.create({
     position: 'absolute',
     justifyContent: 'center',
     alignItems: 'center',
-    transform: [{ translateX: '-50%' }, { translateY: '-50%' }],
     zIndex: 20,
   } as ViewStyle,
 });

@@ -1618,7 +1618,7 @@ PODS:
     - ReactCommon/turbomodule/bridging
     - ReactCommon/turbomodule/core
     - Yoga
-  - react-native-safe-area-context (4.14.1):
+  - react-native-safe-area-context (4.12.0):
     - React-Core
   - react-native-slider (4.5.6):
     - DoubleConversion
@@ -2505,7 +2505,7 @@ SPEC CHECKSUMS:
   React-logger: c4052eb941cca9a097ef01b59543a656dc088559
   React-Mapbuffer: 33546a3ebefbccb8770c33a1f8a5554fa96a54de
   React-microtasksnativemodule: 5c3d795318c22ab8df55100e50b151384a4a60b3
-  react-native-safe-area-context: 758e894ca5a9bd1868d2a9cfbca7326a2b6bf9dc
+  react-native-safe-area-context: 8b8404e70b0cbf2a56428a17017c14c1dcc16448
   react-native-slider: 8f79e1bc155d076a2319609b40fa4d5360e90a2a
   react-native-webview: 69a5462ca94921ff695e1b52b12fffe62af7d312
   React-nativeconfig: 8efdb1ef1e9158c77098a93085438f7e7b463678

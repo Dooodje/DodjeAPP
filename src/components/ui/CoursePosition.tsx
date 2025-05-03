@@ -36,20 +36,18 @@ export const CoursePosition: React.FC<CoursePositionProps> = ({
   parcoursId
 }) => {
   // Récupérer les données des vidéos et du parcours
-  const videosData = parcoursId 
-    ? useParcoursVideos(parcoursId) 
-    : { totalVideos: 0, completedVideos: 0, loading: false, error: null };
-  
-  const { parcoursData, loading: parcoursLoading } = useParcours(parcoursId);
+  const { totalVideos, completedVideos, loading: videosLoading } = useParcoursVideos(parcoursId || '');
+  const { parcoursData, loading: parcoursLoading } = useParcours(parcoursId || '');
 
-  // Déterminer si les données du parcours sont disponibles
+  // Déterminer si les données du parcours sont disponibles et valides
   const hasParcoursData = !!parcoursId && !parcoursLoading && parcoursData;
+  const hasValidVideosData = !!parcoursId && !videosLoading;
 
   // Obtenir le nombre total de vidéos
   const videoCount = hasParcoursData ? (parcoursData?.videoCount || 0) : 0;
 
-  // Nombre de vidéos complétées
-  const completedVideos = videosData.completedVideos || 0;
+  // Nombre de vidéos complétées (seulement si les données sont valides)
+  const validCompletedVideos = hasValidVideosData ? completedVideos : 0;
 
   // Détermine la couleur de l'anneau en fonction du type et de l'état actif
   const getRingColor = (): string => {
@@ -113,7 +111,7 @@ export const CoursePosition: React.FC<CoursePositionProps> = ({
           width={ringWidth}
           height={ringHeight}
           totalSegments={videoCount}
-          completedSegments={completedVideos}
+          completedSegments={validCompletedVideos}
           ringColor={getRingColor()}
           ringWidth={6}
         />
