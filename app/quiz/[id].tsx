@@ -8,6 +8,8 @@ import { quizService } from '../../src/services/quiz';
 import { dodjiService } from '../../src/services/dodji';
 import { Quiz, Question, Answer } from '../../src/types/quiz';
 import type { QuizProgress } from '../../src/types/quiz';
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from '../../src/services/firebase';
 
 console.log('Quiz page loaded - full implementation!');
 
@@ -144,14 +146,43 @@ export default function QuizPage() {
   const [score, setScore] = useState(0);
   const [hasEarnedReward, setHasEarnedReward] = useState(false);
   const [showRewardMessage, setShowRewardMessage] = useState(false);
+  const [quizStatus, setQuizStatus] = useState<'blocked' | 'unblocked' | 'completed'>('blocked');
   
   // Chargement des données du quiz
   useEffect(() => {
     const loadQuiz = async () => {
-      if (!id) return;
+      if (!id || !user?.uid) return;
       
       try {
         setLoading(true);
+        
+        // Vérifier le statut du quiz
+        const quizStatusRef = doc(db, 'users', user.uid, 'quiz', id);
+        const quizStatusDoc = await getDoc(quizStatusRef);
+        
+        if (quizStatusDoc.exists()) {
+          const status = quizStatusDoc.data().status;
+          setQuizStatus(status);
+          
+          // Si le quiz est bloqué, rediriger vers la page précédente
+          if (status === 'blocked') {
+            Alert.alert(
+              "Quiz non accessible",
+              "Vous devez terminer toutes les vidéos du parcours pour accéder à ce quiz.",
+              [{ text: "OK", onPress: () => router.back() }]
+            );
+            return;
+          }
+        } else {
+          // Si le statut n'existe pas, considérer comme bloqué
+          Alert.alert(
+            "Quiz non accessible",
+            "Vous devez terminer toutes les vidéos du parcours pour accéder à ce quiz.",
+            [{ text: "OK", onPress: () => router.back() }]
+          );
+          return;
+        }
+        
         const quizData = await quizService.getQuizById(id);
         
         if (!quizData) {
@@ -216,7 +247,7 @@ export default function QuizPage() {
     };
     
     loadQuiz();
-  }, [id]);
+  }, [id, user?.uid, router]);
   
   // Gérer le retour
   const handleBackPress = () => {

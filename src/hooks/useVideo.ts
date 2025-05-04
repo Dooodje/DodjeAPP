@@ -3,7 +3,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import { useRouter } from 'expo-router';
 import { videoService } from '../services/video';
 import { courseService } from '../services/course';
-import { Video, VideoProgress, RelatedVideo } from '../types/video';
+import { Video, VideoProgress, RelatedVideo, VideoCompletionStatus } from '../types/video';
 import {
   setCurrentVideo,
   setRelatedVideos,
@@ -67,14 +67,10 @@ export const useVideo = (videoId: string, userId: string) => {
         }
 
         // S'assurer que la durée est correctement définie
-        if (video.duree) {
-          // Si le champ duree existe, l'utiliser en priorité
-          console.log(`⏱️ Utilisation de la durée du document: ${video.duree}`);
-          video.duration = video.duree;
-        } else if (typeof video.duration === 'string') {
-          // Si la durée est stockée sous forme de chaîne (ex: "04:56"), la convertir en secondes
-          console.log(`⏱️ Conversion de la durée string en secondes: ${video.duration}`);
-          const durationParts = video.duration.split(':');
+        if (video.duree && typeof video.duree === 'string') {
+          // Si le champ duree existe et est une chaîne, le convertir en nombre pour duration
+          console.log(`⏱️ Conversion de la durée string en secondes: ${video.duree}`);
+          const durationParts = video.duree.split(':');
           if (durationParts.length === 2) {
             const minutes = parseInt(durationParts[0], 10);
             const seconds = parseInt(durationParts[1], 10);
@@ -89,7 +85,20 @@ export const useVideo = (videoId: string, userId: string) => {
           try {
             const progress = await videoService.getVideoProgress(userId, videoId);
             if (progress) {
-              video.progress = progress.percentage;
+              video.progress = {
+                currentTime: progress.currentTime,
+                duration: progress.duration,
+                completionStatus: progress.completionStatus as VideoCompletionStatus,
+                lastUpdated: progress.lastUpdated,
+                percentage: (progress.currentTime / progress.duration) * 100,
+                metadata: {
+                  videoId: videoId,
+                  courseId: video.courseId,
+                  videoSection: '',
+                  videoTitle: video.title || video.titre || '',
+                  progress: (progress.currentTime / progress.duration) * 100
+                }
+              };
               video.lastWatchedPosition = progress.currentTime;
               console.log('Last watched time:', progress.currentTime);
             }
@@ -135,34 +144,30 @@ export const useVideo = (videoId: string, userId: string) => {
           console.log('⏭️ Résultat de getNextVideo:', next);
           
           if (next) {
-            // URL de fallback pour une vidéo de démonstration
-            const fallbackUrl = 'https://d23dyxeqlo5psv.cloudfront.net/big_buck_bunny.mp4';
+            // Vérifier si c'est la dernière vidéo avec un quiz
+            if ('isLastVideo' in next) {
+              console.log('⏭️ Dernière vidéo avec quiz détectée');
+              setNextVideo(null);
+              return;
+            }
             
+            // C'est une vidéo normale
+            const videoNext = next as Video;
             // S'assurer que la vidéo suivante a toutes les propriétés nécessaires
-            const completeNextVideo = {
-              ...next,
+            const completeNextVideo: Video = {
+              ...videoNext,
               isUnlocked: true, // On considère toutes les vidéos débloquées
               // Ajouter les propriétés requises qui pourraient manquer
-              id: next.id || '',
-              title: next.title || 'Vidéo sans titre',
-              titre: next.titre || next.title || 'Vidéo sans titre', // Assurer la compatibilité du titre
-              description: next.description || 'Aucune description disponible',
-              videoUrl: next.videoUrl || fallbackUrl, // Utiliser URL fallback si absente
-              duration: next.duration || 0,
-              duree: next.duree || (typeof next.duration === 'string' ? next.duration : '00:00'), // Assurer la compatibilité du format de durée
-              thumbnail: next.thumbnail || '', // S'assurer que thumbnail est présent
+              id: videoNext.id || '',
+              title: videoNext.title || 'Vidéo sans titre',
+              titre: videoNext.titre || videoNext.title || 'Vidéo sans titre', // Assurer la compatibilité du titre
+              description: videoNext.description || 'Aucune description disponible',
+              videoUrl: videoNext.videoUrl || '', // Ne pas utiliser d'URL de fallback
+              duration: videoNext.duration || 0,
+              duree: videoNext.duree || '00:00', // Assurer la compatibilité du format de durée
+              thumbnail: videoNext.thumbnail || '', // S'assurer que thumbnail est présent
               courseId: video.courseId
             };
-            
-            // Convertir les valeurs pour s'assurer de la compatibilité
-            if (typeof completeNextVideo.duration === 'string') {
-              const durationParts = completeNextVideo.duration.split(':');
-              if (durationParts.length === 2) {
-                const minutes = parseInt(durationParts[0], 10);
-                const seconds = parseInt(durationParts[1], 10);
-                completeNextVideo.duration = minutes * 60 + seconds;
-              }
-            }
             
             console.log('⏭️ Prochaine vidéo formatée:', JSON.stringify(completeNextVideo));
             console.log('⏭️ URL vidéo suivante:', completeNextVideo.videoUrl);

@@ -13,7 +13,7 @@ export class VideoStatusService {
      */
     static async updateVideoStatus(update: VideoStatusUpdate): Promise<void> {
         try {
-            const { userId, videoId, parcoursId, status, progress } = update;
+            const { userId, videoId, parcoursId, completionStatus, progress } = update;
             const videoRef = doc(db, this.USERS_COLLECTION, userId, 'video', videoId);
 
             // Get video metadata from videos collection
@@ -27,7 +27,7 @@ export class VideoStatusService {
 
             // Create the document data
             const videoDoc = {
-                completionStatus: status,
+                completionStatus,
                 currentTime: currentProgress,
                 duration: videoDuration,
                 lastUpdated: now.toISOString(),
@@ -43,7 +43,7 @@ export class VideoStatusService {
             await setDoc(videoRef, videoDoc);
 
             // Si la vidéo est complétée
-            if (status === 'completed') {
+            if (completionStatus === 'completed') {
                 console.log(`Video ${videoId} marked as completed for user ${userId}`);
                 
                 // Vérifier et débloquer le quiz si toutes les vidéos sont complétées
@@ -95,7 +95,7 @@ export class VideoStatusService {
                 userId,
                 videoId,
                 parcoursId: videoStatus.parcoursId,
-                status: videoStatus.status,
+                completionStatus: videoStatus.completionStatus,
                 progress
             });
         } catch (error) {
@@ -122,8 +122,8 @@ export class VideoStatusService {
             const videosSnapshot = await getDocs(videosQuery);
             const videos = videosSnapshot.docs.map(doc => doc.data() as UserVideo);
             
-            // Trier côté client
-            videos.sort((a, b) => a.ordre - b.ordre);
+            // Trier côté client avec gestion des valeurs undefined
+            videos.sort((a, b) => (a.ordre || 0) - (b.ordre || 0));
             
             return videos;
         } catch (error) {
@@ -180,10 +180,10 @@ export class VideoStatusService {
             for (let i = 0; i < videos.length; i++) {
                 const video = videos[i];
                 const videoData = video.data();
-                const status = i === 0 ? 'unblocked' : 'blocked';
+                const completionStatus = i === 0 ? 'unblocked' : 'blocked';
 
                 const videoDoc = {
-                    completionStatus: status,
+                    completionStatus,
                     currentTime: 0,
                     duration: videoData.duration || 0,
                     lastUpdated: now.toISOString(),
@@ -251,11 +251,20 @@ export class VideoStatusService {
                     userId,
                     videoId: nextVideo.id,
                     parcoursId,
-                    status: 'unblocked',
+                    completionStatus: 'unblocked',
                     progress: {
                         currentTime: 0,
                         duration: nextVideoData.duration || 0,
-                        percentage: 0
+                        completionStatus: 'unblocked',
+                        lastUpdated: new Date(),
+                        percentage: 0,
+                        metadata: {
+                            videoId: nextVideo.id,
+                            courseId: parcoursId,
+                            videoSection: nextVideoData.section || '',
+                            videoTitle: nextVideoData.title || nextVideoData.titre || '',
+                            progress: 0
+                        }
                     }
                 });
             }

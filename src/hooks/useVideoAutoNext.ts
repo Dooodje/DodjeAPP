@@ -1,9 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { VideoStatusService } from '@/services/businessLogic/VideoStatusService';
-import { collection, query, where, orderBy, getDocs } from 'firebase/firestore';
-import { db } from '@/config/firebase';
-import { DocumentData } from 'firebase/firestore';
+import { useRouter } from 'expo-router';
+import { videoService } from '@/services/video';
+import { LastVideoResult } from '@/types/video';
 
 interface UseVideoAutoNextProps {
     videoId: string;
@@ -16,6 +14,8 @@ interface NextVideoInfo {
     id: string | null;
     countdown: number;
     isLoading: boolean;
+    isLastVideo: boolean;
+    quizId: string | null;
 }
 
 export const useVideoAutoNext = ({
@@ -24,88 +24,105 @@ export const useVideoAutoNext = ({
     isCompleted,
     autoNextDelay = 5 // 5 secondes par défaut
 }: UseVideoAutoNextProps) => {
-    const navigate = useNavigate();
+    const router = useRouter();
     const [nextVideo, setNextVideo] = useState<NextVideoInfo>({
         id: null,
         countdown: autoNextDelay,
-        isLoading: false
+        isLoading: false,
+        isLastVideo: false,
+        quizId: null
     });
 
-    // Récupérer l'ID de la prochaine vidéo
+    // Récupérer l'ID de la prochaine vidéo et les informations du quiz
     const fetchNextVideoId = useCallback(async () => {
+        if (!parcoursId || !videoId) {
+            console.log('❌ ParcoursId ou VideoId manquant:', { parcoursId, videoId });
+            return;
+        }
+
         try {
+            console.log('🔍 Début de fetchNextVideoId pour:', { videoId, parcoursId });
             setNextVideo(prev => ({ ...prev, isLoading: true }));
             
-            // Récupérer toutes les vidéos du parcours, triées par ordre
-            const videosQuery = query(
-                collection(db, 'videos'), // Utilisation directe de la collection
-                where('parcoursId', '==', parcoursId),
-                orderBy('ordre')
-            );
-
-            const videosSnapshot = await getDocs(videosQuery);
-            const videos = videosSnapshot.docs;
-
-            // Trouver l'index de la vidéo actuelle
-            const currentIndex = videos.findIndex((video: DocumentData) => video.id === videoId);
+            const result = await videoService.getNextVideo(parcoursId, videoId);
             
-            // S'il y a une vidéo suivante, récupérer son ID
-            if (currentIndex !== -1 && currentIndex < videos.length - 1) {
-                const nextVideoId = videos[currentIndex + 1].id;
-                setNextVideo(prev => ({ 
-                    ...prev, 
-                    id: nextVideoId,
-                    isLoading: false 
-                }));
-            } else {
-                setNextVideo(prev => ({ 
-                    ...prev, 
+            if (result === null) {
+                setNextVideo(prev => ({
+                    ...prev,
                     id: null,
-                    isLoading: false 
+                    isLastVideo: false,
+                    quizId: null,
+                    isLoading: false,
+                    countdown: autoNextDelay
                 }));
+                return;
             }
+            
+            // Si c'est la dernière vidéo avec un quiz
+            if ('isLastVideo' in result) {
+                const lastVideoResult = result as LastVideoResult;
+                setNextVideo(prev => ({
+                    ...prev,
+                    id: null,
+                    isLastVideo: true,
+                    quizId: lastVideoResult.quizId || null,
+                    isLoading: false,
+                    countdown: autoNextDelay
+                }));
+                return;
+            }
+            
+            // C'est une vidéo normale
+            setNextVideo(prev => ({
+                ...prev,
+                id: result.id,
+                isLastVideo: false,
+                quizId: null,
+                isLoading: false,
+                countdown: autoNextDelay
+            }));
         } catch (error) {
-            console.error('Erreur lors de la récupération de la prochaine vidéo:', error);
-            setNextVideo(prev => ({ ...prev, isLoading: false }));
+            console.error('❌ Erreur lors de la récupération de la prochaine vidéo:', error);
+            setNextVideo(prev => ({
+                ...prev,
+                isLoading: false,
+                error: error instanceof Error ? error.message : 'Une erreur est survenue'
+            }));
         }
-    }, [videoId, parcoursId]);
+    }, [parcoursId, videoId, autoNextDelay]);
 
-    // Gérer le compte à rebours et la redirection
+    // Effet pour démarrer le compte à rebours quand la vidéo est complétée
     useEffect(() => {
-        let countdownInterval: NodeJS.Timeout;
-
         if (isCompleted && nextVideo.id) {
-            countdownInterval = setInterval(() => {
+            const timer = setInterval(() => {
                 setNextVideo(prev => {
-                    const newCountdown = prev.countdown - 1;
-                    
-                    // Si le compte à rebours est terminé, rediriger
-                    if (newCountdown <= 0) {
-                        navigate(`/video/${prev.id}`);
+                    if (prev.countdown <= 1) {
+                        clearInterval(timer);
+                        // Utiliser la navigation Expo Router
+                        if (prev.isLastVideo && prev.quizId) {
+                            router.push(`/quiz/${prev.quizId}`);
+                        } else if (prev.id) {
+                            router.push(`/video/${prev.id}`);
+                        }
                         return prev;
                     }
-
-                    return { ...prev, countdown: newCountdown };
+                    return { ...prev, countdown: prev.countdown - 1 };
                 });
             }, 1000);
+
+            return () => clearInterval(timer);
         }
+    }, [isCompleted, nextVideo.id, router]);
 
-        return () => {
-            if (countdownInterval) {
-                clearInterval(countdownInterval);
-            }
-        };
-    }, [isCompleted, nextVideo.id, navigate]);
-
-    // Charger la prochaine vidéo quand la vidéo actuelle est complétée
+    // Effet pour charger la prochaine vidéo au montage
     useEffect(() => {
-        if (isCompleted) {
-            fetchNextVideoId();
-        }
-    }, [isCompleted, fetchNextVideoId]);
+        fetchNextVideoId();
+    }, [fetchNextVideoId]);
 
     return {
         nextVideoId: nextVideo.id,
+        isLastVideo: nextVideo.isLastVideo,
+        quizId: nextVideo.quizId,
         countdown: nextVideo.countdown,
         isLoading: nextVideo.isLoading
     };

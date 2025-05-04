@@ -31,7 +31,7 @@ export const useVideoStatus = (videoId: string, parcoursId: string) => {
     }, [user?.uid, videoId]);
 
     // Update video status
-    const updateStatus = useCallback(async (status: UserVideo['status']) => {
+    const updateStatus = useCallback(async (status: UserVideo['completionStatus']) => {
         if (!user?.uid) return;
 
         try {
@@ -58,7 +58,7 @@ export const useVideoStatus = (videoId: string, parcoursId: string) => {
                 userId: user.uid,
                 videoId,
                 parcoursId,
-                status,
+                completionStatus: status,
                 progress: currentProgress
             });
 

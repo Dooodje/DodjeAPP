@@ -42,7 +42,7 @@ export function useParcoursVideos(parcoursId: string | undefined) {
       const videos = await VideoStatusService.getUserVideosInParcours(user.uid, parcoursId);
       
       // Calculate completed videos
-      const completedVideos = videos.filter(video => video.status === 'completed').length;
+      const completedVideos = videos.filter(video => video.completionStatus === 'completed').length;
       
       setState({
         videos,

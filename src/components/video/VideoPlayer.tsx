@@ -15,8 +15,9 @@ import { LoadingSpinner } from '../ui/LoadingSpinner';
 import * as ScreenOrientation from 'expo-screen-orientation';
 import { videoService } from '../../services/video';
 import { useVideoTracking } from '../../hooks/useVideoTracking';
-import { VideoProgress } from '../../types/video';
+import { VideoProgress, VideoCompletionStatus } from '@/types/video';
 import { videoTrackingService } from '../../services/firebase/videoTrackingService';
+import { useVideoAutoNext } from '@/hooks/useVideoAutoNext';
 
 const { width, height } = Dimensions.get('window');
 
@@ -29,6 +30,13 @@ const FULLSCREEN_UPDATE_PLAYER_DID_DISMISS = 3;
 interface VideoPlayerProps {
   videoId: string;
   userId: string;
+}
+
+interface CurrentVideo {
+  id: string;
+  courseId: string;
+  section?: string;
+  title?: string;
 }
 
 export const VideoPlayer: React.FC<VideoPlayerProps> = ({ videoId: initialVideoId, userId }) => {
@@ -51,24 +59,6 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ videoId: initialVideoI
   const [duration, setDuration] = useState<number>(0);
   const [isPlaying, setIsPlaying] = useState(false);
 
-  // Animation de pulsation pour le bouton play
-  useEffect(() => {
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulseAnim, {
-          toValue: 1.2,
-          duration: 800,
-          useNativeDriver: true
-        }),
-        Animated.timing(pulseAnim, {
-          toValue: 1,
-          duration: 800,
-          useNativeDriver: true
-        })
-      ])
-    ).start();
-  }, []);
-
   // Get data from useVideo hook but rename the setter functions
   const {
     currentVideo,
@@ -89,6 +79,36 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ videoId: initialVideoI
     setDuration: updateReduxDuration
   } = useVideo(currentVideoId, userId);
 
+  // Utiliser le hook useVideoAutoNext
+  const {
+    nextVideoId,
+    isLastVideo,
+    quizId,
+    countdown
+  } = useVideoAutoNext({
+    videoId: currentVideoId,
+    parcoursId: currentVideo?.courseId || '',
+    isCompleted: currentVideo?.progress?.completionStatus === 'completed' || false
+  });
+
+  // Animation de pulsation pour le bouton play
+  useEffect(() => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, {
+          toValue: 1.2,
+          duration: 800,
+          useNativeDriver: true
+        }),
+        Animated.timing(pulseAnim, {
+          toValue: 1,
+          duration: 800,
+          useNativeDriver: true
+        })
+      ])
+    ).start();
+  }, []);
+
   // Add the video tracking hook
   const videoTracking = useVideoTracking(
     currentVideo?.id || initialVideoId,
@@ -105,7 +125,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ videoId: initialVideoI
     console.log(`🔄 VideoPlayer: ID vidéo actuelle changée: ${currentVideoId}`);
   }, [currentVideoId]);
 
-  // Handler personnalisé pour charger directement une nouvelle vidéo sans navigation
+  // Changer de vidéo
   const handleVideoSelect = useCallback((id: string) => {
     if (id) {
       console.log('🎬 Chargement direct de la vidéo suivante, ID:', id);
@@ -126,17 +146,17 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ videoId: initialVideoI
       // Changer l'ID de la vidéo actuelle - cela déclenchera un rechargement via useVideo
       setCurrentVideoId(id);
       
-      // Mettre à jour l'URL dans le navigateur sans rechargement (pour rendre l'historique cohérent)
+      // Mettre à jour l'URL dans le navigateur sans rechargement
       try {
-        window.history.pushState({videoId: id}, '', `/video/${id}`);
-        console.log('✅ URL mise à jour avec le nouvel ID sans rechargement');
-      } catch (historyErr) {
-        console.warn('⚠️ Impossible de mettre à jour l\'URL:', historyErr);
+        router.push(`/video/${id}`);
+        console.log('✅ URL mise à jour avec le nouvel ID');
+      } catch (routerErr) {
+        console.warn('⚠️ Impossible de mettre à jour l\'URL:', routerErr);
       }
     } else {
       console.error('❌ ID vidéo manquant dans handleVideoSelect');
     }
-  }, []);
+  }, [router]);
 
   // Gérer la lecture/pause
   useEffect(() => {
@@ -222,20 +242,32 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ videoId: initialVideoI
         const completionPercentage = (currentPositionInSeconds / status.durationMillis) * 100;
         
         // Garder le statut 'completed' s'il était déjà atteint
-        let completionStatus: VideoProgress['completionStatus'] = 
+        let completionStatus: VideoCompletionStatus = 
           existingProgress?.completionStatus === 'completed' ? 'completed' : 'unblocked';
         
-        // Sinon, vérifier si on atteint le seuil de 90%
+        // Marquer comme complété si 90% ou plus de la vidéo a été visionnée
         if (completionPercentage >= 90) {
           completionStatus = 'completed';
         }
 
         console.log(`Sauvegarde de la position: ${currentPositionInSeconds.toFixed(2)}s (${completionPercentage.toFixed(1)}%), statut: ${completionStatus}`);
         
-        await videoService.updateVideoProgress(userId, currentVideo.id, {
+        const progress: VideoProgress = {
           currentTime: currentPositionInSeconds,
-          completionStatus
-        });
+          duration: status.durationMillis / 1000,
+          completionStatus,
+          lastUpdated: new Date(),
+          percentage: completionPercentage,
+          metadata: {
+            videoId: currentVideo.id,
+            courseId: currentVideo.courseId,
+            videoSection: '',
+            videoTitle: currentVideo.title || currentVideo.titre || '',
+            progress: Math.round(completionPercentage)
+          }
+        };
+        
+        await videoService.updateVideoProgress(userId, currentVideo.id, progress);
       }
     } catch (error) {
       console.error('Erreur lors de la sauvegarde de la progression:', error);
@@ -502,19 +534,21 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ videoId: initialVideoI
   
   console.log('🎬 Source vidéo:', videoSource?.uri);
 
-  // URL de fallback pour une vidéo de démonstration
-  const fallbackUrl = 'https://d23dyxeqlo5psv.cloudfront.net/big_buck_bunny.mp4';
-  const effectiveVideoSource = videoSource || { uri: fallbackUrl };
-  
-  console.log('🎬 Source vidéo effective:', effectiveVideoSource.uri);
+  if (!videoSource) {
+    return (
+      <View style={styles.container}>
+        <View style={styles.errorContainer}>
+          <Text style={styles.errorText}>URL de la vidéo non disponible</Text>
+          <TouchableOpacity style={styles.retryButton} onPress={handleBack}>
+            <Text style={styles.retryText}>Retourner en arrière</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
   
   // Forcer l'URL de miniature pour tester - à supprimer en production
-  const customThumbnail = "https://i.imgur.com/example-thumbnail.jpg"; // Remplacer par l'URL réelle du caméléon
-  const useThumbnail = thumbnailUrl || customThumbnail;
-  
-  if (!videoSource) {
-    console.warn('⚠️ URL vidéo originale non définie, utilisation de la vidéo de fallback:', fallbackUrl);
-  }
+  const useThumbnail = thumbnailUrl;
 
   return (
     <View style={[styles.container, isFullscreen && styles.fullscreen]}>
@@ -561,7 +595,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ videoId: initialVideoI
         {/* Vidéo en arrière-plan, masquée jusqu'à ce qu'on clique sur play */}
         <Video
           ref={videoRef}
-          source={effectiveVideoSource}
+          source={videoSource}
           style={[styles.video, !videoStarted && { opacity: 0, height: 0 }]}
           useNativeControls={false}
           resizeMode={ResizeMode.CONTAIN}
@@ -654,7 +688,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ videoId: initialVideoI
           </View>
           
           {/* Section vidéo suivante */}
-          {nextVideo ? (
+          {nextVideo || (isLastVideo && quizId) ? (
             <>
               <Text style={{
                 fontSize: 20,
@@ -662,11 +696,13 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ videoId: initialVideoI
                 color: '#FFFFFF',
                 marginTop: 24,
                 marginBottom: 8,
-              }}>Vidéo suivante</Text>
+              }}>{isLastVideo && quizId ? 'Quiz final' : 'Vidéo suivante'}</Text>
               <NextVideo 
                 video={nextVideo} 
                 onNavigate={handleVideoSelect}
                 courseId={currentVideo?.courseId}
+                isLastVideo={isLastVideo}
+                quizId={quizId || undefined}
               />
             </>
           ) : (

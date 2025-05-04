@@ -114,11 +114,7 @@ export const shadows = {
     android: {
       elevation: 2,
     },
-    web: {
-      boxShadow: '0px 2px 4px rgba(0, 0, 0, 0.2)',
-    },
   }),
-  
   medium: Platform.select({
     ios: {
       shadowColor: colors.misc.shadow,
@@ -127,13 +123,9 @@ export const shadows = {
       shadowRadius: 4,
     },
     android: {
-      elevation: 5,
-    },
-    web: {
-      boxShadow: '0px 3px 8px rgba(0, 0, 0, 0.3)',
+      elevation: 4,
     },
   }),
-  
   large: Platform.select({
     ios: {
       shadowColor: colors.misc.shadow,
@@ -142,10 +134,7 @@ export const shadows = {
       shadowRadius: 8,
     },
     android: {
-      elevation: 10,
-    },
-    web: {
-      boxShadow: '0px 6px 15px rgba(0, 0, 0, 0.5)',
+      elevation: 8,
     },
   }),
 };

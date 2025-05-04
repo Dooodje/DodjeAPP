@@ -4,27 +4,8 @@ import { useParcoursVideos } from '@/hooks/useParcoursVideos';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { Colors } from '@/constants/Colors';
-import { UserVideo } from '@/types/video';
-
-// Définir des couleurs personnalisées pour l'interface
-const appColors = {
-  primary: '#06D001',
-  dark: '#333333',
-  white: '#FFFFFF',
-  green: {
-    500: '#06D001'
-  },
-  yellow: {
-    500: '#F3FF90'
-  },
-  gray: {
-    200: '#EEEEEE',
-    400: '#B0B0B0',
-    500: '#888888',
-    600: '#666666'
-  },
-  error: '#FF5252'
-};
+import { VideoCompletionStatus, UserVideo } from '@/types/video';
+import { appColors } from '@/theme/colors';
 
 interface ParcoursVideoListProps {
   parcoursId: string;
@@ -38,12 +19,14 @@ export const ParcoursVideoList: React.FC<ParcoursVideoListProps> = ({ parcoursId
     router.push(`/video/${videoId}`);
   };
 
-  const renderVideoStatus = (status: string) => {
+  const renderVideoStatus = (status: VideoCompletionStatus) => {
     switch (status) {
       case 'completed':
         return <FontAwesome5 name="check-circle" size={20} color={appColors.green[500]} />;
-      case 'in_progress':
+      case 'unblocked':
         return <FontAwesome5 name="play-circle" size={20} color={appColors.yellow[500]} />;
+      case 'blocked':
+        return <FontAwesome5 name="lock" size={20} color={appColors.gray[400]} />;
       default:
         return <FontAwesome5 name="circle" size={20} color={appColors.gray[400]} />;
     }
@@ -57,11 +40,11 @@ export const ParcoursVideoList: React.FC<ParcoursVideoListProps> = ({ parcoursId
       <View style={styles.videoInfo}>
         <Text style={styles.videoTitle}>{`Vidéo ${item.ordre}`}</Text>
         <Text style={styles.videoDuration}>
-          {formatDuration(item.progress?.duration || 0)}
+          {formatDuration(item.duration || 0)}
         </Text>
       </View>
       <View style={styles.statusContainer}>
-        {renderVideoStatus(item.status)}
+        {renderVideoStatus(item.completionStatus)}
       </View>
     </TouchableOpacity>
   );

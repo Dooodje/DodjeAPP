@@ -1,6 +1,6 @@
 import { collection, doc, getDoc, getDocs, query, where, updateDoc, setDoc, Timestamp, FieldValue } from 'firebase/firestore';
 import { db } from './firebase';
-import { Video, VideoProgress, RelatedVideo } from '../types/video';
+import { Video, VideoProgress, RelatedVideo, LastVideoResult } from '../types/video';
 
 const VIDEOS_COLLECTION = 'videos';
 const USERS_COLLECTION = 'users';
@@ -28,11 +28,7 @@ export const videoService = {
       // S'assurer que l'URL vidéo est définie et valide
       const videoUrl = videoData.videoUrl || '';
       
-      // Pour debug uniquement - URL vidéo factice si non définie
-      const fallbackUrl = 'https://d23dyxeqlo5psv.cloudfront.net/big_buck_bunny.mp4';
-      const effectiveUrl = videoUrl || fallbackUrl;
-      
-      console.log(`🎥 URL vidéo pour ${videoId}: ${effectiveUrl}`);
+      console.log(`🎥 URL vidéo pour ${videoId}: ${videoUrl}`);
       
       // Créer l'objet Video avec l'id et les données
       // S'assurer que les champs duree et thumbnail sont présents
@@ -41,7 +37,7 @@ export const videoService = {
         title: videoData.title || '',
         titre: videoData.titre || videoData.title || '',  // Utiliser titre ou title
         description: videoData.description || '',
-        videoUrl: effectiveUrl, // Utiliser l'URL effective (original ou fallback)
+        videoUrl: videoUrl,
         duration: videoData.duration || 0,
         duree: videoData.duree || '00:00',  // Assurer la présence de duree
         thumbnail: videoData.thumbnail || '',  // Assurer la présence de thumbnail
@@ -70,26 +66,29 @@ export const videoService = {
         return []; // Retourner un tableau vide si courseId n'est pas défini
       }
       
+      // Utiliser une requête simple qui ne nécessite pas d'index composé
       const videosQuery = query(
         collection(db, VIDEOS_COLLECTION),
-        where('courseId', '==', courseId),
-        where('id', '!=', currentVideoId)
+        where('courseId', '==', courseId)
       );
       const querySnapshot = await getDocs(videosQuery);
       
-      // Transformer les Video en RelatedVideo
-      return querySnapshot.docs.map(doc => {
-        const videoData = doc.data() as Video;
-        return {
-          id: videoData.id,
-          title: videoData.title,
-          thumbnail: videoData.thumbnail || videoData.videoUrl, // Utiliser thumbnail ou videoUrl comme fallback
-          duration: videoData.duration,
-          progress: 0 // Valeur par défaut, à mettre à jour si nécessaire
-        } as RelatedVideo;
-      });
+      // Filtrer les vidéos côté client
+      return querySnapshot.docs
+        .map(doc => {
+          const videoData = doc.data() as Video;
+          return {
+            id: videoData.id,
+            title: videoData.title,
+            thumbnail: videoData.thumbnail || videoData.videoUrl,
+            duration: videoData.duration,
+            progress: 0
+          } as RelatedVideo;
+        })
+        .filter(video => video.id !== currentVideoId); // Filtrer la vidéo courante
     } catch (error) {
-      console.error('Erreur lors de la récupération des vidéos liées:', error);
+      // Utiliser console.debug pour éviter d'afficher l'erreur dans la console
+      console.debug('Info: Impossible de récupérer les vidéos liées', error);
       return []; // Retourner un tableau vide en cas d'erreur
     }
   },
@@ -127,7 +126,8 @@ export const videoService = {
         currentTime: progressUpdate.currentTime,
         duration: durationInSeconds,
         completionStatus: progressUpdate.completionStatus,
-        lastUpdated: Timestamp.now(),
+        lastUpdated: new Date(),
+        percentage: Math.floor((progressUpdate.currentTime / durationInSeconds) * 100),
         metadata: {
           videoId: videoId,
           courseId: videoData.parcoursId || videoData.courseId || '',
@@ -236,13 +236,13 @@ export const videoService = {
   },
 
   // Récupérer la prochaine vidéo dans un parcours
-  async getNextVideo(courseId: string | undefined, currentVideoId: string): Promise<Video | null> {
+  async getNextVideo(courseId: string | undefined, currentVideoId: string): Promise<Video | LastVideoResult | null> {
     try {
       console.log('🔍 getNextVideo - Démarrage avec courseId:', courseId, 'et currentVideoId:', currentVideoId);
       
       if (!courseId) {
         console.log('⚠️ getNextVideo - courseId non défini, retour null');
-        return this.getDefaultNextVideo(currentVideoId);
+        return null;
       }
       
       // 1. Récupérer le document du parcours pour obtenir la liste ordonnée des vidéos
@@ -251,10 +251,7 @@ export const videoService = {
       
       if (!courseDoc.exists()) {
         console.log('⚠️ getNextVideo - document de parcours non trouvé');
-        
-        // Utiliser la méthode classique en fallback
-        const fallbackVideo = await this.findNextVideoByOrder(courseId, currentVideoId);
-        return fallbackVideo || this.getDefaultNextVideo(currentVideoId);
+        return null;
       }
       
       const courseData = courseDoc.data();
@@ -264,8 +261,7 @@ export const videoService = {
       
       if (!videoIds.length) {
         console.log('⚠️ getNextVideo - aucune vidéo dans ce parcours');
-        const fallbackVideo = await this.findNextVideoByOrder(courseId, currentVideoId);
-        return fallbackVideo || this.getDefaultNextVideo(currentVideoId);
+        return null;
       }
       
       // Trouver l'index de la vidéo actuelle dans la liste
@@ -274,14 +270,19 @@ export const videoService = {
       
       if (currentIndex === -1) {
         console.log('⚠️ getNextVideo - vidéo actuelle non trouvée dans la liste des IDs');
-        const fallbackVideo = await this.findNextVideoByOrder(courseId, currentVideoId);
-        return fallbackVideo || this.getDefaultNextVideo(currentVideoId);
+        return null;
       }
       
       // S'il n'y a pas de vidéo suivante dans la liste
       if (currentIndex >= videoIds.length - 1) {
         console.log('⚠️ getNextVideo - pas de vidéo suivante dans la liste');
-        return this.getDefaultNextVideo(currentVideoId);
+        // Récupérer le quizId du parcours
+        const quizId = courseData.quizId;
+        console.log('📝 Quiz ID trouvé:', quizId);
+        return {
+          isLastVideo: true,
+          quizId
+        };
       }
       
       // Récupérer l'ID de la prochaine vidéo
@@ -293,19 +294,14 @@ export const videoService = {
       
       if (!nextVideo) {
         console.log('⚠️ getNextVideo - détails de la prochaine vidéo non trouvés');
-        return this.getDefaultNextVideo(currentVideoId);
+        return null;
       }
       
       console.log(`✅ getNextVideo - Prochaine vidéo trouvée: ${nextVideo.title}`);
-      console.log(`✅ getNextVideo - Propriétés: duree=${nextVideo.duree}, thumbnail=${nextVideo.thumbnail?.substring(0, 30)}...`);
-      console.log(`✅ getNextVideo - URL: ${nextVideo.videoUrl}`);
       return nextVideo;
     } catch (error) {
       console.error('❌ Erreur lors de la récupération de la prochaine vidéo:', error);
-      
-      // En cas d'erreur, essayer la méthode classique
-      const fallbackVideo = await this.findNextVideoByOrder(courseId, currentVideoId);
-      return fallbackVideo || this.getDefaultNextVideo(currentVideoId);
+      return null;
     }
   },
   
@@ -394,25 +390,5 @@ export const videoService = {
       console.error('❌ Erreur lors de la récupération de la prochaine vidéo par ordre:', error);
       return null;
     }
-  },
-
-  // Créer une vidéo factice pour la continuité de l'expérience
-  getDefaultNextVideo(currentVideoId: string): Video {
-    const defaultId = `default_next_${currentVideoId}`;
-    console.log('📼 Création d\'une vidéo factice de démonstration avec ID:', defaultId);
-    
-    return {
-      id: defaultId,
-      title: 'Vidéo de démonstration',
-      titre: 'Vidéo de démonstration',
-      description: 'Cette vidéo est une démonstration pour tester la fonctionnalité de vidéo suivante.',
-      videoUrl: 'https://d23dyxeqlo5psv.cloudfront.net/big_buck_bunny.mp4',
-      thumbnail: 'https://i.imgur.com/XJpx1UQ.png', // Miniature générique
-      duration: 596, // Environ 10 minutes
-      duree: '09:56',
-      order: 9999,
-      courseId: 'demo_course',
-      isUnlocked: true
-    };
   }
 }; 

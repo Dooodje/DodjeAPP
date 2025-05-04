@@ -8,6 +8,7 @@ import PastilleAnnexe from '../PastilleAnnexe';
 import { PastilleParcoursDefault } from '../PastilleParcoursDefault';
 import { PastilleParcoursVariant2 } from '../PastilleParcoursVariant2';
 import { PastilleParcoursVariant3 } from '../PastilleParcoursVariant3';
+import { Vector } from '../Vector';
 
 interface CoursePositionButtonProps {
   parcours: Parcours;
@@ -124,6 +125,11 @@ const CoursePositionButton: React.FC<CoursePositionButtonProps> = ({
       {/* Pastille centrale */}
       <View style={styles.pastilleContainer}>
         {renderPastille()}
+        {parcours.status === 'blocked' && (
+          <View style={styles.vectorContainer}>
+            <Vector width={size * 0.4} height={size * 0.4} color="#F3FF90" />
+          </View>
+        )}
       </View>
       
       {/* Badge d'ordre si fourni */}
@@ -181,6 +187,13 @@ const styles = StyleSheet.create({
     color: '#FFF',
     fontSize: 12,
     textAlign: 'center',
+  },
+  vectorContainer: {
+    position: 'absolute',
+    top: '50%',
+    left: '50%',
+    transform: [{ translateX: -20 }, { translateY: -20 }],
+    zIndex: 2,
   },
 });
 

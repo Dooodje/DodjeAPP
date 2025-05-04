@@ -7,116 +7,189 @@ import { getDisplayTime } from '../utils/timeUtils';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { useAuth } from '../hooks/useAuth';
+import { QuizStatus } from '../types/quiz';
 
 interface NextVideoProps {
   video?: Video | null;
-  fallbackTitle?: string;
-  fallbackId?: string;
   onNavigate?: (videoId: string) => void;
   courseId?: string;
+  isLastVideo?: boolean;
+  quizId?: string;
 }
 
 export const NextVideo: React.FC<NextVideoProps> = ({
   video,
-  fallbackTitle = "Titre 22",
-  fallbackId = "R8vz5WHwRA4yz19L9GWt",
   onNavigate,
-  courseId
+  courseId,
+  isLastVideo = false,
+  quizId
 }) => {
   const router = useRouter();
-  const [fallbackVideo, setFallbackVideo] = useState<Video | null>(null);
+  const { user } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
+  const [completionStatus, setCompletionStatus] = useState<'blocked' | 'unblocked' | 'completed'>('blocked');
+  const [quizStatus, setQuizStatus] = useState<QuizStatus>('blocked');
 
-  // Récupérer les données de la vidéo de secours depuis Firestore
-  useEffect(() => {
-    const fetchFallbackVideo = async () => {
-      // Si on a déjà une vidéo, pas besoin de charger une fallback
-      if (video) {
-        console.log('🎬 Vidéo suivante déjà disponible, ID:', video.id);
-        console.log('🎬 Propriétés de la vidéo suivante:', { 
-          titre: video.titre || video.title, 
-          duree: video.duree, 
-          thumbnail: video.thumbnail ? 'Présent' : 'Manquant' 
-        });
-        return;
-      }
-      
-      if (fallbackId) {
-        setIsLoading(true);
+  // Si c'est la dernière vidéo et qu'il y a un quiz, on affiche le quiz
+  if (isLastVideo && quizId) {
+    // Récupérer le statut du quiz
+    useEffect(() => {
+      const fetchQuizStatus = async () => {
+        if (!user?.uid || !quizId) return;
+
         try {
-          console.log('🔍 Récupération de la vidéo fallback avec ID:', fallbackId);
-          const videoRef = doc(db, 'videos', fallbackId);
-          const videoDoc = await getDoc(videoRef);
-          
-          if (videoDoc.exists()) {
-            const videoData = videoDoc.data();
-            console.log('✅ Données récupérées brutes:', videoData);
-            
-            // Extraire les champs spécifiques que nous voulons
-            const videoInfo = {
-              id: fallbackId,
-              titre: videoData.titre || '',
-              title: videoData.title || '',
-              description: videoData.description || '',
-              duree: videoData.duree || '00:00',
-              thumbnail: videoData.thumbnail || '',
-              courseId: videoData.parcoursId || videoData.courseId || courseId || ''
-            };
-            
-            setFallbackVideo(videoInfo as Video);
-            console.log('🎬 Vidéo fallback chargée:', videoInfo.titre || videoInfo.title);
-            console.log('⏱️ Durée exacte:', videoInfo.duree);
-            console.log('🖼️ Miniature:', videoInfo.thumbnail ? 'Présent' : 'Manquant');
+          setIsLoading(true);
+          const quizStatusRef = doc(db, 'users', user.uid, 'quiz', quizId);
+          const quizStatusDoc = await getDoc(quizStatusRef);
+
+          if (quizStatusDoc.exists()) {
+            const status = quizStatusDoc.data().status as QuizStatus;
+            setQuizStatus(status);
+            console.log('📊 Statut du quiz:', status);
           } else {
-            console.log('⚠️ Vidéo fallback non trouvée dans Firestore');
+            setQuizStatus('blocked');
+            console.log('📊 Aucun statut trouvé pour le quiz, statut par défaut: blocked');
           }
         } catch (error) {
-          console.error('❌ Erreur lors de la récupération de la vidéo fallback:', error);
+          console.error('❌ Erreur lors de la récupération du statut du quiz:', error);
+          setQuizStatus('blocked');
         } finally {
           setIsLoading(false);
         }
+      };
+
+      fetchQuizStatus();
+    }, [user?.uid, quizId]);
+
+    const handleQuizAccess = () => {
+      if (quizStatus === 'blocked') {
+        alert("Ce quiz n'est pas encore accessible. Terminez toutes les vidéos du parcours pour le débloquer.");
+        return;
+      }
+      router.push(`/quiz/${quizId}`);
+    };
+
+    return (
+      <View style={styles.container}>
+        <View style={styles.videoCard}>
+          {/* Layout horizontal avec icône à gauche et infos à droite */}
+          <View style={styles.contentRow}>
+            {/* Icône du quiz */}
+            <View style={styles.thumbnailContainer}>
+              <View style={styles.placeholderThumbnail}>
+                <MaterialCommunityIcons 
+                  name={quizStatus === 'blocked' ? "lock-outline" : "clipboard-text-outline"} 
+                  size={30} 
+                  color={quizStatus === 'blocked' ? "#666" : "#999"} 
+                />
+              </View>
+            </View>
+            
+            {/* Informations du quiz */}
+            <View style={styles.infoContainer}>
+              <Text style={styles.videoTitle} numberOfLines={2}>
+                Quiz du parcours
+              </Text>
+              <Text style={[
+                styles.videoDuration,
+                quizStatus === 'completed' && { color: '#9BEC00' }
+              ]}>
+                {quizStatus === 'completed' ? 'Terminé' : 
+                 quizStatus === 'unblocked' ? 'Évaluez vos connaissances' :
+                 'Terminez toutes les vidéos pour débloquer'}
+              </Text>
+            </View>
+          </View>
+          
+          {/* Bouton pour commencer le quiz */}
+          <TouchableOpacity 
+            style={[
+              styles.lectureButton, 
+              quizStatus === 'blocked' ? styles.lectureButtonDisabled : { backgroundColor: '#9BEC00' }
+            ]}
+            onPress={handleQuizAccess}
+            disabled={quizStatus === 'blocked'}
+          >
+            <Text style={[
+              styles.lectureButtonText, 
+              quizStatus === 'blocked' ? styles.lectureButtonTextDisabled : { color: '#000000' }
+            ]}>
+              {quizStatus === 'completed' ? 'REVOIR LE QUIZ' : 'COMMENCER LE QUIZ'}
+            </Text>
+            <MaterialCommunityIcons 
+              name={quizStatus === 'completed' ? "clipboard-check-outline" : "clipboard-text-outline"} 
+              size={20} 
+              color={quizStatus === 'blocked' ? '#666666' : '#000000'} 
+            />
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
+
+  // Récupérer le statut de la vidéo suivante
+  useEffect(() => {
+    const fetchVideoStatus = async () => {
+      if (!user?.uid || !video?.id) return;
+
+      try {
+        const videoStatusRef = doc(db, 'users', user.uid, 'video', video.id);
+        const videoStatusDoc = await getDoc(videoStatusRef);
+
+        if (videoStatusDoc.exists()) {
+          const status = videoStatusDoc.data().completionStatus;
+          setCompletionStatus(status);
+          console.log('📊 Statut de la vidéo suivante:', status);
+        } else {
+          setCompletionStatus('blocked');
+          console.log('📊 Aucun statut trouvé pour la vidéo suivante, statut par défaut: blocked');
+        }
+      } catch (error) {
+        console.error('❌ Erreur lors de la récupération du statut de la vidéo:', error);
+        setCompletionStatus('blocked');
       }
     };
 
-    fetchFallbackVideo();
-  }, [video, fallbackId, courseId]);
+    fetchVideoStatus();
+  }, [user?.uid, video?.id]);
 
   const handleNavigation = () => {
-    const targetVideo = video || fallbackVideo;
-    const targetId = targetVideo?.id || fallbackId;
-    
-    console.log("📱 Bouton LECTURE cliqué - Chargement direct de la vidéo suivante:", targetId);
-    
-    if (!targetId) {
+    if (!video?.id) {
       console.error("📱 Erreur: ID de vidéo cible manquant ou invalide");
+      return;
+    }
+
+    // Vérifier si la vidéo est accessible
+    if (completionStatus === 'blocked') {
+      console.log("🔒 La vidéo est bloquée, accès refusé");
+      alert("Cette vidéo n'est pas encore accessible. Terminez la vidéo actuelle pour la débloquer.");
       return;
     }
     
     // Si on a une fonction de navigation personnalisée, l'utiliser directement
     if (onNavigate) {
       console.log("📱 Chargement direct de la vidéo via onNavigate");
-      onNavigate(targetId);
+      onNavigate(video.id);
       return;
     } else {
-      console.error("❌ Pas de fonction onNavigate fournie pour charger la vidéo:", targetId);
+      console.error("❌ Pas de fonction onNavigate fournie pour charger la vidéo:", video.id);
       alert("Impossible de charger la vidéo suivante. Veuillez réessayer.");
     }
   };
 
-  // Utiliser soit la vidéo suivante, soit la vidéo de fallback (Titre 22)
-  const displayVideo = video || fallbackVideo;
+  // Si pas de vidéo à afficher, ne rien rendre
+  if (!video) {
+    return null;
+  }
   
   // Récupérer les informations de la vidéo
-  const titre = displayVideo?.titre || displayVideo?.title || (isLoading ? "Chargement..." : fallbackTitle);
-  
-  // Priorité au champ duree (spécifique à Firestore), sinon utiliser duration
-  const duree = displayVideo?.duree || 
-                (typeof displayVideo?.duration === 'string' ? displayVideo?.duration : '00:00');
-  
-  // Récupérer directement la miniature
-  const thumbnail = displayVideo?.thumbnail || "";
+  const titre = video.titre || video.title || "Chargement...";
+  const duree = video.duree || 
+    (typeof video.duration === 'string' ? video.duration : '00:00');
+  const thumbnail = video.thumbnail || "";
 
-  console.log('🔄 Rendu avec données:', { titre, duree, thumbnail });
+  console.log('🔄 Rendu avec données:', { titre, duree, thumbnail, completionStatus });
 
   return (
     <View style={styles.container}>
@@ -143,22 +216,32 @@ export const NextVideo: React.FC<NextVideoProps> = ({
             <Text style={styles.videoTitle} numberOfLines={2}>
               {titre}
             </Text>
-            
             <Text style={styles.videoDuration}>
-              {isLoading ? "Chargement..." : duree}
+              {duree}
             </Text>
           </View>
         </View>
         
         {/* Bouton Lecture */}
         <TouchableOpacity 
-          style={styles.lectureButton}
+          style={[
+            styles.lectureButton,
+            completionStatus === 'blocked' && styles.lectureButtonDisabled
+          ]}
           onPress={handleNavigation}
-          activeOpacity={0.7}
-          testID="bouton-lecture-video-suivante"
+          disabled={completionStatus === 'blocked'}
         >
-          <Text style={styles.lectureText}>Lecture</Text>
-          <MaterialCommunityIcons name="play" size={18} color="#000" />
+          <Text style={[
+            styles.lectureButtonText,
+            completionStatus === 'blocked' && styles.lectureButtonTextDisabled
+          ]}>
+            LECTURE
+          </Text>
+          <MaterialCommunityIcons 
+            name="play" 
+            size={20} 
+            color={completionStatus === 'blocked' ? '#666666' : '#000000'} 
+          />
         </TouchableOpacity>
       </View>
     </View>
@@ -167,26 +250,25 @@ export const NextVideo: React.FC<NextVideoProps> = ({
 
 const styles = StyleSheet.create({
   container: {
-    marginBottom: 24,
+    marginVertical: 10,
+    paddingHorizontal: 16,
   },
   videoCard: {
     backgroundColor: '#1A1A1A',
     borderRadius: 12,
-    overflow: 'hidden',
+    padding: 16,
+    gap: 16,
   },
   contentRow: {
     flexDirection: 'row',
-    padding: 16,
+    gap: 12,
   },
   thumbnailContainer: {
-    width: 80,
-    height: 70,
-    backgroundColor: '#333',
-    borderRadius: 4,
+    width: 120,
+    height: 68,
+    borderRadius: 8,
     overflow: 'hidden',
-    marginRight: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: '#2A2A2A',
   },
   thumbnail: {
     width: '100%',
@@ -203,33 +285,34 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   videoTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
+    fontSize: 16,
+    fontWeight: '600',
     color: '#FFFFFF',
-    marginBottom: 6,
+    marginBottom: 4,
   },
   videoDuration: {
     fontSize: 14,
-    color: '#AAAAAA',
+    color: '#999999',
   },
   lectureButton: {
-    backgroundColor: '#9BEC00',
-    paddingVertical: 16,
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    flexDirection: 'row',
-    borderBottomLeftRadius: 12,
-    borderBottomRightRadius: 12,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.2,
-    shadowRadius: 1.5,
+    backgroundColor: '#FFFFFF',
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 8,
+    gap: 8,
   },
-  lectureText: {
-    color: '#000000',
-    fontWeight: 'bold',
+  lectureButtonDisabled: {
+    backgroundColor: '#333333',
+  },
+  lectureButtonText: {
     fontSize: 16,
-    marginRight: 8,
-  }
+    fontWeight: '600',
+    color: '#000000',
+  },
+  lectureButtonTextDisabled: {
+    color: '#666666',
+  },
 }); 

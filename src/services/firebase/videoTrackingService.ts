@@ -11,6 +11,7 @@ import {
   DocumentReference
 } from 'firebase/firestore';
 import { db } from './config';
+import { VideoCompletionStatus } from '@/types/video';
 
 /**
  * Interface for the video watching progress data to be stored in Firestore
@@ -21,7 +22,7 @@ export interface VideoWatchingProgress {
   duration: number; // Total video duration in seconds
   progress: number; // Progress percentage (0-100)
   lastUpdated: Timestamp;
-  completionStatus: 'notStarted' | 'inProgress' | 'completed';
+  completionStatus: VideoCompletionStatus;
   metadata?: {
     courseId?: string;
     videoTitle?: string;
@@ -76,19 +77,30 @@ export class VideoTrackingService {
       // Calculate progress percentage
       const progress = duration > 0 ? Math.min(Math.round((currentTime / duration) * 100), 100) : 0;
       
-      // Determine completion status - marking as completed at 90% instead of 95%
-      let completionStatus: 'notStarted' | 'inProgress' | 'completed' = 'notStarted';
-      if (progress >= 90) { // Changed from 95 to 90 as per requirement
-        completionStatus = 'completed';
-      } else if (progress > 0) {
-        completionStatus = 'inProgress';
-      }
+      // Determine completion status based on progress
+      let completionStatus: VideoCompletionStatus = 'blocked';
       
-      // Create/update the document in the user's video subcollection
+      // Get existing document to check current status
       const videoProgressRef = doc(db, `users/${userId}/video/${videoId}`);
-      
-      // Get existing document to check if it already exists
       const existingDoc = await getDoc(videoProgressRef);
+      
+      let existingData: VideoWatchingProgress | undefined;
+      if (existingDoc.exists()) {
+        existingData = existingDoc.data() as VideoWatchingProgress;
+        
+        // If already completed, keep it completed
+        if (existingData.completionStatus === 'completed') {
+          completionStatus = 'completed';
+        }
+        // If progress >= 90%, mark as completed
+        else if (progress >= 90) {
+          completionStatus = 'completed';
+        }
+        // If not completed and not blocked, keep as unblocked
+        else if (existingData.completionStatus === 'unblocked') {
+          completionStatus = 'unblocked';
+        }
+      }
       
       const progressData: VideoWatchingProgress = {
         videoId,
@@ -100,16 +112,29 @@ export class VideoTrackingService {
         metadata
       };
       
-      if (existingDoc.exists()) {
+      if (existingDoc.exists() && existingData) {
         // Only update if:
         // 1. Progress is greater than before, or
         // 2. Last update was more than 5 seconds ago
-        const existingData = existingDoc.data() as VideoWatchingProgress;
         if (progress > existingData.progress || 
             (existingData.lastUpdated && 
              (Timestamp.now().seconds - existingData.lastUpdated.seconds) > 5)) {
           console.log(`Updating existing progress document: ${progress}% (status: ${completionStatus})`);
-          await updateDoc(videoProgressRef, progressData);
+          
+          // Convert the data to a flat structure for Firestore
+          const updateData = {
+            'videoId': progressData.videoId,
+            'currentTime': progressData.currentTime,
+            'duration': progressData.duration,
+            'progress': progressData.progress,
+            'lastUpdated': progressData.lastUpdated,
+            'completionStatus': progressData.completionStatus,
+            'metadata.courseId': progressData.metadata?.courseId || null,
+            'metadata.videoTitle': progressData.metadata?.videoTitle || null,
+            'metadata.videoSection': progressData.metadata?.videoSection || null
+          };
+          
+          await updateDoc(videoProgressRef, updateData);
         }
       } else {
         // Create new document

@@ -212,7 +212,7 @@ export class UserInitializationService {
                     userId,
                     videoId,
                     parcoursId: this.findParcoursIdForVideo(themes, videoId),
-                    status: 'blocked'
+                    completionStatus: 'blocked'
                 };
                 await VideoStatusService.updateVideoStatus(update);
             }
@@ -226,7 +226,7 @@ export class UserInitializationService {
                         userId,
                         videoId: firstVideoId,
                         parcoursId: firstParcours.id,
-                        status: 'unblocked'
+                        completionStatus: 'unblocked'
                     };
                     await VideoStatusService.updateVideoStatus(update);
                 }

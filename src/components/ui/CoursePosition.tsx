@@ -10,6 +10,7 @@ import { PastilleParcoursVariant3 } from '../PastilleParcoursVariant3';
 import PastilleAnnexe from '../PastilleAnnexe';
 import { useParcoursVideos } from '@/hooks/useParcoursVideos';
 import { useParcours } from '@/hooks/useParcours';
+import { Vector } from '../Vector';
 
 export type CoursePositionType = 'standard' | 'important' | 'special' | 'annexe';
 export type CourseStatus = 'blocked' | 'unblocked' | 'completed' | 'in_progress';
@@ -53,6 +54,10 @@ export const CoursePosition: React.FC<CoursePositionProps> = ({
   const getRingColor = (): string => {
     if (status === 'completed') {
       return '#06D001'; // Vert vif pour les parcours terminés
+    }
+
+    if (status === 'blocked') {
+      return '#F3FF9099'; // Jaune avec 40% de transparence pour les parcours bloqués
     }
     
     switch (type) {
@@ -119,6 +124,11 @@ export const CoursePosition: React.FC<CoursePositionProps> = ({
         {/* Pastille centrale */}
         <View style={styles.pastilleContainer}>
           {renderPastille()}
+          {status === 'blocked' && (
+            <View style={styles.vectorContainer}>
+              <Vector width={size * 0.55} height={size * 0.55} color="#F3FF90" />
+            </View>
+          )}
         </View>
       </TouchableOpacity>
       
@@ -168,5 +178,14 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.8,
     shadowRadius: 15,
     elevation: 5,
+  },
+  vectorContainer: {
+    position: 'absolute',
+    justifyContent: 'center',
+    alignItems: 'center',
+    width: '100%',
+    height: '100%',
+    transform: [{ translateY: -8 }],
+    zIndex: 2,
   },
 }); 

@@ -13,7 +13,7 @@ interface VideoButtonProps {
   id: string;
   title: string;
   duration: number | string;
-  status: 'blocked' | 'unlocked' | 'completed';
+  completionStatus: 'blocked' | 'unblocked' | 'completed';
   order: number;
   positionX: number; // Position X en pourcentage (0-100)
   positionY: number; // Position Y en pourcentage (0-100)
@@ -26,7 +26,7 @@ const VideoButton: React.FC<VideoButtonProps> = ({
   id,
   title,
   duration,
-  status,
+  completionStatus,
   order,
   positionX,
   positionY,
@@ -63,14 +63,14 @@ const VideoButton: React.FC<VideoButtonProps> = ({
 
   // Déterminer le style du bouton en fonction du statut
   const buttonStyle = useMemo(() => {
-    if (status === 'completed') {
+    if (completionStatus === 'completed') {
       return styles.completedButton;
-    } else if (status === 'unlocked') {
+    } else if (completionStatus === 'unblocked') {
       return styles.unlockedButton;
     } else {
       return styles.blockedButton;
     }
-  }, [status]);
+  }, [completionStatus]);
 
   // Format de la durée
   const formattedDuration = useMemo(() => {
@@ -86,20 +86,21 @@ const VideoButton: React.FC<VideoButtonProps> = ({
 
   // Icône en fonction du statut
   const icon = useMemo(() => {
-    if (status === 'completed') {
+    if (completionStatus === 'completed') {
       return <MaterialIcons name="check-circle" size={24} color="#06D001" />;
-    } else if (status === 'unlocked') {
+    } else if (completionStatus === 'unblocked') {
       return <MaterialIcons name="play-circle-filled" size={24} color="#FFF" />;
     } else {
       return <MaterialIcons name="lock" size={24} color="#AAA" />;
     }
-  }, [status]);
+  }, [completionStatus]);
 
   return (
     <TouchableOpacity
       activeOpacity={0.7}
       style={[styles.container, buttonStyle, position]}
       onPress={() => onPress(id)}
+      disabled={completionStatus === 'blocked'}
     >
       <View style={styles.contentContainer}>
         <Text style={styles.orderNumber}>{order}</Text>

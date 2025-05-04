@@ -5,7 +5,7 @@ export type VideoStatus = {
     userId: string;
     videoId: string;
     parcoursId: string;
-    status: 'blocked' | 'unblocked' | 'completed';
+    completionStatus: 'blocked' | 'unblocked' | 'completed';
     progress: VideoProgress | null;
     createdAt: Date;
     updatedAt: Date;
@@ -15,15 +15,16 @@ export type VideoStatus = {
 export interface Video {
   id: string;
   title: string;
-  titre?: string;
+  titre: string;
   description: string;
   videoUrl: string;
-  duration: number;
-  duree?: string;
-  thumbnail: string;
-  order: number;
+  thumbnail?: string;
+  duration?: number;
+  duree: string;
+  order?: number;
   courseId: string;
   isUnlocked: boolean;
+  progress?: VideoProgress;
   lastWatchedPosition?: number;
 }
 
@@ -51,11 +52,13 @@ export interface VideoState {
   progress: number;
 }
 
+export type VideoCompletionStatus = 'blocked' | 'unblocked' | 'completed';
+
 export interface VideoProgress {
   currentTime: number;
   duration: number;
-  completionStatus: 'blocked' | 'unblocked' | 'completed';
-  lastUpdated: Date | Timestamp;
+  completionStatus: VideoCompletionStatus;
+  lastUpdated: Date;
   percentage: number;
   metadata: {
     videoId: string;
@@ -83,21 +86,26 @@ export interface UserVideo {
     userId: string;
     videoId: string;
     parcoursId: string;
-    status: 'blocked' | 'unblocked' | 'completed';
-    progress: VideoProgress;
-    history: VideoHistory[];
-    createdAt: string;
-    updatedAt: string;
+    completionStatus: VideoCompletionStatus;
+    currentTime: number;
+    duration: number;
+    progress: number;
+    lastUpdated: string;
     ordre: number;
+    metadata: {
+        courseId: string;
+        videoSection: string;
+        videoTitle: string;
+    };
 }
 
-export type VideoStatusUpdate = {
+export interface VideoStatusUpdate {
     userId: string;
     videoId: string;
     parcoursId: string;
-    status: UserVideo['status'];
+    completionStatus: VideoCompletionStatus;
     progress?: VideoProgress;
-};
+}
 
 export interface VideoControlsProps {
   isPlaying: boolean;
@@ -124,4 +132,9 @@ export interface RelatedVideosProps {
 export interface VideoPlayerProps {
   videoId: string;
   userId: string;
+}
+
+export interface LastVideoResult {
+  isLastVideo: true;
+  quizId: string | undefined;
 } 

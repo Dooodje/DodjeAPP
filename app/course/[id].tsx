@@ -11,6 +11,8 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { Course, CourseContent } from '../../src/types/course';
 import { useAuth } from '../../src/hooks/useAuth';
 import { QuizStatusService } from '../../src/services/businessLogic/QuizStatusService';
+import { collection, getDocs } from 'firebase/firestore';
+import { db } from '../../src/services/firebase';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
@@ -52,7 +54,12 @@ interface ParcoursVideo {
 
 // Interface pour la progression des vidéos
 interface VideoStatus {
-  [videoId: string]: 'blocked' | 'unlocked' | 'completed';
+  [videoId: string]: {
+    completionStatus: 'blocked' | 'unblocked' | 'completed';
+    currentTime?: number;
+    duration?: number;
+    progress?: number;
+  };
 }
 
 export default function CoursePage() {
@@ -80,51 +87,88 @@ export default function CoursePage() {
 
   // Fonction pour calculer et mettre à jour les statuts des vidéos
   const updateVideoStatuses = useCallback(async (data: ParcoursData) => {
-    if (!data.videos || data.videos.length === 0) return;
+    if (!data.videos || data.videos.length === 0 || !user?.uid) return;
     
-    if (user?.uid) {
-      try {
-        const progress = await courseService.getCourseProgress(user.uid, id as string);
-        
-        // Déterminer le statut des vidéos en utilisant la fonction utilitaire
-        const statuses = courseService.getVideoStatuses(
-          data.videos || [], 
-          progress?.completedContents || [],
-          progress?.unlockedVideos || []
-        );
-        setVideoStatus(statuses);
-        
-        // Enregistrer la dernière vidéo visionnée
-        if (progress && progress.lastViewedContentId) {
-          console.log(`Dernière vidéo visionnée: ${progress.lastViewedContentId}`);
-          setLastViewedVideoId(progress.lastViewedContentId);
-        } else {
-          console.log('Aucune vidéo visionnée précédemment');
-          setLastViewedVideoId(undefined);
-        }
-      } catch (progressError) {
-        console.error('Erreur lors de la récupération de la progression:', progressError);
-        
-        // Par défaut, utiliser la fonction utilitaire sans vidéos complétées ou débloquées
-        const defaultStatus = courseService.getVideoStatuses(
-          data.videos || [],
-          [],
-          []
-        );
-        setVideoStatus(defaultStatus);
-        
-        setLastViewedVideoId(undefined);
-      }
-    } else {
-      // Utilisateur non connecté : utiliser la fonction utilitaire sans vidéos complétées ou débloquées
-      const defaultStatus = courseService.getVideoStatuses(
-        data.videos || [],
-        [],
-        []
+    try {
+      const statuses: VideoStatus = {};
+      
+      // Récupérer les documents de la sous-collection video de l'utilisateur
+      const userVideosRef = collection(db, 'users', user.uid, 'video');
+      const userVideosSnapshot = await getDocs(userVideosRef);
+      const userVideoDocs = new Map(
+        userVideosSnapshot.docs.map(doc => [doc.id, doc.data()])
       );
+
+      // Pour chaque vidéo du parcours
+      for (const video of data.videos) {
+        if (!video.id) continue;
+
+        // Récupérer le document de la vidéo dans la sous-collection de l'utilisateur
+        const userVideoDoc = userVideoDocs.get(video.id);
+        
+        if (userVideoDoc) {
+          // Si le document existe, utiliser son statut
+          statuses[video.id] = {
+            completionStatus: userVideoDoc.completionStatus || 'blocked',
+            currentTime: userVideoDoc.currentTime || 0,
+            duration: userVideoDoc.duration || video.duration || video.duree || 0,
+            progress: userVideoDoc.progress || 0
+          };
+          console.log(`Vidéo ${video.id} - Status from DB:`, userVideoDoc.completionStatus);
+        } else {
+          // Si le document n'existe pas, initialiser avec le statut par défaut
+          statuses[video.id] = {
+            completionStatus: 'blocked',
+            currentTime: 0,
+            duration: video.duration || video.duree || 0,
+            progress: 0
+          };
+          console.log(`Vidéo ${video.id} - No status in DB, defaulting to blocked`);
+        }
+      }
+
+      // S'assurer que la première vidéo est au moins débloquée si aucune vidéo n'est complétée
+      const hasCompletedVideos = Object.values(statuses).some(
+        status => status.completionStatus === 'completed'
+      );
+      
+      if (!hasCompletedVideos && data.videos.length > 0 && data.videos[0].id) {
+        const firstVideoId = data.videos[0].id;
+        if (statuses[firstVideoId]?.completionStatus === 'blocked') {
+          statuses[firstVideoId].completionStatus = 'unblocked';
+          console.log(`Première vidéo ${firstVideoId} débloquée par défaut`);
+        }
+      }
+
+      console.log('Statuts finaux des vidéos:', statuses);
+      setVideoStatus(statuses);
+
+      // Mettre à jour lastViewedVideoId si nécessaire
+      const lastViewed = Object.entries(statuses).find(
+        ([_, status]) => (status.progress || 0) > 0
+      );
+      if (lastViewed) {
+        setLastViewedVideoId(lastViewed[0]);
+      }
+      
+    } catch (error) {
+      console.error('Erreur lors de la récupération des statuts des vidéos:', error);
+      
+      // En cas d'erreur, initialiser avec les statuts par défaut
+      const defaultStatus: VideoStatus = {};
+      data.videos.forEach((video, index) => {
+        if (video.id) {
+          defaultStatus[video.id] = {
+            completionStatus: index === 0 ? 'unblocked' : 'blocked',
+            currentTime: 0,
+            duration: video.duration || video.duree || 0,
+            progress: 0
+          };
+        }
+      });
       setVideoStatus(defaultStatus);
     }
-  }, [user?.uid, id]);
+  }, [user?.uid]);
 
   // Vérifier le statut du parcours
   useEffect(() => {
@@ -237,7 +281,8 @@ export default function CoursePage() {
     console.log(`Navigation vers la vidéo ID=${videoId}`);
     
     // Vérifier si la vidéo est bloquée
-    if (videoStatus[videoId] === 'blocked') {
+    const videoDoc = videoStatus[videoId];
+    if (videoDoc?.completionStatus === 'blocked') {
       console.log(`Vidéo ${videoId} bloquée, proposition de déblocage avec des Dodji`);
       
       // Proposer de débloquer avec des Dodji
@@ -265,7 +310,10 @@ export default function CoursePage() {
                   if (result) {
                     // Mise à jour du statut de la vidéo localement
                     const newVideoStatus = { ...videoStatus };
-                    newVideoStatus[videoId] = 'unlocked';
+                    newVideoStatus[videoId] = {
+                      ...newVideoStatus[videoId],
+                      completionStatus: 'unblocked'
+                    };
                     setVideoStatus(newVideoStatus);
                     
                     // Message de confirmation
@@ -486,9 +534,10 @@ export default function CoursePage() {
                     }
                     
                     // Déterminer le statut de la vidéo
-                    const status = videoStatus[video.id] || 'blocked';
+                    const videoDoc = videoStatus[video.id];
+                    const completionStatus = videoDoc?.completionStatus || 'blocked';
                     
-                    console.log(`Vidéo ${video.id}: position=${position.x}%,${position.y}%, statut=${status}, ordre=${video.order || video.ordre || index + 1}`);
+                    console.log(`Vidéo ${video.id}: position=${position.x}%,${position.y}%, completionStatus=${completionStatus}, ordre=${video.order || video.ordre || index + 1}`);
                     
                     return (
                       <VideoButton
@@ -496,7 +545,7 @@ export default function CoursePage() {
                         id={video.id}
                         title={video.title || video.titre || `Vidéo ${index + 1}`}
                         duration={video.duration || video.duree || 0}
-                        status={status}
+                        completionStatus={completionStatus}
                         order={video.order || video.ordre || index + 1}
                         positionX={position.x}
                         positionY={position.y}
