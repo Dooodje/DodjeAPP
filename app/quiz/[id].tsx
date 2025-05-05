@@ -10,6 +10,7 @@ import { Quiz, Question, Answer } from '../../src/types/quiz';
 import type { QuizProgress } from '../../src/types/quiz';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../../src/services/firebase';
+import { ProgressionService } from '../../src/services/businessLogic/ProgressionService';
 
 console.log('Quiz page loaded - full implementation!');
 
@@ -380,84 +381,83 @@ export default function QuizPage() {
     }
   };
   
+  // Fonction pour vérifier si une réponse est correcte
+  const isQuestionCorrect = (questionId: string, selectedAnswers: string[]): boolean => {
+    const question = quiz?.questions.find(q => q.id === questionId);
+    if (!question) return false;
+    
+    return selectedAnswers.every(answerId => {
+      const answer = question.answers.find(a => a.id === answerId);
+      return answer?.isCorrect;
+    });
+  };
+
+  // Calculer le nombre de réponses correctes
+  const calculateCorrectAnswers = (): number => {
+    if (!quiz) return 0;
+    return Object.entries(answers).reduce((count, [questionId, selectedAnswers]) => {
+      return count + (isQuestionCorrect(questionId, selectedAnswers) ? 1 : 0);
+    }, 0);
+  };
+  
   // Terminer le quiz et enregistrer les résultats
   const finishQuiz = async () => {
     if (!quiz || !user) return;
     
-    // S'assurer que quiz.id existe et n'est pas undefined
-    if (!quiz.id) {
-      console.error("L'ID du quiz est undefined, impossible de terminer le quiz");
-      Alert.alert("Erreur", "Impossible de terminer le quiz. Veuillez réessayer.");
-      return;
-    }
-    
-    setCurrentState(QuizState.RESULT);
-    
     try {
-      // Calculer le score en pourcentage
-      const totalPoints = quiz.totalPoints || quiz.questions?.length || 0;
-      if (totalPoints === 0) {
-        console.warn("Attention: totalPoints est 0, impossible de calculer le pourcentage");
-        return;
-      }
+      setCurrentState(QuizState.RESULT); // Passer à l'écran de résultat immédiatement
       
-      const scorePercentage = (score / totalPoints) * 100;
-      const passingScore = 70; // Seuil de réussite fixé à 70%
-      const isPassed = scorePercentage >= passingScore;
+      // Calculer le score
+      const correctAnswers = calculateCorrectAnswers();
+      const scorePercentage = (correctAnswers / quiz.questions.length) * 100;
+      const isPassed = scorePercentage >= quiz.passingScore;
+      const timeRemaining = quiz.timeLimit || 0;
       const rewardAmount = quiz.tokenReward || quiz.dodjiReward || 0;
       
-      // Si l'utilisateur a réussi, lui attribuer la récompense
-      if (isPassed) {
-        try {
-          // Enregistrer la progression
-          const progressData = {
-            quizId: quiz.id,
-            score: scorePercentage,
-            attempts: 1, // Premier essai ou incrémenter si déjà des tentatives précédentes
-            bestScore: scorePercentage, // Si c'est la première tentative, c'est le meilleur score
-            lastAttemptAt: new Date().toISOString(),
-            averageScore: scorePercentage, // Si c'est la première tentative, c'est la moyenne
-            totalTimeSpent: 0, // À implémenter plus tard
-            successRate: isPassed ? 100 : 0, // 100% si réussi, 0% sinon
-            completedAt: new Date() // Nécessaire car utilisé dans saveQuizProgress
-          };
-          
-          await quizService.saveQuizProgress(user.uid, progressData);
-          console.log("Progression du quiz enregistrée avec succès");
-          
-          // Attribuer la récompense en Dodji seulement si elle est > 0
-          if (rewardAmount > 0) {
-            try {
-              await dodjiService.rewardQuizCompletion(user.uid, quiz.id, rewardAmount);
-              console.log(`Récompense de ${rewardAmount} Dodji attribuée pour le quiz ${quiz.id}`);
-              setHasEarnedReward(true);
-              
-              // Afficher un message de confirmation temporaire
-              setShowRewardMessage(true);
-              setTimeout(() => setShowRewardMessage(false), 3000);
-            } catch (rewardError) {
-              console.error("Erreur lors de l'attribution de récompense:", rewardError);
-              // Ne pas bloquer la progression si la récompense échoue
-            }
-          }
-          
-          // Mettre à jour le statut du quiz - dans un try/catch séparé pour ne pas bloquer
+      try {
+        // Créer l'objet de résultat du quiz
+        const quizResult = {
+          score: 0, // Ce champ sera recalculé dans ProgressionService
+          totalQuestions: quiz.questions.length,
+          correctAnswers: correctAnswers, // Nombre de réponses correctes
+          timeSpent: quiz.timeLimit ? quiz.timeLimit - timeRemaining : 0,
+          answers: Object.entries(answers).map(([questionId, selectedAnswers]) => ({
+            questionId,
+            selectedAnswers,
+            isCorrect: isQuestionCorrect(questionId, selectedAnswers),
+            timeSpent: 0
+          }))
+        };
+
+        // Enregistrer les résultats et mettre à jour les statuts
+        await ProgressionService.handleQuizCompletion(
+          user.uid,
+          quiz.id,
+          parcoursId,
+          quizResult
+        );
+        console.log("Progression du quiz enregistrée avec succès");
+        
+        // Attribuer la récompense seulement si le quiz est réussi
+        if (isPassed && rewardAmount > 0) {
           try {
-            await quizService.updateQuizStatus(user.uid, quiz.id, 'completed');
-            console.log("Statut du quiz mis à jour avec succès");
-          } catch (statusError) {
-            console.error("Erreur lors de la mise à jour du statut:", statusError);
-            // Ne pas bloquer la progression si la mise à jour échoue
+            await dodjiService.rewardQuizCompletion(user.uid, quiz.id, rewardAmount);
+            console.log(`Récompense de ${rewardAmount} Dodji attribuée pour le quiz ${quiz.id}`);
+            setHasEarnedReward(true);
+            
+            setShowRewardMessage(true);
+            setTimeout(() => setShowRewardMessage(false), 3000);
+          } catch (rewardError) {
+            console.error("Erreur lors de l'attribution de récompense:", rewardError);
           }
-          
-        } catch (progressError) {
-          console.error("Erreur lors de l'enregistrement des résultats:", progressError);
-          Alert.alert("Attention", "Une erreur s'est produite lors de l'enregistrement de vos résultats.");
         }
+      } catch (error) {
+        console.error("Erreur lors de l'enregistrement des résultats:", error);
+        Alert.alert("Attention", "Une erreur s'est produite lors de l'enregistrement de vos résultats.");
       }
     } catch (error) {
       console.error("Erreur générale dans finishQuiz:", error);
-      // Même en cas d'erreur, on reste sur l'écran des résultats mais sans récompense
+      Alert.alert("Erreur", "Une erreur s'est produite. Veuillez réessayer.");
     }
   };
   
@@ -579,32 +579,9 @@ export default function QuizPage() {
   const renderResult = () => {
     if (!quiz) return null;
     
-    // S'assurer que l'ID du quiz existe
-    if (!quiz.id) {
-      console.error("L'ID du quiz est undefined dans renderResult");
-      return (
-        <View style={styles.resultContainer}>
-          <View style={styles.resultCard}>
-            <MaterialIcons name="error" size={60} color="#F44336" />
-            <Text style={styles.resultTitle}>Une erreur s'est produite</Text>
-            <Text style={styles.quizDescription}>
-              Impossible d'afficher les résultats. Veuillez réessayer plus tard.
-            </Text>
-            <TouchableOpacity 
-              style={[styles.resultButton, styles.retryButton]} 
-              onPress={retryQuiz}
-            >
-              <MaterialIcons name="replay" size={20} color="#FFFFFF" />
-              <Text style={styles.retryButtonText}>Réessayer</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      );
-    }
-    
     const totalPoints = quiz.totalPoints || quiz.questions?.length || 0;
     const scorePercentage = totalPoints > 0 ? (score / totalPoints) * 100 : 0;
-    const passingScore = 70; // Seuil de réussite fixé à 70%
+    const passingScore = quiz.passingScore || 70;
     const isPassed = scorePercentage >= passingScore;
     const rewardAmount = quiz.tokenReward || quiz.dodjiReward || 0;
     
@@ -625,11 +602,10 @@ export default function QuizPage() {
             Score: {score}/{totalPoints} ({Math.round(scorePercentage)}%)
           </Text>
           
-          {/* Utiliser le style resultDescription s'il existe, sinon fallback sur quizDescription */}
           <Text style={styles.resultDescription || styles.quizDescription}>
             {isPassed 
               ? `Vous avez obtenu un score supérieur à ${passingScore}% et gagné ${rewardAmount} Dodji !` 
-              : `Vous devez obtenir au moins ${passingScore}% pour réussir le quiz.`}
+              : `Vous devez obtenir au moins ${passingScore}% pour réussir le quiz. N'hésitez pas à revoir le contenu du cours et à réessayer.`}
           </Text>
           
           {isPassed && hasEarnedReward && (
@@ -662,8 +638,8 @@ export default function QuizPage() {
               style={[styles.resultButton, styles.continueButton]} 
               onPress={handleBackPress}
             >
-              <Text style={styles.continueButtonText}>Continuer</Text>
-              <MaterialIcons name="arrow-forward" size={20} color="#000000" />
+              <Text style={styles.continueButtonText}>Quitter</Text>
+              <MaterialIcons name="exit-to-app" size={20} color="#000000" />
             </TouchableOpacity>
           </View>
         </View>

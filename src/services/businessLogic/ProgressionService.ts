@@ -11,7 +11,7 @@ import { QuizResult } from '@/types/quiz';
 export class ProgressionService {
     private static readonly PARCOURS_COLLECTION = 'parcours';
     private static readonly VIDEO_COMPLETION_THRESHOLD = 0.9; // 90% watched
-    private static readonly QUIZ_COMPLETION_THRESHOLD = 0.7; // 70% correct
+    private static readonly QUIZ_COMPLETION_THRESHOLD = 70; // 70% correct
     private static readonly DODJI_REWARD_AMOUNT = 100; // Amount of Dodji tokens awarded for completing a parcours
     private static readonly USERS_COLLECTION = 'users';
     private static readonly VIDEOS_COLLECTION = 'videos';
@@ -86,23 +86,68 @@ export class ProgressionService {
         result: QuizResult
     ): Promise<void> {
         try {
-            // Add quiz attempt
-            await QuizStatusService.addQuizAttempt(userId, quizId, result);
+            // Calculer le pourcentage de réussite
+            const scorePercentage = (result.correctAnswers / result.totalQuestions) * 100;
+            console.log(`Score en pourcentage: ${scorePercentage}%`);
 
-            if (result.score >= this.QUIZ_COMPLETION_THRESHOLD) {
-                // Mark parcours as completed if quiz is passed
-                await ParcoursStatusService.updateParcoursStatus(
-                    userId,
-                    parcoursId,
-                    await this.getThemeId(parcoursId),
-                    'completed'
-                );
+            // Créer l'objet de tentative avec le score en pourcentage
+            const quizAttempt = {
+                ...result,
+                score: scorePercentage // Le score est stocké en pourcentage
+            };
 
-                // Unlock next parcours in theme
-                await this.unlockNextParcours(userId, parcoursId);
+            // Toujours enregistrer la tentative, quel que soit le score
+            console.log('Enregistrement de la tentative de quiz:', { userId, quizId, scorePercentage });
+            await QuizStatusService.addQuizAttempt(userId, quizId, quizAttempt);
 
-                // Award Dodji tokens for completion
-                await this.awardParcoursCompletion(userId, parcoursId);
+            // Si le score est suffisant, mettre à jour le statut du quiz à "completed"
+            if (scorePercentage >= this.QUIZ_COMPLETION_THRESHOLD) {
+                try {
+                    console.log(`Score suffisant (${scorePercentage}%). Mise à jour du quiz et du parcours...`);
+                    
+                    // 1. Mettre à jour le statut du quiz à "completed"
+                    await QuizStatusService.updateQuizStatus({
+                        userId,
+                        quizId,
+                        parcoursId,
+                        status: 'completed'
+                    });
+                    console.log(`Quiz ${quizId} marqué comme complété`);
+
+                    // 2. Récupérer les informations du parcours
+                    const parcoursRef = doc(db, this.PARCOURS_COLLECTION, parcoursId);
+                    const parcoursDoc = await getDoc(parcoursRef);
+
+                    if (!parcoursDoc.exists()) {
+                        throw new Error(`Parcours ${parcoursId} non trouvé`);
+                    }
+
+                    const parcoursData = parcoursDoc.data();
+                    const themeId = parcoursData.theme || parcoursData.domaine;
+
+                    if (!themeId) {
+                        throw new Error(`Theme non trouvé pour le parcours ${parcoursId}`);
+                    }
+
+                    // 3. Mettre à jour le statut du parcours à completed
+                    await ParcoursStatusService.updateParcoursStatus(
+                        userId,
+                        parcoursId,
+                        themeId,
+                        'completed'
+                    );
+                    console.log(`Parcours ${parcoursId} marqué comme complété`);
+
+                    // 4. Attribuer la récompense
+                    await this.awardParcoursCompletion(userId, parcoursId);
+                    console.log(`Récompense attribuée pour le parcours ${parcoursId}`);
+
+                } catch (error) {
+                    console.error('Erreur lors de la mise à jour du statut:', error);
+                    throw error; // Propager l'erreur pour la gestion en amont
+                }
+            } else {
+                console.log(`Score insuffisant (${scorePercentage}%). Le quiz ${quizId} reste en statut unblocked`);
             }
         } catch (error) {
             console.error('Error handling quiz completion:', error);
@@ -221,86 +266,26 @@ export class ProgressionService {
     }
 
     /**
-     * Unlock the next parcours in a theme
-     */
-    private static async unlockNextParcours(
-        userId: string,
-        currentParcoursId: string
-    ): Promise<void> {
-        try {
-            const currentParcours = (await getDocs(
-                query(
-                    collection(db, this.PARCOURS_COLLECTION),
-                    where('id', '==', currentParcoursId)
-                )
-            )).docs[0].data();
-
-            const nextParcours = (await getDocs(
-                query(
-                    collection(db, this.PARCOURS_COLLECTION),
-                    where('domaine', '==', currentParcours.domaine),
-                    where('niveau', '==', currentParcours.niveau),
-                    where('ordre', '>', currentParcours.ordre),
-                    orderBy('ordre'),
-                    where('active', '==', true)
-                )
-            )).docs[0];
-
-            if (nextParcours) {
-                await ParcoursStatusService.updateParcoursStatus(
-                    userId,
-                    nextParcours.id,
-                    currentParcours.domaine,
-                    'unblocked'
-                );
-
-                // Unlock first video of next parcours
-                const nextParcoursData = nextParcours.data();
-                if (nextParcoursData.videoIds?.length > 0) {
-                    await VideoStatusService.updateVideoStatus({
-                        userId,
-                        videoId: nextParcoursData.videoIds[0],
-                        parcoursId: nextParcours.id,
-                        completionStatus: 'unblocked',
-                        progress: {
-                            currentTime: 0,
-                            duration: 0,
-                            completionStatus: 'unblocked',
-                            lastUpdated: new Date(),
-                            percentage: 0,
-                            metadata: {
-                                videoId: nextParcoursData.videoIds[0],
-                                courseId: nextParcours.id,
-                                videoSection: '',
-                                videoTitle: '',
-                                progress: 0
-                            }
-                        }
-                    });
-                }
-            }
-        } catch (error) {
-            console.error('Error unlocking next parcours:', error);
-            throw error;
-        }
-    }
-
-    /**
      * Get theme ID for a parcours
      */
     private static async getThemeId(parcoursId: string): Promise<string> {
         try {
-            const parcoursRef = await getDocs(
-                query(
-                    collection(db, this.PARCOURS_COLLECTION),
-                    where('id', '==', parcoursId)
-                )
-            );
+            const parcoursRef = doc(db, this.PARCOURS_COLLECTION, parcoursId);
+            const parcoursDoc = await getDoc(parcoursRef);
 
-            if (!parcoursRef.empty) {
-                return parcoursRef.docs[0].data().domaine;
+            if (!parcoursDoc.exists()) {
+                throw new Error('Parcours not found');
             }
-            throw new Error('Parcours not found');
+
+            const parcoursData = parcoursDoc.data();
+            // Le thème peut être stocké soit dans 'theme' soit dans 'domaine'
+            const themeId = parcoursData.theme || parcoursData.domaine;
+
+            if (!themeId) {
+                throw new Error('Theme not found for parcours');
+            }
+
+            return themeId;
         } catch (error) {
             console.error('Error getting theme ID:', error);
             throw error;

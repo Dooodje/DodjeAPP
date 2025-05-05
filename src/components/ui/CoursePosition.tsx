@@ -50,6 +50,17 @@ export const CoursePosition: React.FC<CoursePositionProps> = ({
   // Nombre de vidéos complétées (seulement si les données sont valides)
   const validCompletedVideos = hasValidVideosData ? completedVideos : 0;
 
+  console.log('🎯 CoursePosition - Données:', {
+    parcoursId,
+    type,
+    status,
+    videoCount,
+    completedVideos: validCompletedVideos,
+    hasParcoursData,
+    hasValidVideosData,
+    loading: { videos: videosLoading, parcours: parcoursLoading }
+  });
+
   // Détermine la couleur de l'anneau en fonction du type et de l'état actif
   const getRingColor = (): string => {
     if (status === 'completed') {
@@ -118,6 +129,7 @@ export const CoursePosition: React.FC<CoursePositionProps> = ({
           totalSegments={videoCount}
           completedSegments={validCompletedVideos}
           ringColor={getRingColor()}
+          completedColor="#06D001"
           ringWidth={6}
         />
         

@@ -112,22 +112,33 @@ export class VideoStatusService {
         parcoursId: string
     ): Promise<UserVideo[]> {
         try {
+            console.log('🔍 VideoStatusService - Recherche des vidéos pour:', { userId, parcoursId });
+            
             // Temporairement : retirer le orderBy pour éviter l'erreur d'index
             const videosQuery = query(
                 collection(db, this.USERS_COLLECTION, userId, 'video'),
-                where('parcoursId', '==', parcoursId)
+                where('metadata.courseId', '==', parcoursId)
                 // Le orderBy a été retiré pour éviter l'erreur d'index
             );
 
             const videosSnapshot = await getDocs(videosQuery);
-            const videos = videosSnapshot.docs.map(doc => doc.data() as UserVideo);
+            const videos = videosSnapshot.docs.map(doc => {
+                const data = doc.data() as UserVideo;
+                console.log('📼 VideoStatusService - Vidéo trouvée:', {
+                    videoId: doc.id,
+                    status: data.completionStatus,
+                    progress: data.progress
+                });
+                return data;
+            });
             
             // Trier côté client avec gestion des valeurs undefined
             videos.sort((a, b) => (a.ordre || 0) - (b.ordre || 0));
             
+            console.log('✅ VideoStatusService - Total des vidéos:', videos.length);
             return videos;
         } catch (error) {
-            console.error('Error getting user videos in parcours:', error);
+            console.error('❌ VideoStatusService - Erreur:', error);
             throw error;
         }
     }

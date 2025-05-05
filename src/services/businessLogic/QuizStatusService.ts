@@ -150,14 +150,14 @@ export class QuizStatusService {
         result: QuizResult
     ): Promise<void> {
         try {
-            const quizStatus = await this.getQuizStatus(userId, quizId);
-            if (!quizStatus) {
-                throw new Error('Statut de quiz non trouvé');
-            }
-
             const now = new Date().toISOString();
+            const quizRef = doc(db, this.USERS_COLLECTION, userId, this.USER_QUIZZES_SUBCOLLECTION, quizId);
             
-            // Créer la nouvelle tentative avec les résultats détaillés
+            // Récupérer le document existant ou créer un nouveau
+            const quizDoc = await getDoc(quizRef);
+            const currentData = quizDoc.exists() ? quizDoc.data() as UserQuiz : null;
+            
+            // Créer la nouvelle tentative
             const newAttempt: QuizAttempt = {
                 attemptedAt: now,
                 score: result.score,
@@ -171,32 +171,33 @@ export class QuizStatusService {
                 }
             };
 
-            // Ajouter la tentative à l'historique
-            const updatedAttempts = [...quizStatus.attempts, newAttempt];
+            // Calculer les nouvelles statistiques
+            const attempts = currentData?.attempts || [];
+            const updatedAttempts = [...attempts, newAttempt];
+            
+            const averageScore = updatedAttempts.reduce((sum, att) => sum + att.score, 0) / updatedAttempts.length;
+            const bestScore = Math.max(result.score, currentData?.progress?.bestScore || 0);
+            const totalTimeSpent = (currentData?.progress?.totalTimeSpent || 0) + result.timeSpent;
+            const successRate = (updatedAttempts.filter(att => att.score >= this.COMPLETION_THRESHOLD).length / updatedAttempts.length) * 100;
 
-            // Mettre à jour les statistiques de progression
-            const updatedProgress: QuizProgress = {
-                score: result.score,
-                attempts: quizStatus.progress.attempts + 1,
-                bestScore: Math.max(result.score, quizStatus.progress.bestScore || 0),
-                lastAttemptAt: now,
-                averageScore: this.calculateAverageScore(updatedAttempts),
-                totalTimeSpent: (quizStatus.progress.totalTimeSpent || 0) + result.timeSpent,
-                successRate: this.calculateSuccessRate(updatedAttempts)
-            };
-
-            // Déterminer le nouveau statut en fonction du score
-            const newStatus: QuizStatus = result.score >= this.COMPLETION_THRESHOLD 
-                ? 'completed' 
-                : 'unblocked';
-
-            // Mettre à jour le document complet
-            const updatedQuizStatus: UserQuiz = {
-                ...quizStatus,
-                status: newStatus,
-                progress: updatedProgress,
+            // Créer ou mettre à jour le document en conservant le statut actuel
+            const updatedQuizData: UserQuiz = {
+                quizId,
+                parcoursId: currentData?.parcoursId || '',
+                status: currentData?.status || 'unblocked', // Conserver le statut actuel
+                progress: {
+                    score: result.score,
+                    attempts: updatedAttempts.length,
+                    bestScore,
+                    lastAttemptAt: now,
+                    averageScore,
+                    totalTimeSpent,
+                    successRate
+                },
                 attempts: updatedAttempts,
+                createdAt: currentData?.createdAt || now,
                 updatedAt: now,
+                ordre: currentData?.ordre || 0,
                 lastResults: {
                     score: result.score,
                     completedAt: now,
@@ -205,39 +206,14 @@ export class QuizStatusService {
                 }
             };
 
-            await setDoc(
-                doc(
-                    db,
-                    this.USERS_COLLECTION,
-                    userId,
-                    this.USER_QUIZZES_SUBCOLLECTION,
-                    quizId
-                ),
-                updatedQuizStatus,
-                { merge: true }
-            );
+            console.log('Enregistrement des données du quiz:', updatedQuizData);
+            await setDoc(quizRef, updatedQuizData);
+            console.log('Données du quiz enregistrées avec succès');
+
         } catch (error) {
             console.error('Erreur lors de l\'ajout des résultats du quiz:', error);
             throw error;
         }
-    }
-
-    /**
-     * Calcule la moyenne des scores pour toutes les tentatives
-     */
-    private static calculateAverageScore(attempts: QuizAttempt[]): number {
-        if (attempts.length === 0) return 0;
-        const sum = attempts.reduce((acc, attempt) => acc + attempt.score, 0);
-        return Math.round((sum / attempts.length) * 100) / 100;
-    }
-
-    /**
-     * Calcule le taux de réussite (pourcentage de tentatives avec un score > 50%)
-     */
-    private static calculateSuccessRate(attempts: QuizAttempt[]): number {
-        if (attempts.length === 0) return 0;
-        const successfulAttempts = attempts.filter(attempt => attempt.score >= 50).length;
-        return Math.round((successfulAttempts / attempts.length) * 100);
     }
 
     /**

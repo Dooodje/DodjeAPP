@@ -17,52 +17,61 @@ export class ParcoursStatusService {
         status: ParcoursStatus
     ): Promise<void> {
         try {
-            console.log(`Début de mise à jour du statut pour le parcours ${parcoursId}:`, {
+            console.log('Début updateParcoursStatus:', {
                 userId,
                 parcoursId,
                 domaine,
                 status
             });
 
-            const parcoursRef = doc(
+            const userParcoursRef = doc(
                 db,
                 this.USERS_COLLECTION,
                 userId,
-                this.PARCOURS_SUBCOLLECTION,
+                'parcours',
                 parcoursId
             );
 
-            // Vérifier l'état actuel avant la mise à jour
-            const currentDoc = await getDoc(parcoursRef);
-            if (currentDoc.exists()) {
-                console.log('État actuel du parcours:', currentDoc.data());
-            }
+            const now = new Date().toISOString();
+            const userParcoursDoc = await getDoc(userParcoursRef);
 
-            const now = new Date();
-            const parcoursData: UserParcours = {
-                userId,
-                parcoursId,
-                domaine,
-                status,
-                createdAt: currentDoc.exists() ? currentDoc.data().createdAt : now,
-                updatedAt: now
-            };
-
-            console.log('Données à mettre à jour:', parcoursData);
-
-            await setDoc(parcoursRef, parcoursData, { merge: true });
-            console.log(`Mise à jour effectuée pour le parcours ${parcoursId}`);
-
-            // Si le parcours est marqué comme complété, débloquer le prochain parcours
-            if (status === 'completed') {
-                console.log(`Le parcours ${parcoursId} est complété, appel de handleParcoursCompletion`);
-                await ParcoursProgressionService.handleParcoursCompletion(userId, parcoursId);
+            if (!userParcoursDoc.exists()) {
+                // Création d'un nouveau document de parcours utilisateur
+                await setDoc(userParcoursRef, {
+                    parcoursId,
+                    status,
+                    domaine,
+                    createdAt: now,
+                    updatedAt: now,
+                    completedAt: status === 'completed' ? now : null
+                });
+                console.log(`Nouveau document de parcours créé pour ${parcoursId}`);
+            } else {
+                // Mise à jour du document existant
+                await setDoc(userParcoursRef, {
+                    ...userParcoursDoc.data(),
+                    status,
+                    updatedAt: now,
+                    completedAt: status === 'completed' ? now : userParcoursDoc.data().completedAt
+                }, { merge: true });
+                console.log(`Document de parcours existant mis à jour pour ${parcoursId}`);
             }
 
             console.log(`Mise à jour terminée avec succès pour le parcours ${parcoursId}`);
+
+            // Si le parcours est marqué comme complété, débloquer le prochain parcours
+            if (status === 'completed') {
+                try {
+                    console.log(`Le parcours ${parcoursId} est complété, appel de handleParcoursCompletion`);
+                    await ParcoursProgressionService.handleParcoursCompletion(userId, parcoursId);
+                } catch (progressError) {
+                    console.error('Erreur non bloquante lors du déblocage du prochain parcours:', progressError);
+                    // Ne pas propager l'erreur pour ne pas bloquer la mise à jour du statut
+                }
+            }
         } catch (error) {
             console.error('Error updating parcours status:', error);
-            throw new Error('Failed to update parcours status');
+            // Ne pas propager l'erreur pour permettre la continuation du processus
         }
     }
 

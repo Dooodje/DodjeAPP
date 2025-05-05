@@ -28,6 +28,7 @@ export function useParcoursVideos(parcoursId: string | undefined) {
 
   const fetchParcoursVideos = useCallback(async () => {
     if (!user || !parcoursId) {
+      console.log('❌ useParcoursVideos - Pas d\'utilisateur ou de parcoursId:', { user: !!user, parcoursId });
       setState(prev => ({
         ...prev, 
         loading: false,
@@ -36,13 +37,47 @@ export function useParcoursVideos(parcoursId: string | undefined) {
       return;
     }
 
+    console.log('🔄 useParcoursVideos - Début du chargement pour:', { userId: user.uid, parcoursId });
     setState(prev => ({ ...prev, loading: true, error: null }));
 
     try {
       const videos = await VideoStatusService.getUserVideosInParcours(user.uid, parcoursId);
       
+      // Si aucune vidéo n'est trouvée, initialiser les vidéos du parcours
+      if (videos.length === 0) {
+        console.log('🔄 useParcoursVideos - Aucune vidéo trouvée, initialisation...');
+        await VideoStatusService.initializeParcoursVideos(user.uid, parcoursId);
+        // Récupérer à nouveau les vidéos après l'initialisation
+        const initializedVideos = await VideoStatusService.getUserVideosInParcours(user.uid, parcoursId);
+        console.log('📼 useParcoursVideos - Vidéos initialisées:', initializedVideos.map(v => ({
+          videoId: v.videoId,
+          status: v.completionStatus,
+          progress: v.progress
+        })));
+        
+        // Calculate completed videos
+        const completedVideos = initializedVideos.filter(video => video.completionStatus === 'completed').length;
+        console.log('✅ useParcoursVideos - Vidéos complétées:', completedVideos);
+        
+        setState({
+          videos: initializedVideos,
+          totalVideos: initializedVideos.length,
+          completedVideos,
+          loading: false,
+          error: null,
+        });
+        return;
+      }
+
+      console.log('📼 useParcoursVideos - Vidéos récupérées:', videos.map(v => ({
+        videoId: v.videoId,
+        status: v.completionStatus,
+        progress: v.progress
+      })));
+      
       // Calculate completed videos
       const completedVideos = videos.filter(video => video.completionStatus === 'completed').length;
+      console.log('✅ useParcoursVideos - Vidéos complétées:', completedVideos);
       
       setState({
         videos,
@@ -52,7 +87,7 @@ export function useParcoursVideos(parcoursId: string | undefined) {
         error: null,
       });
     } catch (error) {
-      console.error('Error fetching parcours videos:', error);
+      console.error('❌ useParcoursVideos - Erreur:', error);
       
       // Amélioration de la gestion des erreurs
       let errorMessage = 'Failed to fetch videos';
@@ -88,6 +123,7 @@ export function useParcoursVideos(parcoursId: string | undefined) {
 
   // Provide a way to refresh the data
   const refresh = useCallback(() => {
+    console.log('🔄 useParcoursVideos - Rafraîchissement des données');
     fetchParcoursVideos();
   }, [fetchParcoursVideos]);
 

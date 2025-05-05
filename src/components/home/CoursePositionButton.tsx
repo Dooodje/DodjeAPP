@@ -1,14 +1,7 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ViewStyle, Alert } from 'react-native';
 import { Parcours } from '../../types/firebase';
-import theme from '../../config/theme';
-// import { AnneauVector } from '../ui/vectors/AnneauVectors';
-import Color0 from '../Color0';
-import PastilleAnnexe from '../PastilleAnnexe';
-import { PastilleParcoursDefault } from '../PastilleParcoursDefault';
-import { PastilleParcoursVariant2 } from '../PastilleParcoursVariant2';
-import { PastilleParcoursVariant3 } from '../PastilleParcoursVariant3';
-import { Vector } from '../Vector';
+import { CoursePosition } from '../ui/CoursePosition';
 
 interface CoursePositionButtonProps {
   parcours: Parcours;
@@ -25,83 +18,6 @@ const CoursePositionButton: React.FC<CoursePositionButtonProps> = ({
   onPress,
   style
 }) => {
-  // Déterminer le type de positionnement
-  const getPositionType = () => {
-    if (parcours.isAnnexe || parcours.isAnnex) return 'annexe';
-    if (parcours.isIntroduction) return 'important';
-    if (parcours.isSpecial || parcours.isBonus) return 'special';
-    return 'standard';
-  };
-
-  const positionType = getPositionType();
-
-  // Déterminer le type d'anneau et les couleurs en fonction du type
-  const getRingType = () => {
-    switch (positionType) {
-      case 'important':
-        return 'anneau3';
-      case 'special':
-        return 'anneau5';
-      case 'annexe':
-        return 'anneau2';
-      case 'standard':
-      default:
-        return 'anneau1';
-    }
-  };
-
-  const getPrimaryColor = () => {
-    switch (positionType) {
-      case 'important':
-        return theme.colors.secondary.light;
-      case 'special':
-        return '#FF6B00';
-      case 'annexe':
-        return theme.colors.primary.dark;
-      case 'standard':
-      default:
-        return theme.colors.primary.main;
-    }
-  };
-
-  const getSecondaryColor = () => {
-    switch (positionType) {
-      case 'important':
-        return theme.colors.primary.light;
-      case 'special':
-        return '#FF9A00';
-      case 'annexe':
-        return theme.colors.primary.main;
-      default:
-        return theme.colors.primary.light;
-    }
-  };
-
-  // Calculer la taille relative des éléments
-  const ringSize = size;
-  const pastilleSize = size * 0.6;
-
-  // Sélectionner le composant de pastille approprié en fonction du statut
-  const renderPastille = () => {
-    // Si c'est une annexe, utiliser PastilleAnnexe
-    if (parcours.isAnnexe || parcours.isAnnex) {
-      return <PastilleAnnexe width={pastilleSize} height={pastilleSize} />;
-    }
-
-    // Si le parcours est terminé, utiliser PastilleParcoursVariant2 (vert)
-    if (parcours.status === 'completed') {
-      return <PastilleParcoursVariant2 style={{ width: pastilleSize, height: pastilleSize }} />;
-    }
-
-    // Si le parcours est débloqué ou en cours, utiliser PastilleParcoursDefault (jaune)
-    if (parcours.status === 'unblocked' || parcours.status === 'in_progress') {
-      return <PastilleParcoursDefault style={{ width: pastilleSize, height: pastilleSize }} />;
-    }
-
-    // Si le parcours est bloqué, utiliser PastilleParcoursVariant3 (gris/désactivé)
-    return <PastilleParcoursVariant3 style={{ width: pastilleSize, height: pastilleSize }} />;
-  };
-
   const handlePress = () => {
     if (parcours.status === 'blocked') {
       Alert.alert(
@@ -113,24 +29,25 @@ const CoursePositionButton: React.FC<CoursePositionButtonProps> = ({
     onPress(parcours.id);
   };
 
+  // Déterminer le type de positionnement
+  const getPositionType = () => {
+    if (parcours.isAnnexe || parcours.isAnnex) return 'annexe';
+    if (parcours.isIntroduction) return 'important';
+    if (parcours.isSpecial || parcours.isBonus) return 'special';
+    return 'standard';
+  };
+
   return (
-    <TouchableOpacity
-      style={[styles.container, { width: size, height: size }, style]}
-      onPress={handlePress}
-      activeOpacity={parcours.status === 'blocked' ? 1 : 0.7}
-    >
-      {/* Anneau extérieur - remplacé par Color0 */}
-      <Color0 width={ringSize} height={ringSize} />
-      
-      {/* Pastille centrale */}
-      <View style={styles.pastilleContainer}>
-        {renderPastille()}
-        {parcours.status === 'blocked' && (
-          <View style={styles.vectorContainer}>
-            <Vector width={size * 0.4} height={size * 0.4} color="#F3FF90" />
-          </View>
-        )}
-      </View>
+    <View style={[styles.container, style]}>
+      <CoursePosition
+        type={getPositionType()}
+        status={parcours.status}
+        size={size}
+        title={parcours.titre || parcours.title}
+        onPress={handlePress}
+        parcoursId={parcours.id}
+        isActive={isActive}
+      />
       
       {/* Badge d'ordre si fourni */}
       {parcours.ordre !== undefined && (
@@ -138,16 +55,7 @@ const CoursePositionButton: React.FC<CoursePositionButtonProps> = ({
           <Text style={styles.orderText}>{parcours.ordre}</Text>
         </View>
       )}
-      
-      {/* Titre en dessous si fourni */}
-      {(parcours.titre || parcours.title) && (
-        <View style={styles.titleContainer}>
-          <Text style={styles.titleText} numberOfLines={2}>
-            {parcours.titre || parcours.title}
-          </Text>
-        </View>
-      )}
-    </TouchableOpacity>
+    </View>
   );
 };
 
@@ -155,45 +63,24 @@ const styles = StyleSheet.create({
   container: {
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  pastilleContainer: {
-    position: 'absolute',
-    alignItems: 'center',
-    justifyContent: 'center',
+    position: 'relative',
   },
   orderBadge: {
     position: 'absolute',
-    top: 0,
-    right: 0,
-    backgroundColor: theme.colors.primary.main,
-    borderRadius: 10,
-    width: 20,
-    height: 20,
-    alignItems: 'center',
+    top: -5,
+    right: -5,
+    backgroundColor: '#F3FF90',
+    borderRadius: 12,
+    width: 24,
+    height: 24,
     justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 3,
   },
   orderText: {
-    color: '#FFF',
+    color: '#000000',
     fontSize: 12,
     fontWeight: 'bold',
-  },
-  titleContainer: {
-    position: 'absolute',
-    bottom: -24,
-    width: '100%',
-    alignItems: 'center',
-  },
-  titleText: {
-    color: '#FFF',
-    fontSize: 12,
-    textAlign: 'center',
-  },
-  vectorContainer: {
-    position: 'absolute',
-    top: '50%',
-    left: '50%',
-    transform: [{ translateX: -20 }, { translateY: -20 }],
-    zIndex: 2,
   },
 });
 

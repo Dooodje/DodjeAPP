@@ -19,23 +19,24 @@ export class ParcoursProgressionService {
                 completedParcoursId
             });
 
-            // 1. Récupérer les informations du parcours complété dans la collection parcours
-            const parcoursRef = collection(db, this.PARCOURS_COLLECTION);
-            const parcoursQuery = query(
-                parcoursRef,
-                where('parcoursId', '==', completedParcoursId)
-            );
-            
-            const parcoursSnapshot = await getDocs(parcoursQuery);
+            // 1. Récupérer les informations du parcours complété directement avec son ID
+            const parcoursRef = doc(db, this.PARCOURS_COLLECTION, completedParcoursId);
+            const parcoursDoc = await getDoc(parcoursRef);
 
-            if (parcoursSnapshot.empty) {
+            if (!parcoursDoc.exists()) {
                 console.error(`Parcours ${completedParcoursId} non trouvé dans la collection parcours`);
                 return;
             }
 
             // 2. Récupérer les champs domaine, niveau et ordre
-            const parcoursData = parcoursSnapshot.docs[0].data();
-            const { domaine, niveau, ordre } = parcoursData;
+            const parcoursData = parcoursDoc.data();
+            const domaine = parcoursData.theme || parcoursData.domaine;
+            const { niveau, ordre } = parcoursData;
+
+            if (!domaine || !niveau || ordre === undefined) {
+                console.error('Données de parcours incomplètes:', parcoursData);
+                return;
+            }
 
             console.log('Parcours complété trouvé:', {
                 id: completedParcoursId,
@@ -46,9 +47,10 @@ export class ParcoursProgressionService {
             });
 
             // 3. Chercher le parcours suivant avec même domaine, même niveau et ordre + 1
+            const parcoursCollectionRef = collection(db, this.PARCOURS_COLLECTION);
             const nextParcoursQuery = query(
-                parcoursRef,
-                where('domaine', '==', domaine),
+                parcoursCollectionRef,
+                where('theme', '==', domaine),
                 where('niveau', '==', niveau),
                 where('ordre', '==', ordre + 1)
             );
@@ -90,7 +92,7 @@ export class ParcoursProgressionService {
             }
         } catch (error) {
             console.error('Erreur lors du déblocage du prochain parcours:', error);
-            throw error;
+            // Ne pas propager l'erreur pour ne pas bloquer le processus de complétion
         }
     }
 } 
