@@ -2,7 +2,7 @@ import { db } from '@/config/firebase';
 import { ParcoursStatusService } from './ParcoursStatusService';
 import { VideoStatusService } from './VideoStatusService';
 import { QuizStatusService } from './QuizStatusService';
-import { DodjiService } from './DodjiService';
+import { dodjiService } from '../dodji';
 import { collection, query, where, getDocs, orderBy, doc, getDoc, updateDoc, setDoc } from 'firebase/firestore';
 import { ParcoursStatus } from '@/types/parcours';
 import { VideoStatus, VideoProgress, VideoCompletionStatus } from '@/types/video';
@@ -300,14 +300,10 @@ export class ProgressionService {
         parcoursId: string
     ): Promise<void> {
         try {
-            if (!(await DodjiService.hasReceivedReward(userId, 'parcours_completion', parcoursId))) {
-                await DodjiService.addTransaction(userId, {
-                    amount: this.DODJI_REWARD_AMOUNT,
-                    source: 'parcours_completion',
-                    sourceId: parcoursId,
-                    description: 'Parcours completion reward',
-                    createdAt: new Date()
-                });
+            const rewardId = `parcours_completion_${parcoursId}`;
+            const hasReceived = await dodjiService.hasReceivedReward(userId, rewardId);
+            if (!hasReceived) {
+                await dodjiService.rewardTokens(userId, this.DODJI_REWARD_AMOUNT, rewardId);
             }
         } catch (error) {
             console.error('Error awarding parcours completion:', error);

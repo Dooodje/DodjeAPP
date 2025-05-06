@@ -1,11 +1,11 @@
 import { db } from '@/config/firebase';
-import { doc, getDoc, setDoc, runTransaction, collection, addDoc } from 'firebase/firestore';
-import { DodjiTransaction, UserDodji } from '@/types/dodji';
+import { doc, getDoc, runTransaction, collection } from 'firebase/firestore';
+import { DodjiTransaction } from '@/types/dodji';
+import { DodjiService } from './DodjiService';
 
 export class DodjiRewardService {
     private static readonly USERS_COLLECTION = 'users';
     private static readonly QUIZZES_COLLECTION = 'quizzes';
-    private static readonly DODJI_COLLECTION = 'jeton_dodji';
 
     /**
      * Attribue la récompense Dodji à l'utilisateur et enregistre la transaction
@@ -22,23 +22,19 @@ export class DodjiRewardService {
                 }
 
                 const quizData = quizDoc.data();
-                const tokenReward = quizData.tokenReward || 0;
+                const tokenReward = quizData.tokenReward || quizData.dodjiReward || 0;
                 const quizName = quizData.name || 'Quiz sans nom';
 
-                // 2. Récupérer le document Dodji actuel de l'utilisateur
-                const userDodjiRef = doc(db, this.USERS_COLLECTION, userId, this.DODJI_COLLECTION, 'current');
-                const userDodjiDoc = await transaction.get(userDodjiRef);
+                // 2. Vérifier si la récompense a déjà été attribuée
+                const rewardId = `quiz_completion_${quizId}`;
+                const hasReceived = await DodjiService.hasReceivedReward(userId, rewardId);
+                
+                if (hasReceived) {
+                    console.log('Récompense déjà attribuée pour ce quiz');
+                    return 0;
+                }
 
-                const currentDodji: UserDodji = userDodjiDoc.exists() 
-                    ? userDodjiDoc.data() as UserDodji
-                    : {
-                        userId,
-                        total: 0,
-                        lastUpdated: new Date(),
-                        transactions: []
-                    };
-
-                // 3. Créer la nouvelle transaction
+                // 3. Créer et enregistrer la transaction
                 const newTransaction: DodjiTransaction = {
                     userId,
                     amount: tokenReward,
@@ -48,18 +44,13 @@ export class DodjiRewardService {
                     createdAt: new Date()
                 };
 
-                // 4. Mettre à jour le document Dodji
-                const updatedDodji: UserDodji = {
-                    userId,
-                    total: currentDodji.total + tokenReward,
-                    lastUpdated: new Date(),
-                    transactions: [...currentDodji.transactions, newTransaction]
-                };
+                const transactionRef = doc(collection(db, this.USERS_COLLECTION, userId, 'transactions'));
+                transaction.set(transactionRef, newTransaction);
 
-                // 5. Sauvegarder les mises à jour
-                transaction.set(userDodjiRef, updatedDodji);
+                // 4. Ajouter la récompense via DodjiService
+                await DodjiService.addReward(userId, tokenReward, rewardId);
 
-                // 6. Marquer la récompense comme réclamée dans le statut du quiz
+                // 5. Marquer la récompense comme réclamée dans le statut du quiz
                 const userQuizRef = doc(
                     db,
                     this.USERS_COLLECTION,
@@ -86,37 +77,10 @@ export class DodjiRewardService {
      */
     static async isRewardClaimed(userId: string, quizId: string): Promise<boolean> {
         try {
-            const userQuizRef = doc(
-                db,
-                this.USERS_COLLECTION,
-                userId,
-                'quiz',
-                quizId
-            );
-
-            const userQuizDoc = await getDoc(userQuizRef);
-            return userQuizDoc.exists() && userQuizDoc.data()?.lastResults?.rewardClaimed === true;
+            const rewardId = `quiz_completion_${quizId}`;
+            return await DodjiService.hasReceivedReward(userId, rewardId);
         } catch (error) {
             console.error('Erreur lors de la vérification de la récompense:', error);
-            throw error;
-        }
-    }
-
-    /**
-     * Récupère l'historique des transactions Dodji d'un utilisateur
-     */
-    static async getDodjiHistory(userId: string): Promise<UserDodji | null> {
-        try {
-            const userDodjiRef = doc(db, this.USERS_COLLECTION, userId, this.DODJI_COLLECTION, 'current');
-            const userDodjiDoc = await getDoc(userDodjiRef);
-
-            if (!userDodjiDoc.exists()) {
-                return null;
-            }
-
-            return userDodjiDoc.data() as UserDodji;
-        } catch (error) {
-            console.error('Erreur lors de la récupération de l\'historique Dodji:', error);
             throw error;
         }
     }

@@ -15,6 +15,7 @@ import {
 } from '../store/slices/homeSlice';
 import { useAuth } from './useAuth';
 import { Section, Level, Course, HomeDesign } from '../types/home';
+import { useDodji } from './useDodji';
 
 // TreeData par défaut pour éviter l'erreur d'accès à indexOf
 const DEFAULT_TREE_DATA = {
@@ -57,6 +58,7 @@ const DEFAULT_HOME_DESIGN: HomeDesign = {
 export const useHome = () => {
   const dispatch = useAppDispatch();
   const { user } = useAuth();
+  const { dodji } = useDodji(user?.uid);
   const {
     currentSection,
     currentLevel,
@@ -65,7 +67,6 @@ export const useHome = () => {
     isLoading: loading,
     error,
     streak,
-    dodji,
     lastViewedCourse,
   } = useAppSelector(state => state.home);
 
@@ -124,7 +125,6 @@ export const useHome = () => {
       
       // Mettre à jour les statistiques basiques
       dispatch(setStreak(1)); // Valeur fixe pour éviter tout calcul
-      dispatch(setDodji(2170)); // Valeur modifiée de 100 à 2170
       
     } catch (error) {
       console.error("Erreur lors de la récupération des données:", error);
@@ -186,7 +186,7 @@ export const useHome = () => {
     loading,
     error,
     streak: streak || 0,
-    dodji: dodji || 2170,
+    dodji,
     lastViewedCourse,
     totalCompletedCourses: 0,
     totalProgress: 0,

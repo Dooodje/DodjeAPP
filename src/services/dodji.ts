@@ -5,7 +5,8 @@ import { iapService } from './iap';
 export class DodjiService {
   private static instance: DodjiService;
   private readonly COLLECTION = 'users';
-  private readonly FIELD = 'dodjiBalance';
+  private readonly FIELD = 'dodji';
+  private readonly DODJI_COLLECTION = 'jeton_dodji';
 
   private constructor() {}
 
@@ -27,6 +28,24 @@ export class DodjiService {
     }
   }
 
+  // Vérifier si une récompense a déjà été attribuée
+  async hasReceivedReward(userId: string, rewardId: string): Promise<boolean> {
+    try {
+      const rewardsRef = doc(db, this.COLLECTION, userId, this.DODJI_COLLECTION, 'rewards');
+      const rewardsDoc = await getDoc(rewardsRef);
+
+      if (!rewardsDoc.exists()) {
+        return false;
+      }
+
+      const data = rewardsDoc.data();
+      return data.rewards?.[rewardId] === true;
+    } catch (error) {
+      console.error('Error checking reward status:', error);
+      throw error;
+    }
+  }
+
   // Acheter des jetons
   async purchaseTokens(userId: string, packId: string): Promise<void> {
     try {
@@ -37,6 +56,10 @@ export class DodjiService {
 
       // Effectuer l'achat via IAP
       const result = await iapService.purchaseProduct(packId);
+      
+      if (!result) {
+        throw new Error('Échec de l\'achat : résultat null');
+      }
       
       if (result.responseCode === 0) {
         // Déterminer la quantité de Dodji à ajouter selon le produit
@@ -92,23 +115,42 @@ export class DodjiService {
   }
 
   // Récompenser des jetons
-  async rewardTokens(userId: string, amount: number, reason: string): Promise<void> {
+  async rewardTokens(userId: string, amount: number, rewardId: string): Promise<void> {
     try {
-      // Vérifier si l'utilisateur a déjà reçu cette récompense
-      const userDoc = await getDoc(doc(db, this.COLLECTION, userId));
-      const rewards = userDoc.data()?.rewards || {};
+      // Vérifier si la récompense a déjà été attribuée
+      const hasReceived = await this.hasReceivedReward(userId, rewardId);
+      if (hasReceived) {
+        console.log('Récompense déjà attribuée');
+        return;
+      }
       
-      if (rewards[reason]) {
-        return; // L'utilisateur a déjà reçu cette récompense
+      // Mettre à jour le solde de Dodji
+      const userRef = doc(db, this.COLLECTION, userId);
+      await updateDoc(userRef, {
+        [this.FIELD]: increment(amount)
+      });
+
+      // Marquer la récompense comme reçue
+      const rewardsRef = doc(db, this.COLLECTION, userId, this.DODJI_COLLECTION, 'rewards');
+      const rewardsDoc = await getDoc(rewardsRef);
+
+      if (!rewardsDoc.exists()) {
+        // Créer le document s'il n'existe pas
+        await setDoc(rewardsRef, {
+          rewards: { [rewardId]: true },
+          lastUpdated: new Date()
+        });
+      } else {
+        // Mettre à jour le document existant
+        await updateDoc(rewardsRef, {
+          [`rewards.${rewardId}`]: true,
+          lastUpdated: new Date()
+        });
       }
 
-      // Mettre à jour le solde et marquer la récompense comme reçue
-      await updateDoc(doc(db, this.COLLECTION, userId), {
-        [this.FIELD]: increment(amount),
-        [`rewards.${reason}`]: true
-      });
+      console.log(`Récompense de ${amount} Dodji attribuée à l'utilisateur ${userId}`);
     } catch (error) {
-      console.error('Erreur lors de la récompense de jetons:', error);
+      console.error('Erreur lors de l\'attribution de la récompense:', error);
       throw error;
     }
   }

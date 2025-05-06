@@ -1,67 +1,40 @@
-import { useState, useEffect, useCallback } from 'react';
-import { useAuth } from './useAuth';
-import { DodjiService } from '@/services/businessLogic/DodjiService';
-import { DodjiTransaction, UserDodji } from '@/types/dodji';
+import { useEffect, useState } from 'react';
+import { doc, onSnapshot } from 'firebase/firestore';
+import { db } from '../config/firebase';
 
-export const useDodji = () => {
-    const { user } = useAuth();
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
-    const [userDodji, setUserDodji] = useState<UserDodji | null>(null);
+export const useDodji = (userId: string | undefined) => {
+  const [dodji, setDodji] = useState<number>(0);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
 
-    const loadUserDodji = useCallback(async () => {
-        if (!user?.uid) return;
+  useEffect(() => {
+    if (!userId) {
+      setDodji(0);
+      setLoading(false);
+      return;
+    }
 
-        try {
-            setLoading(true);
-            setError(null);
-            const dodji = await DodjiService.getUserDodji(user.uid);
-            setUserDodji(dodji);
-        } catch (err) {
-            setError('Failed to load Dodji data');
-            console.error('Error loading Dodji:', err);
-        } finally {
-            setLoading(false);
+    // Écouter les changements en temps réel du document utilisateur
+    const unsubscribe = onSnapshot(
+      doc(db, 'users', userId),
+      (doc) => {
+        if (doc.exists()) {
+          setDodji(doc.data()?.dodji || 0);
+        } else {
+          setDodji(0);
         }
-    }, [user?.uid]);
+        setLoading(false);
+      },
+      (error) => {
+        console.error('Erreur lors de la récupération des jetons:', error);
+        setError('Erreur lors de la récupération des jetons');
+        setLoading(false);
+      }
+    );
 
-    const addTransaction = useCallback(async (transaction: Omit<DodjiTransaction, 'id' | 'userId'>) => {
-        if (!user?.uid) {
-            setError('User not authenticated');
-            return;
-        }
+    // Nettoyer l'abonnement lors du démontage
+    return () => unsubscribe();
+  }, [userId]);
 
-        try {
-            setError(null);
-            await DodjiService.addTransaction(user.uid, transaction);
-            await loadUserDodji(); // Reload user Dodji after transaction
-        } catch (err) {
-            setError('Failed to add transaction');
-            console.error('Error adding transaction:', err);
-        }
-    }, [user?.uid, loadUserDodji]);
-
-    const checkReward = useCallback(async (source: DodjiTransaction['source'], sourceId: string): Promise<boolean> => {
-        if (!user?.uid) return false;
-
-        try {
-            return await DodjiService.hasReceivedReward(user.uid, source, sourceId);
-        } catch (err) {
-            console.error('Error checking reward:', err);
-            return false;
-        }
-    }, [user?.uid]);
-
-    useEffect(() => {
-        loadUserDodji();
-    }, [loadUserDodji]);
-
-    return {
-        userDodji,
-        loading,
-        error,
-        addTransaction,
-        checkReward,
-        refresh: loadUserDodji
-    };
+  return { dodji, loading, error };
 }; 

@@ -1,57 +1,60 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Image, Platform } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Image, Platform, ViewStyle, TextStyle, ImageStyle } from 'react-native';
 import theme from '../../config/theme';
+import { useAuth } from '../../hooks/useAuth';
+import { useDodji } from '../../hooks/useDodji';
 
 // SVG Icons
 import vectorDodje from '../../assets/figma/vector-dodje.svg';
 
 interface HeaderProps {
   userName?: string;
-  dodjiCount: number;
-  streak: number;
-  onProfilePress: () => void;
+  streak?: number;
+  onProfilePress?: () => void;
 }
 
 const Header: React.FC<HeaderProps> = ({
   userName = "Utilisateur",
-  dodjiCount = 0,
   streak = 0,
   onProfilePress
 }) => {
+  const { user } = useAuth();
+  const { dodji } = useDodji(user?.uid);
+
   return (
-    <View style={styles.container}>
+    <View style={styles.container as ViewStyle}>
       {/* Logo et Information utilisateur */}
-      <View style={styles.topContainer}>
-        <View style={styles.logoContainer}>
+      <View style={styles.topContainer as ViewStyle}>
+        <View style={styles.logoContainer as ViewStyle}>
           <Image 
             source={require('../../assets/icons/logo.png')} 
-            style={styles.logo} 
+            style={styles.logo as ImageStyle} 
           />
-          <Text style={styles.logoText}>Dodje</Text>
+          <Text style={styles.logoText as TextStyle}>Dodje</Text>
         </View>
         
-        <TouchableOpacity style={styles.profileButton} onPress={onProfilePress}>
-          <View style={styles.profileInfo}>
-            <Text style={styles.userName}>{userName}</Text>
-            <View style={styles.dodjiContainer}>
+        <TouchableOpacity style={styles.profileButton as ViewStyle} onPress={onProfilePress}>
+          <View style={styles.profileInfo as ViewStyle}>
+            <Text style={styles.userName as TextStyle}>{userName}</Text>
+            <View style={styles.dodjiContainer as ViewStyle}>
               <Image 
                 source={require('../../assets/icons/dodji.png')} 
-                style={styles.dodjiIcon} 
+                style={styles.dodjiIcon as ImageStyle} 
               />
-              <Text style={styles.dodjiCount}>{dodjiCount}</Text>
+              <Text style={styles.dodjiCount as TextStyle}>{dodji}</Text>
             </View>
           </View>
-          <View style={styles.avatarContainer}>
-            <Text style={styles.avatarText}>{userName.charAt(0).toUpperCase()}</Text>
+          <View style={styles.avatarContainer as ViewStyle}>
+            <Text style={styles.avatarText as TextStyle}>{userName.charAt(0).toUpperCase()}</Text>
           </View>
         </TouchableOpacity>
       </View>
 
       {/* Barre de progression quotidienne */}
-      <View style={styles.streakContainer}>
-        <Text style={styles.streakText}>Série de {streak} jours</Text>
-        <View style={styles.progressBarContainer}>
-          <View style={[styles.progressBar, { width: `${Math.min(streak * 10, 100)}%` }]} />
+      <View style={styles.streakContainer as ViewStyle}>
+        <Text style={styles.streakText as TextStyle}>Série de {streak} jours</Text>
+        <View style={styles.progressBarContainer as ViewStyle}>
+          <View style={[styles.progressBar as ViewStyle, { width: `${Math.min(streak * 10, 100)}%` }]} />
         </View>
       </View>
     </View>
@@ -85,7 +88,7 @@ const styles = StyleSheet.create({
   logoText: {
     fontFamily: theme.typography.fontFamily,
     fontSize: theme.typography.fontSize.xxl,
-    fontWeight: theme.typography.fontWeight.bold,
+    fontWeight: '700',
     color: theme.colors.primary.main,
   },
   profileButton: {
@@ -102,7 +105,7 @@ const styles = StyleSheet.create({
   userName: {
     color: theme.colors.text.primary,
     fontSize: theme.typography.fontSize.sm,
-    fontWeight: theme.typography.fontWeight.medium,
+    fontWeight: '500',
   },
   dodjiContainer: {
     flexDirection: 'row',
@@ -116,7 +119,7 @@ const styles = StyleSheet.create({
   dodjiCount: {
     color: theme.colors.secondary.main,
     fontSize: theme.typography.fontSize.xs,
-    fontWeight: theme.typography.fontWeight.bold,
+    fontWeight: '700',
   },
   avatarContainer: {
     width: 32,
@@ -129,7 +132,7 @@ const styles = StyleSheet.create({
   avatarText: {
     color: theme.colors.text.primary,
     fontSize: theme.typography.fontSize.md,
-    fontWeight: theme.typography.fontWeight.bold,
+    fontWeight: '700',
   },
   streakContainer: {
     marginTop: 5,

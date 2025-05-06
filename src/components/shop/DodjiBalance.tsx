@@ -1,16 +1,24 @@
 import React from 'react';
 import { View, StyleSheet, Text, TouchableOpacity } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { DodjiBalanceProps } from '../../types/shop';
+import { useAuth } from '../../hooks/useAuth';
+import { useDodji } from '../../hooks/useDodji';
 
-export const DodjiBalance: React.FC<DodjiBalanceProps> = ({ balance, onRefresh }) => {
+interface DodjiBalanceProps {
+  onRefresh?: () => void;
+}
+
+export const DodjiBalance: React.FC<DodjiBalanceProps> = ({ onRefresh }) => {
+  const { user } = useAuth();
+  const { dodji } = useDodji(user?.uid);
+
   return (
     <View style={styles.container}>
       <View style={styles.content}>
         <View style={styles.balanceContainer}>
-          <MaterialCommunityIcons name="currency-dodji" size={24} color="#06D001" />
+          <MaterialCommunityIcons name="currency-usd" size={24} color="#06D001" />
           <Text style={styles.balanceText}>
-            {balance.toLocaleString()} Dodji
+            {dodji.toLocaleString()} Dodji
           </Text>
         </View>
 
@@ -28,38 +36,34 @@ export const DodjiBalance: React.FC<DodjiBalanceProps> = ({ balance, onRefresh }
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: '#1A1A1A',
+    backgroundColor: '#fff',
     padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#2A2A2A',
-    gap: 8,
+    borderRadius: 8,
+    marginBottom: 16,
   },
   content: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    marginBottom: 8,
   },
   balanceContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
   },
   balanceText: {
-    fontSize: 24,
+    fontSize: 18,
     fontWeight: 'bold',
     color: '#06D001',
+    marginLeft: 8,
   },
   refreshButton: {
-    width: 40,
-    height: 40,
+    backgroundColor: '#06D001',
+    padding: 8,
     borderRadius: 20,
-    backgroundColor: '#2A2A2A',
-    justifyContent: 'center',
-    alignItems: 'center',
   },
   infoText: {
     fontSize: 14,
-    color: '#ccc',
-    textAlign: 'center',
+    color: '#666',
   },
 }); 

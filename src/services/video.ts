@@ -177,7 +177,9 @@ export const videoService = {
         currentTime: data.currentTime || 0,
         duration: data.duration || 0,
         completionStatus: data.completionStatus || 'notStarted',
-        lastUpdated: data.lastUpdated?.toDate() || new Date()
+        lastUpdated: data.lastUpdated instanceof Timestamp 
+          ? data.lastUpdated.toDate() 
+          : new Date(data.lastUpdated || Date.now())
       };
     } catch (error) {
       console.error('❌ Erreur lors de la récupération de la progression:', error);
