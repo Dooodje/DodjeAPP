@@ -1,6 +1,9 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Dimensions } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
+import { QuizOff } from '../QuizOff';
+import { useAuth } from '../../hooks/useAuth';
+import { QuizStatusService } from '../../services/businessLogic/QuizStatusService';
 
 // Constantes pour les dimensions
 const { width: screenWidth } = Dimensions.get('window');
@@ -25,6 +28,24 @@ const QuizButton: React.FC<QuizButtonProps> = ({
   imageHeight,
   onPress
 }) => {
+  const { user } = useAuth();
+  const [quizStatus, setQuizStatus] = useState<'blocked' | 'unblocked' | 'completed'>('blocked');
+
+  useEffect(() => {
+    const loadQuizStatus = async () => {
+      if (!user?.uid) return;
+      try {
+        const status = await QuizStatusService.getQuizStatus(user.uid, id);
+        setQuizStatus(status?.status || 'blocked');
+      } catch (error) {
+        console.error('Erreur lors du chargement du statut du quiz:', error);
+        setQuizStatus('blocked');
+      }
+    };
+
+    loadQuizStatus();
+  }, [user?.uid, id]);
+
   // Calculer la position absolue en pixels
   const position = useMemo(() => {
     // Valider les dimensions
@@ -56,16 +77,36 @@ const QuizButton: React.FC<QuizButtonProps> = ({
     <View style={[styles.container, position]}>
       <TouchableOpacity
         activeOpacity={0.7}
-        style={styles.buttonContent}
+        style={[
+          styles.buttonContent,
+          quizStatus === 'blocked' && styles.buttonBlocked
+        ]}
         onPress={() => onPress(id)}
       >
         <View style={styles.glow} />
-        <MaterialIcons name="help" size={40} color="#000" />
+        {quizStatus === 'blocked' ? (
+          <QuizOff width={40} height={40} />
+        ) : (
+          <MaterialIcons 
+            name={quizStatus === 'completed' ? "check-circle" : "help"} 
+            size={40} 
+            color="#000" 
+          />
+        )}
       </TouchableOpacity>
       
-      <View style={styles.labelContainer}>
+      <View style={[
+        styles.labelContainer,
+        quizStatus === 'blocked' && styles.labelBlocked
+      ]}>
         <Text style={styles.title}>{title}</Text>
-        <Text style={styles.subtitle}>Testons vos connaissances !</Text>
+        <Text style={styles.subtitle}>
+          {quizStatus === 'blocked' 
+            ? 'Terminez les vidéos pour débloquer' 
+            : quizStatus === 'completed'
+            ? 'Quiz complété !'
+            : 'Testons vos connaissances !'}
+        </Text>
       </View>
     </View>
   );
@@ -79,13 +120,13 @@ const styles = StyleSheet.create({
     borderRadius: DEFAULT_BUTTON_SIZE / 2,
     justifyContent: 'center',
     alignItems: 'center',
-    zIndex: 10, // Plus élevé que les vidéos pour être au-dessus
+    zIndex: 10,
   },
   buttonContent: {
     width: '100%',
     height: '100%',
     borderRadius: DEFAULT_BUTTON_SIZE / 2,
-    backgroundColor: '#FFC107', // Jaune doré
+    backgroundColor: '#FFC107',
     justifyContent: 'center',
     alignItems: 'center',
     elevation: 8,
@@ -94,7 +135,11 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.6,
     shadowRadius: 5,
     borderWidth: 3,
-    borderColor: '#FFD54F', // Bord légèrement plus clair
+    borderColor: '#FFD54F',
+  },
+  buttonBlocked: {
+    backgroundColor: '#666666',
+    borderColor: '#888888',
   },
   glow: {
     position: 'absolute',
@@ -113,7 +158,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     padding: 8,
     alignItems: 'center',
-    left: -(140 - DEFAULT_BUTTON_SIZE) / 2, // Centrer par rapport au bouton
+    left: -(140 - DEFAULT_BUTTON_SIZE) / 2,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.8,
@@ -121,6 +166,9 @@ const styles = StyleSheet.create({
     elevation: 5,
     borderWidth: 2,
     borderColor: '#FFC107',
+  },
+  labelBlocked: {
+    borderColor: '#666666',
   },
   title: {
     color: '#FFF',

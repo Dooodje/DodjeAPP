@@ -1,10 +1,14 @@
 import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Dimensions, Platform } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
+import VideoOn from '../../components/VideoOn';
+import VideoOff from '../../components/VideoOff';
+import VideoLock from '../../components/VideoLock';
+import LockMarron from '../../components/LockMarron';
 
 // Constantes pour les dimensions
 const { width: screenWidth } = Dimensions.get('window');
-const DEFAULT_BUTTON_SIZE = 60; // Taille par défaut du bouton
+const DEFAULT_BUTTON_SIZE = 78;
 // Valeurs approximatives pour le header incluant la StatusBar
 const STATUS_BAR_HEIGHT = Platform.OS === 'ios' ? 44 : 24; // Valeur fixe pour Android
 const HEADER_HEIGHT = 60; // Hauteur approximative du header sans StatusBar
@@ -87,9 +91,9 @@ const VideoButton: React.FC<VideoButtonProps> = ({
   // Icône en fonction du statut
   const icon = useMemo(() => {
     if (completionStatus === 'completed') {
-      return <MaterialIcons name="check-circle" size={24} color="#06D001" />;
+      return <VideoOn width={24} height={24} />;
     } else if (completionStatus === 'unblocked') {
-      return <MaterialIcons name="play-circle-filled" size={24} color="#FFF" />;
+      return <VideoOff width={24} height={24} />;
     } else {
       return <MaterialIcons name="lock" size={24} color="#AAA" />;
     }
@@ -102,15 +106,22 @@ const VideoButton: React.FC<VideoButtonProps> = ({
       onPress={() => onPress(id)}
       disabled={completionStatus === 'blocked'}
     >
+      {completionStatus === 'completed' ? (
+        <VideoOn width={DEFAULT_BUTTON_SIZE} height={DEFAULT_BUTTON_SIZE} />
+      ) : completionStatus === 'unblocked' ? (
+        <VideoOff width={DEFAULT_BUTTON_SIZE} height={DEFAULT_BUTTON_SIZE} />
+      ) : (
+        <View style={styles.blockedContainer}>
+          <VideoOff width={DEFAULT_BUTTON_SIZE} height={DEFAULT_BUTTON_SIZE} color="#7C6354" />
+          <View style={styles.vectorContainer}>
+            <LockMarron width={DEFAULT_BUTTON_SIZE * 0.55} height={DEFAULT_BUTTON_SIZE * 0.55} />
+          </View>
+        </View>
+      )}
       <View style={styles.contentContainer}>
-        <Text style={styles.orderNumber}>{order}</Text>
-        <Text style={styles.title} numberOfLines={1}>
+        <Text style={styles.title} numberOfLines={2}>
           {title}
         </Text>
-        <Text style={styles.duration}>{formattedDuration}</Text>
-      </View>
-      <View style={styles.iconContainer}>
-        {icon}
       </View>
     </TouchableOpacity>
   );
@@ -122,7 +133,7 @@ const styles = StyleSheet.create({
     width: DEFAULT_BUTTON_SIZE,
     height: DEFAULT_BUTTON_SIZE,
     borderRadius: DEFAULT_BUTTON_SIZE / 2,
-    backgroundColor: 'rgba(20, 20, 20, 0.8)',
+    backgroundColor: 'transparent',
     justifyContent: 'center',
     alignItems: 'center',
     zIndex: 5,
@@ -132,68 +143,53 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.5,
     shadowRadius: 3,
   },
+  blockedContainer: {
+    position: 'relative',
+    width: DEFAULT_BUTTON_SIZE,
+    height: DEFAULT_BUTTON_SIZE,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  vectorContainer: {
+    position: 'absolute',
+    justifyContent: 'center',
+    alignItems: 'center',
+    width: '100%',
+    height: '100%',
+    transform: [{ translateY: -2 }],
+    zIndex: 2,
+  },
   blockedButton: {
-    backgroundColor: 'rgba(100, 100, 100, 0.8)',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
+    backgroundColor: 'transparent',
+    borderWidth: 0,
   },
   unlockedButton: {
-    backgroundColor: 'rgba(10, 10, 10, 0.9)',
-    borderWidth: 1,
-    borderColor: '#06D001',
+    backgroundColor: 'transparent',
+    borderWidth: 0,
   },
   completedButton: {
-    backgroundColor: 'rgba(6, 208, 1, 0.2)',
-    borderWidth: 2,
-    borderColor: '#06D001',
+    backgroundColor: 'transparent',
+    borderWidth: 0,
   },
   contentContainer: {
     position: 'absolute',
-    top: DEFAULT_BUTTON_SIZE + 5,
-    width: 120,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
-    borderRadius: 8,
-    padding: 6,
+    top: DEFAULT_BUTTON_SIZE + 10,
+    width: 180,
+    backgroundColor: 'transparent',
     alignItems: 'center',
-    left: -(120 - DEFAULT_BUTTON_SIZE) / 2, // Centrer par rapport au bouton
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.8,
-    shadowRadius: 3,
-    elevation: 5,
-  },
-  orderNumber: {
-    color: '#FFF',
-    fontSize: 12,
-    fontWeight: 'bold',
-    position: 'absolute',
-    top: -35,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    textAlign: 'center',
-    lineHeight: 20,
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.8,
-    shadowRadius: 2,
+    left: -(180 - DEFAULT_BUTTON_SIZE) / 2,
   },
   title: {
+    fontFamily: 'Arboria-Bold',
+    fontSize: 18,
     color: '#FFF',
-    fontSize: 12,
-    fontWeight: 'bold',
-    marginBottom: 3,
-    maxWidth: 100,
+    maxWidth: 180,
     textAlign: 'center',
     textShadowColor: 'rgba(0, 0, 0, 0.9)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 2,
-  },
-  duration: {
-    color: '#AAA',
-    fontSize: 10,
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 15,
+    opacity: 0.8,
+    lineHeight: 24,
   },
   iconContainer: {
     justifyContent: 'center',

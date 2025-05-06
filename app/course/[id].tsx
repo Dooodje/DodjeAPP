@@ -13,6 +13,7 @@ import { useAuth } from '../../src/hooks/useAuth';
 import { QuizStatusService } from '../../src/services/businessLogic/QuizStatusService';
 import { collection, getDocs } from 'firebase/firestore';
 import { db } from '../../src/services/firebase';
+import { Rectangle11 } from '../../src/components/Rectangle11';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
@@ -268,6 +269,30 @@ export default function CoursePage() {
     };
   }, [id, updateVideoStatuses]);
 
+  // Fonction pour réessayer en cas d'erreur
+  const handleRetry = () => {
+    // Réinitialiser l'observation
+    if (unsubscribeRef.current) {
+      unsubscribeRef.current();
+      unsubscribeRef.current = null;
+    }
+    
+    // Redémarrer l'observation
+    setLoading(true);
+    const unsubscribe = courseService.observeParcoursDetail(id as string, async (data) => {
+      if (data.error) {
+        setError(data.error);
+      } else {
+        setParcoursData(data);
+        await updateVideoStatuses(data);
+        setError(null);
+      }
+      setLoading(false);
+    });
+    
+    unsubscribeRef.current = unsubscribe;
+  };
+
   // Naviguer vers la page de la vidéo
   const handleVideoPress = (videoId: string) => {
     if (parcoursStatus === 'blocked') {
@@ -412,39 +437,17 @@ export default function CoursePage() {
 
   return (
     <>
-      {error ? (
-        <SafeAreaView style={styles.container} edges={['right', 'left', 'top']}>
-          <View style={styles.errorContainer}>
-            <Text style={styles.errorText}>{error}</Text>
-            <TouchableOpacity 
-              style={styles.retryButton}
-              onPress={() => {
-                // Réinitialiser l'observation
-                if (unsubscribeRef.current) {
-                  unsubscribeRef.current();
-                  unsubscribeRef.current = null;
-                }
-                
-                // Redémarrer l'observation
-                setLoading(true);
-                const unsubscribe = courseService.observeParcoursDetail(id as string, async (data) => {
-                  if (data.error) {
-                    setError(data.error);
-                  } else {
-                    setParcoursData(data);
-                    await updateVideoStatuses(data);
-                    setError(null);
-                  }
-                  setLoading(false);
-                });
-                
-                unsubscribeRef.current = unsubscribe;
-              }}
-            >
-              <Text style={styles.retryText}>Réessayer</Text>
-            </TouchableOpacity>
-          </View>
-        </SafeAreaView>
+      {loading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color="#06D001" />
+        </View>
+      ) : error ? (
+        <View style={styles.errorContainer}>
+          <Text style={styles.errorText}>{error}</Text>
+          <TouchableOpacity style={styles.retryButton} onPress={handleRetry}>
+            <Text style={styles.retryButtonText}>Réessayer</Text>
+          </TouchableOpacity>
+        </View>
       ) : (
         <View style={styles.fullContainer}>
           {/* Header fixe positionné au-dessus du contenu avec l'effet transparent */}
@@ -456,12 +459,19 @@ export default function CoursePage() {
               >
                 <MaterialIcons name="arrow-back" size={24} color="#FFFFFF" />
               </TouchableOpacity>
-              <Text style={styles.headerTitle} numberOfLines={2}>
-                {parcoursData?.titre || parcoursData?.title || 'Parcours'}
-              </Text>
+              <View style={styles.titleContainer}>
+                <Text style={styles.headerTitle} numberOfLines={2}>
+                  {parcoursData?.titre || parcoursData?.title || 'Parcours'}
+                </Text>
+              </View>
               <View style={styles.headerSpacer} />
             </View>
           </SafeAreaView>
+
+          {/* Rectangle11 component */}
+          <View style={styles.rectangle11Container}>
+            <Rectangle11 width={screenWidth} height={screenHeight * 0.47} />
+          </View>
 
           {/* Contenu principal avec l'image de fond qui défile */}
           <CourseBackground
@@ -642,11 +652,17 @@ const styles = StyleSheet.create({
     marginRight: 16,
     padding: 8,
   },
+  titleContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   headerTitle: {
     color: '#FFFFFF',
-    fontSize: 20,
-    fontWeight: 'bold',
-    flex: 1,
+    fontSize: 35,
+    fontFamily: 'Arboria-Bold',
+    letterSpacing: -1.75, // -5% de 35px
+    textAlign: 'center',
     textShadowColor: 'rgba(0, 0, 0, 0.9)',
     textShadowOffset: { width: 1, height: 1 },
     textShadowRadius: 5,
@@ -678,7 +694,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderRadius: 8,
   },
-  retryText: {
+  retryButtonText: {
     color: 'white',
     fontSize: 16,
     fontWeight: 'bold',
@@ -693,5 +709,18 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 16,
     textAlign: 'center',
-  }
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  rectangle11Container: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 50, // Entre l'image de fond (z-index: 0) et le header (z-index: 100)
+    pointerEvents: 'none', // Pour ne pas bloquer le scrolling
+  },
 }); 

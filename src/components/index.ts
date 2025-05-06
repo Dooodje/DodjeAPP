@@ -5,4 +5,5 @@ export * from './IlotMenu';
 export * from './Menu';
 export * from './MenuButton';
 export * from './RightArrow';
-export * from './Icon'; 
+export * from './Icon';
+export * from './QuizOff'; 
