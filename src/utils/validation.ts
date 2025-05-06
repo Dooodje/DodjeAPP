@@ -12,10 +12,6 @@ export const loginSchema = yup.object().shape({
 });
 
 export const registerSchema = yup.object().shape({
-  username: yup
-    .string()
-    .min(3, 'Le nom d\'utilisateur doit contenir au moins 3 caractères')
-    .required('Le nom d\'utilisateur est requis'),
   email: yup
     .string()
     .email('Veuillez entrer une adresse email valide')

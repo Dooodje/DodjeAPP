@@ -6,11 +6,13 @@ export default function CourseLayout() {
     <Stack 
       screenOptions={{
         headerShown: false,
-        animation: 'slide_from_right',
-        presentation: 'transparentModal',
+        animation: 'slide_from_bottom',
+        presentation: 'modal',
         contentStyle: {
           backgroundColor: '#0A0400'
-        }
+        },
+        gestureEnabled: true,
+        gestureDirection: 'vertical',
       }}
     >
       <Stack.Screen

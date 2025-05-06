@@ -1,11 +1,14 @@
 import React, { useState } from 'react';
-import { View, StyleSheet, Text } from 'react-native';
+import { View, StyleSheet, Text, Dimensions, TouchableOpacity, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
 import { Link, router } from 'expo-router';
 import { useForm } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
-import { Button, Input } from '../../src/components/ui';
+import { Input } from '../../src/components/ui';
 import { useAuth } from '../../src/hooks/useAuth';
 import { loginSchema } from '../../src/utils/validation';
+import { LogoDodje } from '../../src/components/LogoDodje';
+import FondCo from '../../src/components/FondCo';
+import { Ionicons } from '@expo/vector-icons';
 
 interface LoginForm {
   email: string;
@@ -13,6 +16,8 @@ interface LoginForm {
 }
 
 export default function LoginScreen() {
+  const windowWidth = Dimensions.get('window').width;
+  const windowHeight = Dimensions.get('window').height;
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { login } = useAuth();
@@ -34,87 +39,143 @@ export default function LoginScreen() {
     }
   };
 
+  const handleBack = () => {
+    router.back();
+  };
+
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Bienvenue sur Dodje</Text>
-      <Text style={styles.subtitle}>Connectez-vous pour continuer</Text>
+    <KeyboardAvoidingView 
+      style={styles.container}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+    >
+      <FondCo width={windowWidth} height={windowHeight} />
+      
+      <TouchableOpacity style={styles.backButton} onPress={handleBack}>
+        <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
+      </TouchableOpacity>
 
-      <Input
-        control={control}
-        name="email"
-        label="Email"
-        placeholder="Entrez votre email"
-        keyboardType="email-address"
-        autoCapitalize="none"
-      />
+      <ScrollView 
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollViewContent}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.content}>
+          <View style={styles.logoContainer}>
+            <LogoDodje width={150} height={150} />
+          </View>
 
-      <Input
-        control={control}
-        name="password"
-        label="Mot de passe"
-        placeholder="Entrez votre mot de passe"
-        secureTextEntry
-      />
+          <View style={styles.formContainer}>
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Mail ou pseudo :</Text>
+              <Input
+                control={control}
+                name="email"
+                placeholder="Tapez ici..."
+                keyboardType="email-address"
+                autoCapitalize="none"
+                style={styles.input}
+              />
+            </View>
 
-      {error && <Text style={styles.error}>{error}</Text>}
+            <View style={styles.inputGroup}>
+              <Text style={styles.label}>Mot de passe :</Text>
+              <Input
+                control={control}
+                name="password"
+                placeholder="Tapez ici..."
+                secureTextEntry
+                style={styles.input}
+              />
+            </View>
 
-      <Button
-        title={isLoading ? 'Connexion...' : 'Se connecter'}
-        onPress={handleSubmit(onSubmit)}
-        disabled={isLoading}
-        style={styles.button}
-      />
+            {error && <Text style={styles.error}>{error}</Text>}
 
-      <View style={styles.footer}>
-        <Text style={styles.footerText}>Pas encore de compte ? </Text>
-        <Link href="/register" style={styles.link}>
-          S'inscrire
-        </Link>
-      </View>
-    </View>
+            <TouchableOpacity
+              style={styles.button}
+              onPress={handleSubmit(onSubmit)}
+              disabled={isLoading}
+            >
+              <Text style={styles.buttonText}>
+                {isLoading ? 'Connexion...' : 'Se connecter'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    padding: 20,
     backgroundColor: '#0A0400',
   },
-  title: {
-    fontFamily: 'Arboria-Bold',
-    fontSize: 32,
-    color: '#FFFFFF',
-    marginBottom: 8,
+  scrollView: {
+    flex: 1,
   },
-  subtitle: {
-    fontFamily: 'Arboria-Book',
-    fontSize: 16,
+  scrollViewContent: {
+    flexGrow: 1,
+  },
+  backButton: {
+    position: 'absolute',
+    top: 50,
+    left: 20,
+    zIndex: 1,
+  },
+  content: {
+    flex: 1,
+    padding: 20,
+    paddingTop: 100,
+    justifyContent: 'center',
+  },
+  logoContainer: {
+    alignItems: 'center',
+    marginBottom: 40,
+  },
+  formContainer: {
+    gap: 20,
+    width: '100%',
+    maxWidth: 410,
+    alignSelf: 'center',
+    paddingBottom: 40,
+  },
+  inputGroup: {
+    gap: 10,
+  },
+  label: {
+    fontFamily: 'Arboria-Medium',
+    fontSize: 20,
     color: '#FFFFFF',
-    marginBottom: 32,
+    width: '100%',
+  },
+  input: {
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderRadius: 10,
+    height: 50,
+    paddingHorizontal: 15,
+    color: '#FFFFFF',
+    fontFamily: 'Arboria-Bold',
+    fontSize: 15,
   },
   button: {
-    marginTop: 16,
+    backgroundColor: '#9BEC00',
+    height: 50,
+    borderRadius: 50,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginTop: 20,
+  },
+  buttonText: {
+    color: '#FFFFFF',
+    fontFamily: 'Arboria-Bold',
+    fontSize: 15,
   },
   error: {
     fontFamily: 'Arboria-Book',
     fontSize: 14,
     color: '#FF0000',
-    marginTop: 8,
-  },
-  footer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    marginTop: 32,
-  },
-  footerText: {
-    fontFamily: 'Arboria-Book',
-    fontSize: 14,
-    color: '#FFFFFF',
-  },
-  link: {
-    fontFamily: 'Arboria-Medium',
-    fontSize: 14,
-    color: '#059212',
+    textAlign: 'center',
   },
 }); 

@@ -406,9 +406,8 @@ export default function CoursePage() {
 
   // Gérer les retours en arrière
   const handleBackPress = () => {
-    console.log('Retour à la page d\'accueil (sous-page de parcours)');
-    // Utiliser globalRouter pour retourner à l'index avec l'onglet home
-    globalRouter.navigate('/');
+    console.log('Retour à la page précédente');
+    router.back();
   };
 
   return (
