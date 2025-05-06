@@ -12,7 +12,6 @@ export class ProgressionService {
     private static readonly PARCOURS_COLLECTION = 'parcours';
     private static readonly VIDEO_COMPLETION_THRESHOLD = 0.9; // 90% watched
     private static readonly QUIZ_COMPLETION_THRESHOLD = 70; // 70% correct
-    private static readonly DODJI_REWARD_AMOUNT = 100; // Amount of Dodji tokens awarded for completing a parcours
     private static readonly USERS_COLLECTION = 'users';
     private static readonly VIDEOS_COLLECTION = 'videos';
 
@@ -293,20 +292,46 @@ export class ProgressionService {
     }
 
     /**
-     * Award Dodji tokens for parcours completion
+     * Award bonus Dodji for first parcours completion only
      */
     private static async awardParcoursCompletion(
         userId: string,
         parcoursId: string
     ): Promise<void> {
         try {
-            const rewardId = `parcours_completion_${parcoursId}`;
+            // Vérifier et attribuer uniquement la récompense du premier parcours si applicable
+            await this.checkAndAwardFirstParcoursCompletion(userId);
+        } catch (error) {
+            console.error('Error awarding first parcours completion:', error);
+            throw error;
+        }
+    }
+
+    /**
+     * Check and award bonus Dodji for first parcours completion
+     */
+    private static async checkAndAwardFirstParcoursCompletion(userId: string): Promise<void> {
+        try {
+            const rewardId = 'first_parcours_completion';
             const hasReceived = await dodjiService.hasReceivedReward(userId, rewardId);
+            
             if (!hasReceived) {
-                await dodjiService.rewardTokens(userId, this.DODJI_REWARD_AMOUNT, rewardId);
+                // Vérifier si c'est vraiment le premier parcours complété
+                const userParcoursRef = collection(db, this.USERS_COLLECTION, userId, 'parcours');
+                const completedParcoursQuery = query(
+                    userParcoursRef,
+                    where('status', '==', 'completed')
+                );
+                const completedParcours = await getDocs(completedParcoursQuery);
+
+                // Si c'est le premier parcours complété (en comptant celui qui vient d'être complété)
+                if (completedParcours.size <= 1) {
+                    await dodjiService.rewardTokens(userId, 100, rewardId);
+                    console.log(`First parcours completion reward awarded to user ${userId}`);
+                }
             }
         } catch (error) {
-            console.error('Error awarding parcours completion:', error);
+            console.error('Error checking/awarding first parcours completion:', error);
             throw error;
         }
     }
