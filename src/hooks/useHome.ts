@@ -165,7 +165,7 @@ export const useHome = () => {
             console.log(`Le parcours ${parcours.id} est bloqué, afficher modal de déblocage`);
             // TODO: Afficher une modal pour débloquer le parcours
           } else {
-            // Naviguer vers la page du parcours
+            // Naviguer vers la page du parcours sans ajouter le paramètre from
             console.log(`Navigation vers le parcours: /course/${parcours.id}`);
             router.push(`/course/${parcours.id}`);
           }

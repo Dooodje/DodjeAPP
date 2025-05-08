@@ -1,28 +1,19 @@
-import React from 'react';
-import { NavigationContainer } from '@react-navigation/native';
-import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { StatusBar } from 'expo-status-bar';
+import 'expo-router/entry';
+import { useEffect } from 'react';
+import { View } from 'react-native';
+import { Provider } from 'react-redux';
+import { store } from './src/store';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import AccueilBourseScreen from './src/screens/AccueilBourseScreen';
-
-const Stack = createNativeStackNavigator();
+import { QueryProvider } from './src/providers/QueryProvider';
 
 export default function App() {
   return (
-    <SafeAreaProvider>
-      <NavigationContainer>
-        <StatusBar style="light" />
-        <Stack.Navigator 
-          initialRouteName="Home" 
-          screenOptions={{
-            headerShown: false,
-            contentStyle: { backgroundColor: '#0A0400' }
-          }}
-        >
-          <Stack.Screen name="Home" component={AccueilBourseScreen} />
-          {/* D'autres écrans seront ajoutés ici */}
-        </Stack.Navigator>
-      </NavigationContainer>
-    </SafeAreaProvider>
+    <Provider store={store}>
+      <QueryProvider>
+        <SafeAreaProvider>
+          <View style={{ flex: 1 }} />
+        </SafeAreaProvider>
+      </QueryProvider>
+    </Provider>
   );
 } 

@@ -64,7 +64,7 @@ interface VideoStatus {
 }
 
 export default function CoursePage() {
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, from } = useLocalSearchParams<{ id: string; from?: 'catalogue' | 'quiz' }>();
   const router = useRouter();
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
@@ -432,7 +432,13 @@ export default function CoursePage() {
   // Gérer les retours en arrière
   const handleBackPress = () => {
     console.log('Retour à la page précédente');
-    router.back();
+    // Si on vient d'un quiz, rediriger vers la page appropriée sans recharger la page
+    if (from === 'quiz') {
+      router.replace('/(tabs)');
+    } else {
+      // Navigation normale vers la page précédente si ce n'est pas un quiz
+      router.back();
+    }
   };
 
   return (

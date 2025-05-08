@@ -11,6 +11,7 @@ import { iapService } from '../src/services/iap';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { useFonts } from 'expo-font';
 import * as SplashScreen from 'expo-splash-screen';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 // Ignorer des avertissements spécifiques pour éviter les erreurs dans la console
 LogBox.ignoreLogs([
@@ -21,6 +22,21 @@ LogBox.ignoreLogs([
 
 // Empêcher l'écran de démarrage de se cacher automatiquement
 SplashScreen.preventAutoHideAsync();
+
+// Créer un client TanStack Query pour toute l'application
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 1000 * 60 * 5, // 5 minutes
+      gcTime: 1000 * 60 * 60, // 1 heure (renommé de cacheTime à gcTime dans v4+)
+      retry: 2,
+      retryDelay: attemptIndex => Math.min(1000 * 2 ** attemptIndex, 30000),
+      refetchOnWindowFocus: false,
+      refetchOnMount: true,
+      refetchOnReconnect: true,
+    },
+  },
+});
 
 /**
  * Layout racine de l'application
@@ -176,9 +192,11 @@ export default function RootLayout() {
     <View style={{ flex: 1 }}>
       <Provider store={store}>
         <PersistGate loading={renderLoading()} persistor={persistor}>
-          <SafeAreaProvider>
-            <RootLayoutNav />
-          </SafeAreaProvider>
+          <QueryClientProvider client={queryClient}>
+            <SafeAreaProvider>
+              <RootLayoutNav />
+            </SafeAreaProvider>
+          </QueryClientProvider>
         </PersistGate>
       </Provider>
     </View>

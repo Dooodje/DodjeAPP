@@ -4,6 +4,7 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useAuth } from '../../src/hooks/useAuth';
+import { useQuizReward } from '../../src/hooks/useQuizReward';
 import { quizService } from '../../src/services/quiz';
 import { dodjiService } from '../../src/services/dodji';
 import { Quiz, Question, Answer } from '../../src/types/quiz';
@@ -136,6 +137,7 @@ export default function QuizPage() {
   const { id, parcoursId } = useLocalSearchParams<{ id: string; parcoursId: string }>();
   const router = useRouter();
   const { user } = useAuth();
+  const { checkIfClaimed } = useQuizReward(id);
   
   // États
   const [loading, setLoading] = useState(true);
@@ -170,7 +172,7 @@ export default function QuizPage() {
             Alert.alert(
               "Quiz non accessible",
               "Vous devez terminer toutes les vidéos du parcours pour accéder à ce quiz.",
-              [{ text: "OK", onPress: () => router.back() }]
+              [{ text: "OK", onPress: handleBackPress }]
             );
             return;
           }
@@ -179,7 +181,7 @@ export default function QuizPage() {
           Alert.alert(
             "Quiz non accessible",
             "Vous devez terminer toutes les vidéos du parcours pour accéder à ce quiz.",
-            [{ text: "OK", onPress: () => router.back() }]
+            [{ text: "OK", onPress: handleBackPress }]
           );
           return;
         }
@@ -250,11 +252,14 @@ export default function QuizPage() {
     loadQuiz();
   }, [id, user?.uid, router]);
   
-  // Gérer le retour
+  // Gérer les retours en arrière
   const handleBackPress = () => {
+    console.log('Retour à la page précédente');
     if (parcoursId) {
-      router.push(`/course/${parcoursId}` as any);
+      // Rediriger vers la page d'accueil au niveau du parcours
+      router.replace('/(tabs)');
     } else {
+      // Navigation normale vers la page précédente si pas de parcoursId
       router.back();
     }
   };
@@ -441,12 +446,20 @@ export default function QuizPage() {
         // Attribuer la récompense seulement si le quiz est réussi
         if (isPassed && rewardAmount > 0) {
           try {
-            await dodjiService.rewardQuizCompletion(user.uid, quiz.id, rewardAmount);
-            console.log(`Récompense de ${rewardAmount} Dodji attribuée pour le quiz ${quiz.id}`);
-            setHasEarnedReward(true);
+            // Vérifier si la récompense a déjà été attribuée
+            const isAlreadyClaimed = await checkIfClaimed();
             
-            setShowRewardMessage(true);
-            setTimeout(() => setShowRewardMessage(false), 3000);
+            if (!isAlreadyClaimed) {
+              await dodjiService.rewardQuizCompletion(user.uid, quiz.id, rewardAmount);
+              console.log(`Récompense de ${rewardAmount} Dodji attribuée pour le quiz ${quiz.id}`);
+              setHasEarnedReward(true);
+              
+              setShowRewardMessage(true);
+              setTimeout(() => setShowRewardMessage(false), 3000);
+            } else {
+              console.log('Récompense déjà attribuée pour ce quiz');
+              setHasEarnedReward(false);
+            }
           } catch (rewardError) {
             console.error("Erreur lors de l'attribution de récompense:", rewardError);
           }
@@ -604,23 +617,15 @@ export default function QuizPage() {
           
           <Text style={styles.resultDescription || styles.quizDescription}>
             {isPassed 
-              ? `Vous avez obtenu un score supérieur à ${passingScore}% et gagné ${rewardAmount} Dodji !` 
+              ? `Vous avez obtenu un score supérieur à ${passingScore}%${hasEarnedReward ? ` et gagné ${rewardAmount} Dodji !` : ' !'}` 
               : `Vous devez obtenir au moins ${passingScore}% pour réussir le quiz. N'hésitez pas à revoir le contenu du cours et à réessayer.`}
           </Text>
           
-          {isPassed && hasEarnedReward && (
+          {isPassed && hasEarnedReward && showRewardMessage && (
             <View style={styles.rewardContainer}>
               <MaterialIcons name="emoji-events" size={30} color="#FFC107" />
               <Text style={styles.rewardText}>
                 Vous avez gagné {rewardAmount} Dodji !
-              </Text>
-            </View>
-          )}
-          
-          {showRewardMessage && (
-            <View style={styles.rewardMessageContainer}>
-              <Text style={styles.rewardMessageText}>
-                +{rewardAmount} Dodji ajoutés à votre compte!
               </Text>
             </View>
           )}

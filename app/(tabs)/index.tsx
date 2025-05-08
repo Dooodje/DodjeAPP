@@ -1,7 +1,7 @@
 import React, { useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Dimensions } from 'react-native';
 import { useAuth } from '../../src/hooks/useAuth';
-import { useHome } from '../../src/hooks/useHome';
+import { useHomeOptimized } from '../../src/hooks/useHomeOptimized';
 import { Level, Section } from '../../src/types/home';
 import { router, useRouter } from 'expo-router';
 import TreeBackground from '../../src/components/home/TreeBackground';
@@ -9,6 +9,7 @@ import { GlobalHeader } from '../../src/components/ui/GlobalHeader';
 import { GestureHandlerRootView, Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, { useAnimatedStyle, withSpring, useSharedValue, runOnJS } from 'react-native-reanimated';
 import Svg, { Path, Circle } from 'react-native-svg';
+import { useQueryClient } from '@tanstack/react-query';
 
 const LEVELS: Level[] = ['Débutant', 'Avancé', 'Expert'];
 const { width } = Dimensions.get('window');
@@ -107,19 +108,23 @@ const PositionIndicators: React.FC<PositionIndicatorsProps> = ({ total, current 
 export default function HomeScreen() {
   const { user } = useAuth();
   const router = useRouter();
+  const queryClient = useQueryClient();
+  
+  // Utiliser le hook optimisé au lieu du hook standard
   const { 
     currentSection, 
     currentLevel, 
     homeDesign,
-    loading, 
+    isLoading: loading, 
     error,
     streak,
     dodji,
     changeSection,
     changeLevel,
     handlePositionPress,
-    fetchTreeData
-  } = useHome();
+    fetchTreeData,
+    prefetchNextLevelData
+  } = useHomeOptimized();
 
   // Animation pour le swipe
   const translateX = useSharedValue(0);
@@ -127,6 +132,21 @@ export default function HomeScreen() {
 
   // Obtenir l'index du niveau actuel
   const currentLevelIndex = LEVELS.indexOf(currentLevel);
+
+  // Précharger les données du niveau suivant et précédent
+  useEffect(() => {
+    // Précharger le niveau suivant si disponible
+    if (currentLevelIndex < LEVELS.length - 1) {
+      const nextLevel = LEVELS[currentLevelIndex + 1];
+      prefetchNextLevelData(nextLevel, currentSection);
+    }
+    
+    // Précharger le niveau précédent si disponible
+    if (currentLevelIndex > 0) {
+      const prevLevel = LEVELS[currentLevelIndex - 1];
+      prefetchNextLevelData(prevLevel, currentSection);
+    }
+  }, [currentLevel, currentSection, prefetchNextLevelData, currentLevelIndex]);
 
   // Gérer le changement de niveau avec animation
   const handleLevelChange = useCallback((direction: 'next' | 'prev') => {
@@ -141,9 +161,16 @@ export default function HomeScreen() {
       return;
     }
 
+    // Précharger davantage en fonction de la nouvelle direction
+    if (direction === 'next' && newIndex < LEVELS.length - 1) {
+      prefetchNextLevelData(LEVELS[newIndex + 1], currentSection);
+    } else if (direction === 'prev' && newIndex > 0) {
+      prefetchNextLevelData(LEVELS[newIndex - 1], currentSection);
+    }
+
     changeLevel(LEVELS[newIndex]);
     translateX.value = withSpring(0);
-  }, [currentLevel, changeLevel, translateX]);
+  }, [currentLevel, changeLevel, translateX, currentSection, prefetchNextLevelData]);
 
   // Configurer le geste de swipe
   const gesture = Gesture.Pan()
@@ -179,13 +206,18 @@ export default function HomeScreen() {
     };
   });
 
-  // Charger les données au premier rendu
+  // Charger les données au premier rendu avec moins d'appels
   useEffect(() => {
     fetchTreeData();
   }, [fetchTreeData]);
 
   // Fonction pour gérer le changement de section (Bourse/Crypto)
   const handleSectionChange = (section: Section) => {
+    // Précharger les données du nouveau section pour les différents niveaux
+    LEVELS.forEach(level => {
+      prefetchNextLevelData(level, section);
+    });
+    
     changeSection(section);
   };
 
@@ -196,8 +228,10 @@ export default function HomeScreen() {
 
   // Wrapper pour fetchTreeData qui ne prend pas de paramètres pour éviter l'erreur du linter
   const handleRetry = useCallback(() => {
+    // Invalider le cache pour forcer un rechargement frais
+    queryClient.invalidateQueries({ queryKey: ['homeDesign'] });
     fetchTreeData();
-  }, [fetchTreeData]);
+  }, [fetchTreeData, queryClient]);
 
   if (loading) {
     return (

@@ -14,7 +14,7 @@ const FeaturedBanner: React.FC<FeaturedBannerProps> = ({ parcours, onPress }) =>
   if (!parcours) return null;
   
   const handlePress = () => {
-    onPress(parcours.id);
+    onPress(parcours.id + '?from=catalogue');
   };
 
   return (

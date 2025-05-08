@@ -58,7 +58,7 @@ const CourseCard: React.FC<CourseCardProps> = ({ parcours, isLocked = false, onP
     if (onPress) {
       onPress();
     } else {
-      router.push(`/course/${parcours.id}`);
+      router.push(`/course/${parcours.id}?from=catalogue`);
     }
   };
 

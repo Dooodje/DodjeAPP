@@ -44,7 +44,7 @@ export default function CataloguePage() {
   };
 
   const handleCoursePress = (parcoursId: string) => {
-    router.push(`/course/${parcoursId}`);
+    router.push(`/course/${parcoursId}?from=catalogue`);
   };
 
   const handleBackPress = () => {

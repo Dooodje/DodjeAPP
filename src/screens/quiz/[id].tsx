@@ -10,7 +10,7 @@ import { LoadingSpinner } from '../../components/ui/LoadingSpinner';
 import MediaError from '../../components/ui/MediaError';
 
 export default function QuizScreen() {
-  const { id } = useLocalSearchParams();
+  const { id, parcoursId } = useLocalSearchParams<{ id: string; parcoursId: string }>();
   const router = useRouter();
   const {
     currentQuiz,
@@ -27,6 +27,14 @@ export default function QuizScreen() {
     submitQuiz,
     reset
   } = useQuiz(id as string, 'userId'); // TODO: Remplacer 'userId' par l'ID réel de l'utilisateur
+
+  const handleBack = () => {
+    if (parcoursId) {
+      router.push(`/course/${parcoursId}?from=quiz` as any);
+    } else {
+      router.back();
+    }
+  };
 
   if (isLoading) {
     return (
@@ -51,7 +59,7 @@ export default function QuizScreen() {
     <View style={styles.container}>
       <QuizHeader
         quiz={currentQuiz}
-        onBack={() => router.back()}
+        onBack={handleBack}
       />
 
       {!isShowingResults ? (
@@ -82,7 +90,7 @@ export default function QuizScreen() {
           score={score}
           answers={answers}
           onRetry={() => reset()}
-          onNext={() => router.back()}
+          onNext={handleBack}
         />
       )}
     </View>

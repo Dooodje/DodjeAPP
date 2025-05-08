@@ -67,7 +67,7 @@ export const NextVideo: React.FC<NextVideoProps> = ({
         alert("Ce quiz n'est pas encore accessible. Terminez toutes les vidéos du parcours pour le débloquer.");
         return;
       }
-      router.push(`/quiz/${quizId}`);
+      router.push(`/quiz/${quizId}?parcoursId=${courseId}` as any);
     };
 
     return (
