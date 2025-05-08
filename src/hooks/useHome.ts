@@ -16,6 +16,7 @@ import {
 import { useAuth } from './useAuth';
 import { Section, Level, Course, HomeDesign } from '../types/home';
 import { useDodji } from './useDodji';
+import { Alert } from 'react-native';
 
 // TreeData par défaut pour éviter l'erreur d'accès à indexOf
 const DEFAULT_TREE_DATA = {
@@ -158,12 +159,24 @@ export const useHome = () => {
         
         // Naviguer vers le parcours si l'ID est disponible
         if (parcours.id) {
-          // Vérifier si le parcours est bloqué (à implémenter plus tard)
+          // Vérifier si le parcours est bloqué
           const isBlocked = parcours.status === 'blocked';
           
           if (isBlocked) {
-            console.log(`Le parcours ${parcours.id} est bloqué, afficher modal de déblocage`);
-            // TODO: Afficher une modal pour débloquer le parcours
+            console.log(`Le parcours ${parcours.id} est verrouillé 🔒`);
+            Alert.alert(
+              "Parcours verrouillé 🔒",
+              "Ce parcours n'est pas encore disponible. Vous devez d'abord terminer les parcours précédents pour y accéder.",
+              [
+                {
+                  text: "Compris",
+                  style: "default"
+                }
+              ],
+              {
+                cancelable: true,
+              }
+            );
           } else {
             // Naviguer vers la page du parcours sans ajouter le paramètre from
             console.log(`Navigation vers le parcours: /course/${parcours.id}`);

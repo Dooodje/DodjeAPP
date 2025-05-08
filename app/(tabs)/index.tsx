@@ -1,11 +1,12 @@
 import React, { useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Dimensions, Alert } from 'react-native';
 import { useAuth } from '../../src/hooks/useAuth';
 import { useHomeOptimized } from '../../src/hooks/useHomeOptimized';
 import { Level, Section } from '../../src/types/home';
 import { router, useRouter } from 'expo-router';
 import TreeBackground from '../../src/components/home/TreeBackground';
 import { GlobalHeader } from '../../src/components/ui/GlobalHeader';
+import CustomModal from '../../src/components/ui/CustomModal';
 import { GestureHandlerRootView, Gesture, GestureDetector } from 'react-native-gesture-handler';
 import Animated, { useAnimatedStyle, withSpring, useSharedValue, runOnJS } from 'react-native-reanimated';
 import Svg, { Path, Circle } from 'react-native-svg';
@@ -123,7 +124,10 @@ export default function HomeScreen() {
     changeLevel,
     handlePositionPress,
     fetchTreeData,
-    prefetchNextLevelData
+    prefetchNextLevelData,
+    isModalVisible,
+    setIsModalVisible,
+    modalData
   } = useHomeOptimized();
 
   // Animation pour le swipe
@@ -221,8 +225,25 @@ export default function HomeScreen() {
     changeSection(section);
   };
 
-  // Fonction pour naviguer vers la page d'un parcours
+  // Naviguer vers la page d'un parcours
   const navigateToCourse = (courseId: string) => {
+    const parcoursStatus = homeDesign?.parcours?.[courseId]?.status;
+    if (parcoursStatus === 'blocked') {
+      Alert.alert(
+        "Parcours verrouillé 🔒",
+        "Ce parcours n'est pas encore disponible. Vous devez d'abord terminer les parcours précédents pour y accéder.",
+        [
+          {
+            text: "Compris",
+            style: "default"
+          }
+        ],
+        {
+          cancelable: true,
+        }
+      );
+      return;
+    }
     router.push(`/course/${courseId}`);
   };
 
@@ -255,6 +276,14 @@ export default function HomeScreen() {
 
   return (
     <GestureHandlerRootView style={styles.container}>
+      {/* Modal personnalisé */}
+      <CustomModal
+        visible={isModalVisible}
+        onClose={() => setIsModalVisible(false)}
+        title={modalData.title}
+        message={modalData.message}
+      />
+
       {/* Arbre de parcours avec le design dynamique */}
       <GestureDetector gesture={gesture}>
         <Animated.View style={[styles.treeContainer, animatedStyle]}>

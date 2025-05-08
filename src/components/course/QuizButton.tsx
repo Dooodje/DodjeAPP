@@ -4,6 +4,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { QuizOff } from '../QuizOff';
 import { useAuth } from '../../hooks/useAuth';
 import { QuizStatusService } from '../../services/businessLogic/QuizStatusService';
+import CustomModal from '../ui/CustomModal';
 
 // Constantes pour les dimensions
 const { width: screenWidth } = Dimensions.get('window');
@@ -30,6 +31,7 @@ const QuizButton: React.FC<QuizButtonProps> = ({
 }) => {
   const { user } = useAuth();
   const [quizStatus, setQuizStatus] = useState<'blocked' | 'unblocked' | 'completed'>('blocked');
+  const [isModalVisible, setIsModalVisible] = useState(false);
 
   useEffect(() => {
     const loadQuizStatus = async () => {
@@ -74,41 +76,57 @@ const QuizButton: React.FC<QuizButtonProps> = ({
   }, [id, positionX, positionY, imageWidth, imageHeight]);
 
   return (
-    <View style={[styles.container, position]}>
-      <TouchableOpacity
-        activeOpacity={0.7}
-        style={[
-          styles.buttonContent,
-          quizStatus === 'blocked' && styles.buttonBlocked
-        ]}
-        onPress={() => onPress(id)}
-      >
-        <View style={styles.glow} />
-        {quizStatus === 'blocked' ? (
-          <QuizOff width={40} height={40} />
-        ) : (
-          <MaterialIcons 
-            name={quizStatus === 'completed' ? "check-circle" : "help"} 
-            size={40} 
-            color="#000" 
-          />
-        )}
-      </TouchableOpacity>
-      
-      <View style={[
-        styles.labelContainer,
-        quizStatus === 'blocked' && styles.labelBlocked
-      ]}>
-        <Text style={styles.title}>{title}</Text>
-        <Text style={styles.subtitle}>
-          {quizStatus === 'blocked' 
-            ? 'Terminez les vidéos pour débloquer' 
-            : quizStatus === 'completed'
-            ? 'Quiz complété !'
-            : 'Testons vos connaissances !'}
-        </Text>
+    <>
+      <View style={[styles.container, position]}>
+        <TouchableOpacity
+          activeOpacity={0.7}
+          style={[
+            styles.buttonContent,
+            quizStatus === 'blocked' && styles.buttonBlocked
+          ]}
+          onPress={() => {
+            if (quizStatus === 'blocked') {
+              setIsModalVisible(true);
+            } else {
+              onPress(id);
+            }
+          }}
+        >
+          <View style={styles.glow} />
+          {quizStatus === 'blocked' ? (
+            <QuizOff width={40} height={40} />
+          ) : (
+            <MaterialIcons 
+              name={quizStatus === 'completed' ? "check-circle" : "help"} 
+              size={40} 
+              color="#000" 
+            />
+          )}
+        </TouchableOpacity>
+        
+        <View style={[
+          styles.labelContainer,
+          quizStatus === 'blocked' && styles.labelBlocked
+        ]}>
+          <Text style={styles.title}>{title}</Text>
+          <Text style={styles.subtitle}>
+            {quizStatus === 'blocked' 
+              ? 'Terminez les vidéos pour débloquer' 
+              : quizStatus === 'completed'
+              ? 'Quiz complété !'
+              : 'Testons vos connaissances !'}
+          </Text>
+        </View>
       </View>
-    </View>
+
+      <CustomModal
+        visible={isModalVisible}
+        onClose={() => setIsModalVisible(false)}
+        title="Quiz verrouillé 🔒"
+        message="Vous devez d'abord terminer toutes les vidéos du parcours pour accéder à ce quiz."
+        buttonText="Compris"
+      />
+    </>
   );
 };
 

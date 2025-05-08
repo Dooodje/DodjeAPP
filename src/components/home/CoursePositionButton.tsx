@@ -21,8 +21,17 @@ const CoursePositionButton: React.FC<CoursePositionButtonProps> = ({
   const handlePress = () => {
     if (parcours.status === 'blocked') {
       Alert.alert(
-        "Parcours bloqué",
-        "Vous devez d'abord terminer les parcours précédents pour accéder à celui-ci."
+        "Parcours verrouillé 🔒",
+        "Ce parcours n'est pas encore disponible. Vous devez d'abord terminer les parcours précédents pour y accéder.",
+        [
+          {
+            text: "Compris",
+            style: "default"
+          }
+        ],
+        {
+          cancelable: true,
+        }
       );
       return;
     }

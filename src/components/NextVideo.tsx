@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Image, Dimensions } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Video } from '../types/video';
 import { Ionicons } from '@expo/vector-icons';
@@ -9,6 +9,7 @@ import { db } from '../services/firebase';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useAuth } from '../hooks/useAuth';
 import { QuizStatus } from '../types/quiz';
+import CustomModal from './ui/CustomModal';
 
 interface NextVideoProps {
   video?: Video | null;
@@ -30,6 +31,7 @@ export const NextVideo: React.FC<NextVideoProps> = ({
   const [isLoading, setIsLoading] = useState(false);
   const [completionStatus, setCompletionStatus] = useState<'blocked' | 'unblocked' | 'completed'>('blocked');
   const [quizStatus, setQuizStatus] = useState<QuizStatus>('blocked');
+  const [isModalVisible, setIsModalVisible] = useState(false);
 
   // Si c'est la dernière vidéo et qu'il y a un quiz, on affiche le quiz
   if (isLastVideo && quizId) {
@@ -64,67 +66,76 @@ export const NextVideo: React.FC<NextVideoProps> = ({
 
     const handleQuizAccess = () => {
       if (quizStatus === 'blocked') {
-        alert("Ce quiz n'est pas encore accessible. Terminez toutes les vidéos du parcours pour le débloquer.");
+        setIsModalVisible(true);
         return;
       }
       router.push(`/quiz/${quizId}?parcoursId=${courseId}` as any);
     };
 
     return (
-      <View style={styles.container}>
-        <View style={styles.videoCard}>
-          {/* Layout horizontal avec icône à gauche et infos à droite */}
-          <View style={styles.contentRow}>
-            {/* Icône du quiz */}
-            <View style={styles.thumbnailContainer}>
-              <View style={styles.placeholderThumbnail}>
-                <MaterialCommunityIcons 
-                  name={quizStatus === 'blocked' ? "lock-outline" : "clipboard-text-outline"} 
-                  size={30} 
-                  color={quizStatus === 'blocked' ? "#666" : "#999"} 
-                />
+      <>
+        <View style={styles.container}>
+          <View style={styles.videoCard}>
+            {/* Layout horizontal avec icône à gauche et infos à droite */}
+            <View style={styles.contentRow}>
+              {/* Icône du quiz */}
+              <View style={styles.thumbnailContainer}>
+                <View style={styles.placeholderThumbnail}>
+                  <MaterialCommunityIcons 
+                    name={quizStatus === 'blocked' ? "lock-outline" : "clipboard-text-outline"} 
+                    size={30} 
+                    color={quizStatus === 'blocked' ? "#666" : "#999"} 
+                  />
+                </View>
+              </View>
+              
+              {/* Informations du quiz */}
+              <View style={styles.infoContainer}>
+                <Text style={styles.videoTitle} numberOfLines={2}>
+                  Quiz du parcours
+                </Text>
+                <Text style={[
+                  styles.videoDuration,
+                  quizStatus === 'completed' && { color: '#9BEC00' }
+                ]}>
+                  {quizStatus === 'completed' ? 'Terminé' : 
+                   quizStatus === 'unblocked' ? 'Évaluez vos connaissances' :
+                   'Terminez toutes les vidéos pour débloquer'}
+                </Text>
               </View>
             </View>
             
-            {/* Informations du quiz */}
-            <View style={styles.infoContainer}>
-              <Text style={styles.videoTitle} numberOfLines={2}>
-                Quiz du parcours
-              </Text>
+            {/* Bouton pour commencer le quiz */}
+            <TouchableOpacity 
+              style={[
+                styles.lectureButton, 
+                quizStatus === 'blocked' ? styles.lectureButtonDisabled : { backgroundColor: '#9BEC00' }
+              ]}
+              onPress={handleQuizAccess}
+            >
               <Text style={[
-                styles.videoDuration,
-                quizStatus === 'completed' && { color: '#9BEC00' }
+                styles.lectureButtonText, 
+                quizStatus === 'blocked' ? styles.lectureButtonTextDisabled : { color: '#000000' }
               ]}>
-                {quizStatus === 'completed' ? 'Terminé' : 
-                 quizStatus === 'unblocked' ? 'Évaluez vos connaissances' :
-                 'Terminez toutes les vidéos pour débloquer'}
+                {quizStatus === 'completed' ? 'REVOIR LE QUIZ' : 'COMMENCER LE QUIZ'}
               </Text>
-            </View>
+              <MaterialCommunityIcons 
+                name={quizStatus === 'completed' ? "clipboard-check-outline" : "clipboard-text-outline"} 
+                size={20} 
+                color={quizStatus === 'blocked' ? '#666666' : '#000000'} 
+              />
+            </TouchableOpacity>
           </View>
-          
-          {/* Bouton pour commencer le quiz */}
-          <TouchableOpacity 
-            style={[
-              styles.lectureButton, 
-              quizStatus === 'blocked' ? styles.lectureButtonDisabled : { backgroundColor: '#9BEC00' }
-            ]}
-            onPress={handleQuizAccess}
-            disabled={quizStatus === 'blocked'}
-          >
-            <Text style={[
-              styles.lectureButtonText, 
-              quizStatus === 'blocked' ? styles.lectureButtonTextDisabled : { color: '#000000' }
-            ]}>
-              {quizStatus === 'completed' ? 'REVOIR LE QUIZ' : 'COMMENCER LE QUIZ'}
-            </Text>
-            <MaterialCommunityIcons 
-              name={quizStatus === 'completed' ? "clipboard-check-outline" : "clipboard-text-outline"} 
-              size={20} 
-              color={quizStatus === 'blocked' ? '#666666' : '#000000'} 
-            />
-          </TouchableOpacity>
         </View>
-      </View>
+
+        <CustomModal
+          visible={isModalVisible}
+          onClose={() => setIsModalVisible(false)}
+          title="Quiz verrouillé 🔒"
+          message="Vous devez d'abord terminer toutes les vidéos du parcours pour accéder à ce quiz."
+          buttonText="Compris"
+        />
+      </>
     );
   }
 

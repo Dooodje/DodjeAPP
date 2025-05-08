@@ -1,10 +1,11 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Dimensions, Platform } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import VideoOn from '../../components/VideoOn';
 import VideoOff from '../../components/VideoOff';
 import VideoLock from '../../components/VideoLock';
 import LockMarron from '../../components/LockMarron';
+import CustomModal from '../ui/CustomModal';
 
 // Constantes pour les dimensions
 const { width: screenWidth } = Dimensions.get('window');
@@ -38,6 +39,8 @@ const VideoButton: React.FC<VideoButtonProps> = ({
   imageHeight,
   onPress
 }) => {
+  const [isModalVisible, setIsModalVisible] = useState(false);
+
   // Calculer la position absolue en pixels
   const position = useMemo(() => {
     // Valider les dimensions
@@ -100,30 +103,45 @@ const VideoButton: React.FC<VideoButtonProps> = ({
   }, [completionStatus]);
 
   return (
-    <TouchableOpacity
-      activeOpacity={0.7}
-      style={[styles.container, buttonStyle, position]}
-      onPress={() => onPress(id)}
-      disabled={completionStatus === 'blocked'}
-    >
-      {completionStatus === 'completed' ? (
-        <VideoOn width={DEFAULT_BUTTON_SIZE} height={DEFAULT_BUTTON_SIZE} />
-      ) : completionStatus === 'unblocked' ? (
-        <VideoOff width={DEFAULT_BUTTON_SIZE} height={DEFAULT_BUTTON_SIZE} />
-      ) : (
-        <View style={styles.blockedContainer}>
-          <VideoOff width={DEFAULT_BUTTON_SIZE} height={DEFAULT_BUTTON_SIZE} color="#7C6354" />
-          <View style={styles.vectorContainer}>
-            <LockMarron width={DEFAULT_BUTTON_SIZE * 0.55} height={DEFAULT_BUTTON_SIZE * 0.55} />
+    <>
+      <TouchableOpacity
+        activeOpacity={0.7}
+        style={[styles.container, buttonStyle, position]}
+        onPress={() => {
+          if (completionStatus === 'blocked') {
+            setIsModalVisible(true);
+          } else {
+            onPress(id);
+          }
+        }}
+      >
+        {completionStatus === 'completed' ? (
+          <VideoOn width={DEFAULT_BUTTON_SIZE} height={DEFAULT_BUTTON_SIZE} />
+        ) : completionStatus === 'unblocked' ? (
+          <VideoOff width={DEFAULT_BUTTON_SIZE} height={DEFAULT_BUTTON_SIZE} />
+        ) : (
+          <View style={styles.blockedContainer}>
+            <VideoOff width={DEFAULT_BUTTON_SIZE} height={DEFAULT_BUTTON_SIZE} color="#7C6354" />
+            <View style={styles.vectorContainer}>
+              <LockMarron width={DEFAULT_BUTTON_SIZE * 0.55} height={DEFAULT_BUTTON_SIZE * 0.55} />
+            </View>
           </View>
+        )}
+        <View style={styles.contentContainer}>
+          <Text style={styles.title} numberOfLines={2}>
+            {title}
+          </Text>
         </View>
-      )}
-      <View style={styles.contentContainer}>
-        <Text style={styles.title} numberOfLines={2}>
-          {title}
-        </Text>
-      </View>
-    </TouchableOpacity>
+      </TouchableOpacity>
+
+      <CustomModal
+        visible={isModalVisible}
+        onClose={() => setIsModalVisible(false)}
+        title="Vidéo verrouillée 🔒"
+        message="Vous devez d'abord terminer les vidéos précédentes pour accéder à celle-ci."
+        buttonText="Compris"
+      />
+    </>
   );
 };
 

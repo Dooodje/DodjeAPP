@@ -68,6 +68,13 @@ export const useHomeOptimized = () => {
     streak
   } = useAppSelector(state => state.home);
 
+  // État pour contrôler la visibilité du modal
+  const [isModalVisible, setIsModalVisible] = useState(false);
+  const [modalData, setModalData] = useState({
+    title: '',
+    message: ''
+  });
+
   // Sections et niveaux sécurisés avec valeurs par défaut
   const safeSection = currentSection || 'Bourse';
   const safeLevel = currentLevel || 'Débutant';
@@ -108,8 +115,12 @@ export const useHomeOptimized = () => {
           const isBlocked = parcours.status === 'blocked';
           
           if (isBlocked) {
-            console.log(`Le parcours ${parcours.id} est bloqué, afficher modal de déblocage`);
-            // TODO: Afficher une modal pour débloquer le parcours
+            console.log(`Le parcours ${parcours.id} est verrouillé 🔒`);
+            setModalData({
+              title: "Parcours verrouillé 🔒",
+              message: "Ce parcours n'est pas encore disponible. Vous devez d'abord terminer les parcours précédents pour y accéder."
+            });
+            setIsModalVisible(true);
           } else {
             // Naviguer vers la page du parcours
             router.push(`/course/${parcours.id}`);
@@ -172,6 +183,11 @@ export const useHomeOptimized = () => {
     lastViewedCourse,
     totalCompletedCourses: 0,
     totalProgress: 0,
+    
+    // État du modal
+    isModalVisible,
+    setIsModalVisible,
+    modalData,
     
     // Actions
     fetchTreeData: refetchHomeDesign,
