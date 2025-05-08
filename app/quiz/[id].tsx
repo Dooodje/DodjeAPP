@@ -16,13 +16,16 @@ import { ProgressionService } from '../../src/services/businessLogic/Progression
 console.log('Quiz page loaded - full implementation!');
 
 // Composant d'en-tête du quiz
-const QuizHeader = ({ title, onBack }: { title: string; onBack: () => void }) => (
+const QuizHeader = ({ onBack, questionNumber, totalQuestions }: { 
+  onBack: () => void;
+  questionNumber: number;
+  totalQuestions: number;
+}) => (
   <View style={styles.headerContainer}>
-    <TouchableOpacity style={styles.backButton} onPress={onBack}>
-      <MaterialIcons name="arrow-back" size={24} color="#FFFFFF" />
+    <Text style={styles.headerTitle}>Question {questionNumber}</Text>
+    <TouchableOpacity style={styles.closeButton} onPress={onBack}>
+      <MaterialIcons name="close" size={24} color="#FFFFFF" />
     </TouchableOpacity>
-    <Text style={styles.headerTitle}>{title}</Text>
-    <View style={styles.headerSpacer} />
   </View>
 );
 
@@ -41,6 +44,47 @@ const QuizProgress = ({ current, total }: { current: number; total: number }) =>
   </View>
 );
 
+// Composant pour le popup d'explication
+const ExplanationPopup = ({ 
+  isVisible, 
+  explanation, 
+  onClose,
+  isCorrect
+}: { 
+  isVisible: boolean; 
+  explanation: string;
+  onClose: () => void;
+  isCorrect: boolean;
+}) => {
+  if (!isVisible) return null;
+  
+  return (
+    <View style={styles.explanationOverlay}>
+      <View style={styles.explanationPopup}>
+        <View style={styles.explanationContent}>
+          <View style={[
+            styles.explanationHeader,
+            isCorrect ? styles.correctHeader : styles.incorrectHeader
+          ]}>
+            <MaterialIcons 
+              name={isCorrect ? "check-circle" : "close"} 
+              size={20} 
+              color={isCorrect ? "#06D001" : "#FF3B30"} 
+            />
+            <Text style={[
+              styles.explanationHeaderText,
+              isCorrect ? styles.correctHeaderText : styles.incorrectHeaderText
+            ]}>
+              {isCorrect ? "Bonne réponse" : "Mauvaise réponse"}
+            </Text>
+          </View>
+          <Text style={styles.explanationPopupText}>{explanation}</Text>
+        </View>
+      </View>
+    </View>
+  );
+};
+
 // Composant de réponse individuelle
 const AnswerOption = ({ 
   answer, 
@@ -53,75 +97,33 @@ const AnswerOption = ({
   showResult: boolean;
   onSelect: () => void; 
 }) => {
-  // Déterminer le style en fonction de l'état
-  let styleModifiers = {};
-  let textStyle = {};
-  
-  if (selected) {
-    styleModifiers = {
-      ...styleModifiers,
-      borderColor: '#06D001',
-      borderWidth: 2,
-      backgroundColor: 'rgba(6, 208, 1, 0.1)',
-    };
-    textStyle = {
-      ...textStyle,
-      color: '#FFFFFF',
-      fontWeight: 'bold',
-    };
-  }
-  
-  if (showResult) {
-    if (answer.isCorrect) {
-      styleModifiers = {
-        ...styleModifiers,
-        borderColor: '#06D001',
-        borderWidth: 2,
-        backgroundColor: 'rgba(6, 208, 1, 0.2)',
-      };
-      textStyle = {
-        ...textStyle,
-        color: '#06D001',
-        fontWeight: 'bold',
-      };
-    } else if (selected && !answer.isCorrect) {
-      styleModifiers = {
-        ...styleModifiers,
-        borderColor: '#FF3B30',
-        borderWidth: 2,
-        backgroundColor: 'rgba(255, 59, 48, 0.1)',
-      };
-      textStyle = {
-        ...textStyle,
-        color: '#FF3B30',
-        fontWeight: 'bold',
-      };
-    }
-  }
-  
   return (
     <TouchableOpacity 
-      style={[styles.answerContainer, styleModifiers]} 
+      style={[
+        styles.answerContainer,
+        selected && styles.selectedAnswer,
+        showResult && answer.isCorrect && styles.correctAnswer,
+        showResult && selected && !answer.isCorrect && styles.wrongAnswer
+      ]} 
       onPress={onSelect}
       disabled={showResult}
     >
-      <View style={styles.answerCheckbox}>
+      <View style={[
+        styles.answerCheckbox,
+        selected && styles.selectedCheckbox
+      ]}>
         {selected && (
-          <View style={{
-            width: 12,
-            height: 12,
-            backgroundColor: '#FFFFFF',
-            borderRadius: 6,
-          }} />
+          <View style={styles.checkboxInner} />
         )}
       </View>
-      <Text style={[styles.answerText, textStyle]}>{answer.text}</Text>
-      {showResult && answer.isCorrect && (
-        <MaterialIcons name="check-circle" size={20} color="#06D001" />
-      )}
-      {showResult && selected && !answer.isCorrect && (
-        <MaterialIcons name="cancel" size={20} color="#FF3B30" />
-      )}
+      <Text style={[
+        styles.answerText,
+        selected && styles.selectedAnswerText,
+        showResult && answer.isCorrect && styles.correctAnswerText,
+        showResult && selected && !answer.isCorrect && styles.wrongAnswerText
+      ]}>
+        {answer.text}
+      </Text>
     </TouchableOpacity>
   );
 };
@@ -254,14 +256,9 @@ export default function QuizPage() {
   
   // Gérer les retours en arrière
   const handleBackPress = () => {
-    console.log('Retour à la page précédente');
-    if (parcoursId) {
-      // Rediriger vers la page d'accueil au niveau du parcours
-      router.replace('/(tabs)');
-    } else {
-      // Navigation normale vers la page précédente si pas de parcoursId
-      router.back();
-    }
+    console.log('Fermeture du quiz');
+    // Utiliser la méthode dismiss pour fermer la modal
+    router.dismiss();
   };
   
   // Démarrer le quiz
@@ -494,28 +491,40 @@ export default function QuizPage() {
     
     return (
       <View style={styles.introContainer}>
-        <View style={styles.quizInfoCard}>
-          <MaterialIcons name="quiz" size={48} color="#FFC107" style={styles.quizIcon} />
+        <View style={styles.introHeader}>
+          <Text style={styles.introTitle}>Quiz</Text>
+          <TouchableOpacity style={styles.closeButton} onPress={handleBackPress}>
+            <MaterialIcons name="close" size={24} color="#FFFFFF" />
+          </TouchableOpacity>
+        </View>
+
+        <ScrollView style={styles.introContent}>
           <Text style={styles.quizTitle}>{quiz.titre || quiz.title}</Text>
+          
           <Text style={styles.quizDescription}>{quiz.description}</Text>
           
-          <View style={styles.infoRow}>
-            <MaterialIcons name="help" size={24} color="#FFFFFF" />
-            <Text style={styles.infoText}>{quiz.questions?.length || 0} questions</Text>
+          <View style={styles.infoContainer}>
+            <View style={styles.infoItem}>
+              <MaterialIcons name="help" size={20} color="#FFFFFF" />
+              <Text style={styles.infoText}>{quiz.questions?.length || 0} questions</Text>
+            </View>
+            
+            <View style={styles.infoItem}>
+              <MaterialIcons name="stars" size={20} color="#FFFFFF" />
+              <Text style={styles.infoText}>Seuil de réussite : 70%</Text>
+            </View>
+            
+            <View style={styles.infoItem}>
+              <MaterialIcons name="monetization-on" size={20} color="#06D001" />
+              <Text style={styles.infoText}>{quiz.tokenReward || quiz.dodjiReward || 0} Dodji à gagner</Text>
+            </View>
           </View>
-          
-          <View style={styles.infoRow}>
-            <MaterialIcons name="stars" size={24} color="#FFFFFF" />
-            <Text style={styles.infoText}>Seuil de réussite: 70%</Text>
-          </View>
-          
-          <View style={styles.infoRow}>
-            <MaterialIcons name="monetization-on" size={24} color="#06D001" />
-            <Text style={styles.infoText}>Récompense: {quiz.tokenReward || quiz.dodjiReward || 0} Dodji</Text>
-          </View>
-          
+        </ScrollView>
+
+        <View style={styles.introActionContainer}>
           <TouchableOpacity style={styles.startButton} onPress={startQuiz}>
             <Text style={styles.startButtonText}>Commencer le quiz</Text>
+            <MaterialIcons name="arrow-forward" size={20} color="#000000" />
           </TouchableOpacity>
         </View>
       </View>
@@ -528,6 +537,21 @@ export default function QuizPage() {
     
     const question = quiz.questions[currentQuestionIndex];
     if (!question) return null;
+
+    const hasSelectedAnswer = answers[question.id]?.length > 0;
+    const isMultipleChoice = question.type === 'multiple';
+    
+    // Vérifier si la réponse est correcte
+    const isAnswerCorrect = () => {
+      const userAnswers = answers[question.id] || [];
+      const correctAnswers = question.answers
+        .filter(answer => answer.isCorrect)
+        .map(answer => answer.id);
+      
+      return correctAnswers.length > 0 && 
+             userAnswers.length === correctAnswers.length &&
+             correctAnswers.every(id => userAnswers.includes(id));
+    };
     
     return (
       <View style={styles.questionContainer}>
@@ -537,10 +561,12 @@ export default function QuizPage() {
         />
         
         <ScrollView style={styles.questionScroll}>
-          <Text style={styles.questionTitle}>
-            Question {currentQuestionIndex + 1}
-          </Text>
-          <Text style={styles.questionText}>{question.text || `Question ${currentQuestionIndex + 1}`}</Text>
+          <Text style={styles.questionText}>{question.text}</Text>
+          {isMultipleChoice && (
+            <Text style={styles.multipleChoiceText}>
+              Il peut y avoir une ou plusieurs réponse(s) correcte(s)
+            </Text>
+          )}
           
           <View style={styles.answersContainer}>
             {question.answers && Array.isArray(question.answers) && question.answers.map(answer => (
@@ -553,34 +579,40 @@ export default function QuizPage() {
               />
             ))}
           </View>
-          
-          {showAnswer && question.explanation && (
-            <View style={styles.explanationContainer}>
-              <MaterialIcons name="info-outline" size={20} color="#06D001" />
-              <Text style={styles.explanationText}>{question.explanation}</Text>
-            </View>
-          )}
         </ScrollView>
+        
+        <ExplanationPopup 
+          isVisible={showAnswer}
+          explanation={question.explanation || ""}
+          onClose={nextQuestion}
+          isCorrect={isAnswerCorrect()}
+        />
         
         <View style={styles.actionContainer}>
           {!showAnswer ? (
             <TouchableOpacity 
-              style={styles.validateButton} 
+              style={[
+                styles.validateButton,
+                hasSelectedAnswer ? styles.validateButtonActive : styles.validateButtonInactive
+              ]} 
               onPress={validateAnswer}
             >
-              <Text style={styles.validateButtonText}>Valider</Text>
+              <Text style={[
+                styles.validateButtonText,
+                hasSelectedAnswer ? styles.validateButtonTextActive : styles.validateButtonTextInactive
+              ]}>Réponse</Text>
             </TouchableOpacity>
           ) : (
             <TouchableOpacity 
-              style={styles.nextButton} 
+              style={styles.nextQuestionButton} 
               onPress={nextQuestion}
             >
-              <Text style={styles.nextButtonText}>
-                {currentQuestionIndex < (quiz.questions.length - 1) 
+              <Text style={styles.nextQuestionButtonText}>
+                {currentQuestionIndex < quiz.questions.length - 1 
                   ? "Question suivante" 
                   : "Voir les résultats"}
               </Text>
-              <MaterialIcons name="arrow-forward" size={20} color="#000000" />
+              <MaterialIcons name="arrow-forward" size={16} color="#000000" />
             </TouchableOpacity>
           )}
         </View>
@@ -600,53 +632,76 @@ export default function QuizPage() {
     
     return (
       <View style={styles.resultContainer}>
-        <View style={styles.resultCard}>
-          <MaterialIcons 
-            name={isPassed ? "check-circle" : "cancel"} 
-            size={60} 
-            color={isPassed ? "#4CAF50" : "#F44336"} 
-          />
-          
-          <Text style={styles.resultTitle}>
-            {isPassed ? "Félicitations !" : "Essayez encore !"}
-          </Text>
-          
-          <Text style={styles.scoreText}>
-            Score: {score}/{totalPoints} ({Math.round(scorePercentage)}%)
-          </Text>
-          
-          <Text style={styles.resultDescription || styles.quizDescription}>
-            {isPassed 
-              ? `Vous avez obtenu un score supérieur à ${passingScore}%${hasEarnedReward ? ` et gagné ${rewardAmount} Dodji !` : ' !'}` 
-              : `Vous devez obtenir au moins ${passingScore}% pour réussir le quiz. N'hésitez pas à revoir le contenu du cours et à réessayer.`}
-          </Text>
-          
-          {isPassed && hasEarnedReward && showRewardMessage && (
-            <View style={styles.rewardContainer}>
-              <MaterialIcons name="emoji-events" size={30} color="#FFC107" />
-              <Text style={styles.rewardText}>
-                Vous avez gagné {rewardAmount} Dodji !
-              </Text>
-            </View>
-          )}
-          
-          <View style={styles.resultButtonsContainer}>
-            <TouchableOpacity 
-              style={[styles.resultButton, styles.retryButton]} 
-              onPress={retryQuiz}
-            >
-              <MaterialIcons name="replay" size={20} color="#FFFFFF" />
-              <Text style={styles.retryButtonText}>Recommencer</Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity 
-              style={[styles.resultButton, styles.continueButton]} 
-              onPress={handleBackPress}
-            >
-              <Text style={styles.continueButtonText}>Quitter</Text>
-              <MaterialIcons name="exit-to-app" size={20} color="#000000" />
-            </TouchableOpacity>
+        <View style={styles.introHeader}>
+          <Text style={styles.introTitle}>Résultats</Text>
+          <TouchableOpacity style={styles.closeButton} onPress={handleBackPress}>
+            <MaterialIcons name="close" size={24} color="#FFFFFF" />
+          </TouchableOpacity>
+        </View>
+
+        <ScrollView style={styles.resultContent}>
+          <View style={[
+            styles.resultStatusContainer,
+            isPassed ? styles.resultStatusSuccess : styles.resultStatusFail
+          ]}>
+            <MaterialIcons 
+              name={isPassed ? "check-circle" : "cancel"} 
+              size={40} 
+              color={isPassed ? "#06D001" : "#FF3B30"} 
+            />
+            <Text style={[
+              styles.resultStatusText,
+              isPassed ? styles.resultStatusTextSuccess : styles.resultStatusTextFail
+            ]}>
+              {isPassed ? "Quiz réussi !" : "Quiz échoué"}
+            </Text>
           </View>
+
+          <View style={styles.scoreContainer}>
+            <Text style={styles.scoreLabel}>Votre score</Text>
+            <Text style={styles.scoreValue}>
+              {score}/{totalPoints}
+            </Text>
+            <Text style={styles.scorePercentage}>
+              {Math.round(scorePercentage)}%
+            </Text>
+          </View>
+
+          <View style={styles.resultInfoContainer}>
+            <Text style={styles.resultMessage}>
+              {isPassed 
+                ? `Félicitations ! Vous avez obtenu un score supérieur à ${passingScore}%${hasEarnedReward ? ` et gagné ${rewardAmount} Dodji !` : ' !'}`
+                : `Vous devez obtenir au moins ${passingScore}% pour réussir le quiz. N'hésitez pas à revoir le contenu du cours et à réessayer.`
+              }
+            </Text>
+
+            {isPassed && hasEarnedReward && (
+              <View style={styles.rewardInfoContainer}>
+                <MaterialIcons name="emoji-events" size={24} color="#06D001" />
+                <Text style={styles.rewardInfoText}>
+                  +{rewardAmount} Dodji
+                </Text>
+              </View>
+            )}
+          </View>
+        </ScrollView>
+
+        <View style={styles.resultActionsContainer}>
+          <TouchableOpacity 
+            style={styles.retryButton} 
+            onPress={retryQuiz}
+          >
+            <MaterialIcons name="replay" size={20} color="#FFFFFF" />
+            <Text style={styles.retryButtonText}>Réessayer</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity 
+            style={styles.quitButton} 
+            onPress={handleBackPress}
+          >
+            <Text style={styles.quitButtonText}>Quitter</Text>
+            <MaterialIcons name="arrow-forward" size={20} color="#000000" />
+          </TouchableOpacity>
         </View>
       </View>
     );
@@ -655,10 +710,13 @@ export default function QuizPage() {
   return (
     <>
       <SafeAreaView style={styles.container} edges={['top', 'right', 'left']}>
-        <QuizHeader 
-          title={quiz?.titre || quiz?.title || "Quiz"} 
-          onBack={handleBackPress} 
-        />
+        {currentState === QuizState.QUESTION && (
+          <QuizHeader 
+            onBack={handleBackPress}
+            questionNumber={currentQuestionIndex + 1}
+            totalQuestions={quiz?.questions?.length || 0}
+          />
+        )}
         
         {loading ? (
           <View style={styles.loaderContainer}>
@@ -685,26 +743,19 @@ const styles = StyleSheet.create({
   headerContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: 'rgba(0, 0, 0, 0.3)',
-    zIndex: 10,
-  },
-  backButton: {
-    marginRight: 16,
-    padding: 8,
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    backgroundColor: '#0A0400',
   },
   headerTitle: {
+    fontSize: 50,
+    fontFamily: 'Arboria-Bold',
     color: '#FFFFFF',
-    fontSize: 20,
-    fontWeight: 'bold',
-    flex: 1,
-    textShadowColor: 'rgba(0, 0, 0, 0.9)',
-    textShadowOffset: { width: 1, height: 1 },
-    textShadowRadius: 5,
+    letterSpacing: -2.5,
   },
-  headerSpacer: {
-    width: 40,
+  closeButton: {
+    padding: 8,
   },
   loaderContainer: {
     flex: 1,
@@ -717,67 +768,75 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
   
-  // Styles pour l'écran d'introduction
   introContainer: {
     flex: 1,
-    justifyContent: 'center',
+    backgroundColor: '#0A0400',
+  },
+  introHeader: {
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+  },
+  introTitle: {
+    fontSize: 50,
+    fontFamily: 'Arboria-Bold',
+    color: '#FFFFFF',
+    letterSpacing: -2.5,
+  },
+  introContent: {
+    flex: 1,
     padding: 20,
-  },
-  quizInfoCard: {
-    backgroundColor: 'rgba(20, 20, 20, 0.7)',
-    borderRadius: 12,
-    padding: 24,
-    width: '100%',
-    maxWidth: 500,
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.6,
-    shadowRadius: 5,
-    elevation: 8,
-    borderWidth: 1,
-    borderColor: 'rgba(255, 193, 7, 0.3)',
-  },
-  quizIcon: {
-    marginBottom: 16,
   },
   quizTitle: {
     color: '#FFFFFF',
-    fontSize: 24,
-    fontWeight: 'bold',
+    fontSize: 40,
+    fontFamily: 'Arboria-Bold',
     marginBottom: 16,
-    textAlign: 'center',
+    letterSpacing: -1,
   },
   quizDescription: {
-    color: '#CCCCCC',
-    fontSize: 16,
-    marginBottom: 24,
-    textAlign: 'center',
-    lineHeight: 24,
+    color: '#FFFFFF',
+    fontSize: 22,
+    lineHeight: 28,
+    fontFamily: 'Arboria-Medium',
+    marginBottom: 32,
+    opacity: 0.8,
   },
-  infoRow: {
+  infoContainer: {
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderRadius: 15,
+    padding: 20,
+    gap: 16,
+  },
+  infoItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginVertical: 8,
-    width: '100%',
+    gap: 12,
   },
   infoText: {
     color: '#FFFFFF',
-    fontSize: 16,
-    marginLeft: 12,
+    fontSize: 18,
+    fontFamily: 'Arboria-Medium',
+  },
+  introActionContainer: {
+    padding: 20,
+    paddingBottom: 34,
   },
   startButton: {
-    backgroundColor: '#06D001',
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 24,
-    marginTop: 24,
+    backgroundColor: '#FFFFFF',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 16,
+    borderRadius: 50,
+    gap: 8,
   },
   startButtonText: {
     color: '#000000',
-    fontSize: 16,
-    fontWeight: 'bold',
+    fontSize: 15,
+    fontFamily: 'Arboria-Bold',
   },
   
   // Styles pour la progression
@@ -808,297 +867,325 @@ const styles = StyleSheet.create({
   // Styles pour les questions
   questionContainer: {
     flex: 1,
-    display: 'flex',
-    flexDirection: 'column',
+    backgroundColor: '#0A0400',
   },
   questionScroll: {
     flex: 1,
-    padding: 16,
-  },
-  questionTitle: {
-    color: '#06D001',
-    fontSize: 18,
-    fontWeight: 'bold',
-    marginBottom: 8,
+    padding: 20,
+    paddingBottom: 100,
   },
   questionText: {
+    fontSize: 40,
+    fontFamily: 'Arboria-Bold',
     color: '#FFFFFF',
-    fontSize: 20,
-    fontWeight: 'bold',
+    marginBottom: 12,
+    letterSpacing: -1,
+  },
+  multipleChoiceText: {
+    fontSize: 11,
+    fontFamily: 'Arboria-Bold',
+    color: '#0A0400',
     marginBottom: 24,
-    lineHeight: 28,
+    backgroundColor: '#FFFFFF',
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 15,
+    overflow: 'hidden',
+    textAlign: 'center',
+    alignSelf: 'stretch',
   },
   answersContainer: {
-    marginTop: 8,
-    marginBottom: 16,
+    gap: 10,
+    padding: 10,
+    marginBottom: 0,
   },
   answerContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 16,
-    backgroundColor: 'rgba(0, 0, 0, 0.3)',
-    borderRadius: 8,
+    padding: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderRadius: 15,
+    gap: 24,
+  },
+  selectedAnswer: {
+    backgroundColor: 'rgba(6, 208, 1, 0.1)',
+    borderColor: '#06D001',
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.1)',
-    marginBottom: 12,
   },
   answerCheckbox: {
     width: 24,
     height: 24,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-  },
-  answerCheckboxEmpty: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
+    borderRadius: 12,
     borderWidth: 2,
-    borderColor: 'rgba(255, 255, 255, 0.4)',
-  },
-  answerText: {
-    flex: 1,
-    color: '#FFFFFF',
-    fontSize: 16,
-    lineHeight: 22,
-  },
-  answerOptionText: {
-    flex: 1,
-    color: '#FFFFFF',
-    fontSize: 16,
-    lineHeight: 22,
-  },
-  selectedAnswer: {
-    borderColor: '#06D001',
-    borderWidth: 2,
-    backgroundColor: 'rgba(6, 208, 1, 0.1)',
-  },
-  correctAnswer: {
-    borderColor: '#06D001',
-    borderWidth: 2,
-    backgroundColor: 'rgba(6, 208, 1, 0.2)',
-  },
-  wrongAnswer: {
-    borderColor: '#FF3B30',
-    borderWidth: 2,
-    backgroundColor: 'rgba(255, 59, 48, 0.1)',
-  },
-  disabledAnswer: {
-    opacity: 0.8,
-  },
-  selectedAnswerText: {
-    color: '#FFFFFF',
-    fontWeight: 'bold',
-    fontSize: 16,
-    lineHeight: 22,
-    flex: 1,
-  },
-  correctAnswerText: {
-    color: '#06D001',
-    fontWeight: 'bold',
-    fontSize: 16,
-    lineHeight: 22,
-    flex: 1,
-  },
-  wrongAnswerText: {
-    color: '#FF3B30',
-    fontWeight: 'bold',
-    fontSize: 16,
-    lineHeight: 22,
-    flex: 1,
-  },
-  checkboxContainer: {
-    width: 20,
-    height: 20,
-    borderWidth: 2,
-    borderColor: 'rgba(255, 255, 255, 0.4)',
-    borderRadius: 4,
-    marginRight: 12,
+    borderColor: '#FFFFFF',
     justifyContent: 'center',
     alignItems: 'center',
   },
-  checkboxSelected: {
+  selectedCheckbox: {
+    borderColor: '#06D001',
     backgroundColor: '#06D001',
-    borderColor: '#06D001',
-  },
-  checkboxCorrect: {
-    borderColor: '#06D001',
-  },
-  checkboxWrong: {
-    borderColor: '#FF3B30',
   },
   checkboxInner: {
     width: 12,
     height: 12,
     backgroundColor: '#FFFFFF',
-    borderRadius: 2,
+    borderRadius: 6,
   },
-  explanationContainer: {
-    backgroundColor: 'rgba(6, 208, 1, 0.1)',
-    borderRadius: 8,
-    padding: 16,
-    marginTop: 16,
-    marginBottom: 16,
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    borderLeftWidth: 3,
-    borderLeftColor: '#06D001',
-  },
-  explanationText: {
+  answerText: {
     flex: 1,
+    fontSize: 20,
+    fontFamily: 'Arboria-Medium',
     color: '#FFFFFF',
-    fontSize: 14,
-    lineHeight: 20,
-    marginLeft: 8,
+  },
+  selectedAnswerText: {
+    color: '#FFFFFF',
+  },
+  correctAnswer: {
+    backgroundColor: 'rgba(6, 208, 1, 0.1)',
+    borderColor: '#06D001',
+    borderWidth: 1,
+  },
+  wrongAnswer: {
+    backgroundColor: 'rgba(255, 59, 48, 0.1)',
+    borderColor: '#FF3B30',
+    borderWidth: 1,
+  },
+  correctAnswerText: {
+    color: '#06D001',
+  },
+  wrongAnswerText: {
+    color: '#FF3B30',
   },
   actionContainer: {
-    padding: 16,
-    backgroundColor: 'rgba(0, 0, 0, 0.2)',
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255, 255, 255, 0.05)',
+    paddingHorizontal: 20,
+    position: 'absolute',
+    bottom: 100,
+    left: 0,
+    right: 0,
   },
   validateButton: {
-    backgroundColor: '#06D001',
-    paddingHorizontal: 24,
-    paddingVertical: 14,
-    borderRadius: 24,
+    paddingVertical: 16,
+    borderRadius: 50,
     alignItems: 'center',
   },
-  validateButtonText: {
-    color: '#000000',
-    fontSize: 16,
-    fontWeight: 'bold',
+  validateButtonActive: {
+    backgroundColor: '#06D001',
   },
-  nextButton: {
-    backgroundColor: '#FFC107',
-    paddingHorizontal: 24,
-    paddingVertical: 14,
-    borderRadius: 24,
+  validateButtonInactive: {
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  validateButtonText: {
+    fontSize: 15,
+    fontFamily: 'Arboria-Bold',
+  },
+  validateButtonTextActive: {
+    color: '#000000',
+  },
+  validateButtonTextInactive: {
+    color: '#FFFFFF',
+  },
+  nextQuestionButton: {
+    backgroundColor: '#FFFFFF',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    padding: 16,
+    borderRadius: 50,
+    gap: 8,
   },
-  nextButtonText: {
+  nextQuestionButtonText: {
     color: '#000000',
-    fontSize: 16,
-    fontWeight: 'bold',
-    marginRight: 8,
+    fontSize: 15,
+    fontFamily: 'Arboria-Bold',
   },
   
   // Styles pour les résultats
   resultContainer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: '#0A0400',
+  },
+  resultContent: {
+    flex: 1,
     padding: 20,
   },
-  resultCard: {
-    backgroundColor: 'rgba(20, 20, 20, 0.7)',
-    borderRadius: 12,
-    padding: 24,
-    width: '100%',
-    maxWidth: 500,
+  resultStatusContainer: {
+    flexDirection: 'row',
     alignItems: 'center',
+    gap: 12,
+    padding: 20,
+    borderRadius: 15,
+    marginBottom: 32,
   },
-  resultIcon: {
-    marginBottom: 16,
+  resultStatusSuccess: {
+    backgroundColor: 'rgba(6, 208, 1, 0.1)',
+    borderLeftWidth: 3,
+    borderLeftColor: '#06D001',
   },
-  resultTitle: {
+  resultStatusFail: {
+    backgroundColor: 'rgba(255, 59, 48, 0.1)',
+    borderLeftWidth: 3,
+    borderLeftColor: '#FF3B30',
+  },
+  resultStatusText: {
+    fontSize: 24,
+    fontFamily: 'Arboria-Bold',
+  },
+  resultStatusTextSuccess: {
+    color: '#06D001',
+  },
+  resultStatusTextFail: {
+    color: '#FF3B30',
+  },
+  scoreContainer: {
+    alignItems: 'center',
+    marginBottom: 32,
+  },
+  scoreLabel: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontFamily: 'Arboria-Medium',
+    opacity: 0.8,
+    marginBottom: 8,
+  },
+  scoreValue: {
+    color: '#FFFFFF',
+    fontSize: 50,
+    fontFamily: 'Arboria-Bold',
+    letterSpacing: -2.5,
+  },
+  scorePercentage: {
     color: '#FFFFFF',
     fontSize: 24,
-    fontWeight: 'bold',
-    marginBottom: 8,
-    textAlign: 'center',
+    fontFamily: 'Arboria-Bold',
+    opacity: 0.8,
   },
-  scoreText: {
-    color: '#06D001',
-    fontSize: 28,
-    fontWeight: 'bold',
+  resultInfoContainer: {
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderRadius: 15,
+    padding: 20,
+  },
+  resultMessage: {
+    color: '#FFFFFF',
+    fontSize: 22,
+    lineHeight: 28,
+    fontFamily: 'Arboria-Medium',
     marginBottom: 16,
   },
-  resultDescription: {
-    color: '#CCCCCC',
-    fontSize: 16,
-    marginBottom: 24,
-    textAlign: 'center',
-    lineHeight: 24,
-  },
-  resultButtonsContainer: {
+  rewardInfoContainer: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    width: '100%',
-  },
-  resultButton: {
-    flex: 1,
-    paddingVertical: 12,
-    borderRadius: 24,
     alignItems: 'center',
-    marginHorizontal: 8,
-    flexDirection: 'row',
-    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: 'rgba(6, 208, 1, 0.1)',
+    padding: 12,
+    borderRadius: 12,
+    alignSelf: 'flex-start',
+  },
+  rewardInfoText: {
+    color: '#06D001',
+    fontSize: 18,
+    fontFamily: 'Arboria-Bold',
+  },
+  resultActionsContainer: {
+    padding: 20,
+    paddingBottom: 34,
+    gap: 12,
   },
   retryButton: {
     backgroundColor: 'rgba(255, 255, 255, 0.1)',
-  },
-  retryButtonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: 'bold',
-    marginLeft: 8,
-  },
-  continueButton: {
-    backgroundColor: '#FFC107',
-  },
-  continueButtonText: {
-    color: '#000000',
-    fontSize: 16,
-    fontWeight: 'bold',
-    marginRight: 8,
-  },
-  rewardContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    padding: 15,
-    borderRadius: 10,
-    marginVertical: 15,
-  },
-  rewardText: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
-    marginLeft: 10,
-  },
-  rewardMessageContainer: {
-    position: 'absolute',
-    top: 40,
-    backgroundColor: 'rgba(6, 208, 1, 0.8)',
-    padding: 15,
-    borderRadius: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
-  },
-  rewardMessageText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  finishButton: {
-    backgroundColor: '#FFC107',
-    paddingHorizontal: 24,
-    paddingVertical: 14,
-    borderRadius: 24,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    padding: 16,
+    borderRadius: 50,
+    gap: 8,
   },
-  finishButtonText: {
+  retryButtonText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontFamily: 'Arboria-Bold',
+  },
+  quitButton: {
+    backgroundColor: '#FFFFFF',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 16,
+    borderRadius: 50,
+    gap: 8,
+  },
+  quitButtonText: {
     color: '#000000',
-    fontSize: 16,
-    fontWeight: 'bold',
-    marginRight: 8,
+    fontSize: 15,
+    fontFamily: 'Arboria-Bold',
+  },
+  explanationOverlay: {
+    position: 'absolute',
+    bottom: 160,
+    left: 0,
+    right: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'flex-end',
+  },
+  explanationPopup: {
+    backgroundColor: '#0A0400',
+    borderRadius: 20,
+    paddingVertical: 20,
+    paddingHorizontal: 20,
+    margin: 20,
+    minHeight: 100,
+    maxHeight: '50%',
+  },
+  explanationContent: {
+    gap: 12,
+  },
+  explanationHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    marginBottom: 16,
+  },
+  correctHeader: {
+    backgroundColor: 'rgba(6, 208, 1, 0.1)',
+    borderLeftWidth: 3,
+    borderLeftColor: '#06D001',
+  },
+  incorrectHeader: {
+    backgroundColor: 'rgba(255, 59, 48, 0.1)',
+    borderLeftWidth: 3,
+    borderLeftColor: '#FF3B30',
+  },
+  explanationHeaderText: {
+    fontSize: 15,
+    fontFamily: 'Arboria-Medium',
+  },
+  correctHeaderText: {
+    color: '#06D001',
+  },
+  incorrectHeaderText: {
+    color: '#FF3B30',
+  },
+  explanationPopupText: {
+    color: '#FFFFFF',
+    fontSize: 22,
+    lineHeight: 28,
+    fontFamily: 'Arboria-Medium',
+  },
+  explanationCloseButton: {
+    backgroundColor: '#FFFFFF',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 16,
+    borderRadius: 50,
+    gap: 8,
+    marginTop: 20,
+  },
+  explanationCloseButtonText: {
+    color: '#000000',
+    fontSize: 15,
+    fontFamily: 'Arboria-Bold',
   },
 }); 

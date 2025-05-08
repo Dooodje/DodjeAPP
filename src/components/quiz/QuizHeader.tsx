@@ -1,6 +1,6 @@
 import React from 'react';
-import { View, StyleSheet, Text, TouchableOpacity } from 'react-native';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { MaterialIcons } from '@expo/vector-icons';
 import { QuizHeaderProps } from '../../types/quiz';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -10,7 +10,7 @@ export const QuizHeader: React.FC<QuizHeaderProps> = ({ quiz, onBack }) => {
   return (
     <View style={[styles.container, { paddingTop: Math.max(16, insets.top) }]}>
       <TouchableOpacity onPress={onBack} style={styles.backButton}>
-        <MaterialCommunityIcons name="arrow-left" size={24} color="#fff" />
+        <MaterialIcons name="arrow-back" size={24} color="#FFFFFF" />
       </TouchableOpacity>
 
       <View style={styles.content}>
@@ -19,21 +19,21 @@ export const QuizHeader: React.FC<QuizHeaderProps> = ({ quiz, onBack }) => {
         
         <View style={styles.infoContainer}>
           <View style={styles.infoItem}>
-            <MaterialCommunityIcons name="clock-outline" size={16} color="#fff" />
+            <MaterialIcons name="access-time" size={16} color="#fff" />
             <Text style={styles.infoText}>
               {quiz.timeLimit ? `${quiz.timeLimit} min` : 'Sans limite'}
             </Text>
           </View>
           
           <View style={styles.infoItem}>
-            <MaterialCommunityIcons name="star-outline" size={16} color="#fff" />
+            <MaterialIcons name="star" size={16} color="#fff" />
             <Text style={styles.infoText}>
               {quiz.totalPoints} points
             </Text>
           </View>
           
           <View style={styles.infoItem}>
-            <MaterialCommunityIcons name="currency-dodji" size={16} color="#06D001" />
+            <MaterialIcons name="currency-rupee" size={16} color="#06D001" />
             <Text style={[styles.infoText, styles.dodjiText]}>
               {quiz.dodjiReward} Dodji
             </Text>
@@ -46,7 +46,7 @@ export const QuizHeader: React.FC<QuizHeaderProps> = ({ quiz, onBack }) => {
             quiz.status === 'completed' && styles.completedBadge,
             quiz.status === 'locked' && styles.lockedBadge
           ]}>
-            <MaterialCommunityIcons
+            <MaterialIcons
               name={
                 quiz.status === 'completed' ? 'check-circle' :
                 quiz.status === 'locked' ? 'lock' : 'lock-open'
@@ -67,21 +67,22 @@ export const QuizHeader: React.FC<QuizHeaderProps> = ({ quiz, onBack }) => {
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: '#1A1A1A',
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#2A2A2A',
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    backgroundColor: '#0A0400',
   },
   backButton: {
-    marginBottom: 16,
+    marginRight: 16,
   },
   content: {
     gap: 8,
   },
   title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#fff',
+    fontSize: 20,
+    fontFamily: 'Arboria-Medium',
+    color: '#FFFFFF',
   },
   description: {
     fontSize: 16,
