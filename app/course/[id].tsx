@@ -14,6 +14,7 @@ import { QuizStatusService } from '../../src/services/businessLogic/QuizStatusSe
 import { collection, getDocs } from 'firebase/firestore';
 import { db } from '../../src/services/firebase';
 import { Rectangle11 } from '../../src/components/Rectangle11';
+import ParcoursLockedModal from '../../src/components/ui/ParcoursLockedModal';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 
@@ -74,6 +75,7 @@ export default function CoursePage() {
   const [videoStatus, setVideoStatus] = useState<VideoStatus>({});
   const [imageDimensions, setImageDimensions] = useState({ width: screenWidth, height: screenHeight });
   const [parcoursStatus, setParcoursStatus] = useState<'blocked' | 'unblocked' | 'in_progress' | 'completed' | null>(null);
+  const [isModalVisible, setIsModalVisible] = useState(false);
   
   // Référence pour stocker la fonction de désabonnement
   const unsubscribeRef = useRef<(() => void) | null>(null);
@@ -181,11 +183,7 @@ export default function CoursePage() {
         if (status) {
           setParcoursStatus(status.status);
           if (status.status === 'blocked') {
-            Alert.alert(
-              "Parcours bloqué",
-              "Vous devez d'abord terminer les parcours précédents pour accéder à celui-ci.",
-              [{ text: "OK", onPress: () => globalRouter.back() }]
-            );
+            setIsModalVisible(true);
           }
         }
       } catch (error) {
@@ -441,6 +439,11 @@ export default function CoursePage() {
     }
   };
 
+  const handleUnlock = () => {
+    setParcoursStatus('unblocked');
+    setIsModalVisible(false);
+  };
+
   return (
     <>
       {loading ? (
@@ -623,6 +626,20 @@ export default function CoursePage() {
               </View>
             )}
           </CourseBackground>
+
+          {user && (
+            <ParcoursLockedModal
+              visible={isModalVisible}
+              onClose={() => {
+                setIsModalVisible(false);
+                globalRouter.back();
+              }}
+              parcoursId={id}
+              userId={user.uid}
+              onUnlock={handleUnlock}
+              parcoursTitle={parcoursData?.titre || parcoursData?.title}
+            />
+          )}
         </View>
       )}
     </>

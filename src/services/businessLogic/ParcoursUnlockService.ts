@@ -2,7 +2,7 @@ import { db } from '../../config/firebase';
 import { doc, getDoc, runTransaction } from 'firebase/firestore';
 import { ParcoursStatusService } from './ParcoursStatusService';
 
-type ParcoursLevel = 'debutant' | 'avance' | 'expert';
+type ParcoursLevel = 'Débutant' | 'Avancé' | 'Expert';
 
 export class ParcoursUnlockService {
     private static readonly PARCOURS_COLLECTION = 'parcours';
@@ -10,9 +10,9 @@ export class ParcoursUnlockService {
 
     // Prix en Dodji par niveau
     private static readonly UNLOCK_PRICES: Record<ParcoursLevel, number> = {
-        'debutant': 100,
-        'avance': 200,
-        'expert': 300
+        'Débutant': 100,
+        'Avancé': 200,
+        'Expert': 300
     };
 
     /**
@@ -43,7 +43,8 @@ export class ParcoursUnlockService {
                 throw new Error('Parcours non trouvé');
             }
 
-            const parcoursLevel = (parcoursDoc.data().level || parcoursDoc.data().niveau) as ParcoursLevel;
+            const parcoursData = parcoursDoc.data();
+            const parcoursLevel = parcoursData.niveau as ParcoursLevel;
             const requiredDodji = this.UNLOCK_PRICES[parcoursLevel] || 0;
 
             return {
@@ -138,8 +139,21 @@ export class ParcoursUnlockService {
                 throw new Error('Parcours non trouvé');
             }
 
-            const parcoursLevel = (parcoursDoc.data().level || parcoursDoc.data().niveau) as ParcoursLevel;
-            return this.UNLOCK_PRICES[parcoursLevel] || 0;
+            const parcoursData = parcoursDoc.data();
+            console.log('Données du parcours pour le coût:', parcoursData);
+            
+            // Utiliser directement le champ niveau
+            const parcoursLevel = parcoursData.niveau as ParcoursLevel;
+
+            if (!parcoursLevel || !this.UNLOCK_PRICES[parcoursLevel]) {
+                console.error('Niveau du parcours invalide:', parcoursData);
+                return 0;
+            }
+
+            const cost = this.UNLOCK_PRICES[parcoursLevel];
+            console.log(`Coût du parcours ${parcoursId} (niveau ${parcoursLevel}):`, cost);
+            
+            return cost;
         } catch (error) {
             console.error('Erreur lors de la récupération du coût:', error);
             throw error;

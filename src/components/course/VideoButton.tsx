@@ -5,7 +5,7 @@ import VideoOn from '../../components/VideoOn';
 import VideoOff from '../../components/VideoOff';
 import VideoLock from '../../components/VideoLock';
 import LockMarron from '../../components/LockMarron';
-import CustomModal from '../ui/CustomModal';
+import VideoLockedModal from '../ui/VideoLockedModal';
 
 // Constantes pour les dimensions
 const { width: screenWidth } = Dimensions.get('window');
@@ -134,12 +134,10 @@ const VideoButton: React.FC<VideoButtonProps> = ({
         </View>
       </TouchableOpacity>
 
-      <CustomModal
+      <VideoLockedModal
         visible={isModalVisible}
         onClose={() => setIsModalVisible(false)}
-        title="Vidéo verrouillée 🔒"
-        message="Vous devez d'abord terminer les vidéos précédentes pour accéder à celle-ci."
-        buttonText="Compris"
+        videoTitle={title}
       />
     </>
   );

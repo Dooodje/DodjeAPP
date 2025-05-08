@@ -4,7 +4,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { QuizOff } from '../QuizOff';
 import { useAuth } from '../../hooks/useAuth';
 import { QuizStatusService } from '../../services/businessLogic/QuizStatusService';
-import CustomModal from '../ui/CustomModal';
+import QuizLockedModal from '../ui/QuizLockedModal';
 
 // Constantes pour les dimensions
 const { width: screenWidth } = Dimensions.get('window');
@@ -119,12 +119,10 @@ const QuizButton: React.FC<QuizButtonProps> = ({
         </View>
       </View>
 
-      <CustomModal
+      <QuizLockedModal
         visible={isModalVisible}
         onClose={() => setIsModalVisible(false)}
-        title="Quiz verrouillé 🔒"
-        message="Vous devez d'abord terminer toutes les vidéos du parcours pour accéder à ce quiz."
-        buttonText="Compris"
+        quizTitle={title}
       />
     </>
   );

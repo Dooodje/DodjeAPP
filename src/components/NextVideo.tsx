@@ -9,7 +9,8 @@ import { db } from '../services/firebase';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useAuth } from '../hooks/useAuth';
 import { QuizStatus } from '../types/quiz';
-import CustomModal from './ui/CustomModal';
+import VideoLockedModal from './ui/VideoLockedModal';
+import QuizLockedModal from './ui/QuizLockedModal';
 
 interface NextVideoProps {
   video?: Video | null;
@@ -128,12 +129,10 @@ export const NextVideo: React.FC<NextVideoProps> = ({
           </View>
         </View>
 
-        <CustomModal
+        <QuizLockedModal
           visible={isModalVisible}
           onClose={() => setIsModalVisible(false)}
-          title="Quiz verrouillé 🔒"
-          message="Vous devez d'abord terminer toutes les vidéos du parcours pour accéder à ce quiz."
-          buttonText="Compris"
+          quizTitle="Quiz du parcours"
         />
       </>
     );

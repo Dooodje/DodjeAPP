@@ -1,60 +1,31 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Modal, View, Text, TouchableOpacity, StyleSheet, Dimensions, ActivityIndicator } from 'react-native';
-import theme from '../../config/theme';
 import { ParcoursUnlockService } from '../../services/businessLogic/ParcoursUnlockService';
 
-interface CustomModalProps {
+interface ParcoursLockedModalProps {
   visible: boolean;
   onClose: () => void;
-  title: string;
-  message: string;
-  buttonText?: string;
-  type?: 'parcours' | 'quiz' | 'video';
-  parcoursId?: string;
-  userId?: string;
-  onUnlock?: () => void;
+  parcoursId: string;
+  userId: string;
+  onUnlock: () => void;
+  parcoursTitle?: string;
 }
 
-const CustomModal: React.FC<CustomModalProps> = ({
+const ParcoursLockedModal: React.FC<ParcoursLockedModalProps> = ({
   visible,
   onClose,
-  title,
-  message,
-  buttonText = "Compris",
-  type = 'quiz',
   parcoursId,
   userId,
-  onUnlock
+  onUnlock,
+  parcoursTitle
 }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [unlockCost, setUnlockCost] = useState<number | null>(null);
 
-  const handleUnlock = async () => {
-    if (!parcoursId || !userId) return;
-    
-    try {
-      setLoading(true);
-      setError(null);
-      
-      const result = await ParcoursUnlockService.unlockParcoursWithDodji(userId, parcoursId);
-      
-      if (result.success) {
-        onUnlock?.();
-        onClose();
-      } else {
-        setError(result.error || "Une erreur est survenue");
-      }
-    } catch (err) {
-      setError("Une erreur est survenue lors du déblocage");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  React.useEffect(() => {
+  useEffect(() => {
     const fetchUnlockCost = async () => {
-      if (type === 'parcours' && parcoursId) {
+      if (visible && parcoursId) {
         try {
           console.log('Récupération du coût pour le parcours:', parcoursId);
           const cost = await ParcoursUnlockService.getUnlockCost(parcoursId);
@@ -67,23 +38,28 @@ const CustomModal: React.FC<CustomModalProps> = ({
       }
     };
 
-    if (visible) {
-      console.log('Modal ouvert avec les props:', {
-        type,
-        parcoursId,
-        userId,
-        unlockCost
-      });
-      fetchUnlockCost();
-    }
-  }, [parcoursId, type, visible]);
+    fetchUnlockCost();
+  }, [parcoursId, visible]);
 
-  // Log pour le rendu du bouton
-  console.log('Conditions pour le bouton de déblocage:', {
-    type,
-    unlockCost,
-    shouldShowButton: type === 'parcours' && unlockCost !== null
-  });
+  const handleUnlock = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      const result = await ParcoursUnlockService.unlockParcoursWithDodji(userId, parcoursId);
+      
+      if (result.success) {
+        onUnlock();
+        onClose();
+      } else {
+        setError(result.error || "Une erreur est survenue");
+      }
+    } catch (err) {
+      setError("Une erreur est survenue lors du déblocage");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <Modal
@@ -95,10 +71,13 @@ const CustomModal: React.FC<CustomModalProps> = ({
       <View style={styles.centeredView}>
         <View style={styles.modalView}>
           {/* Titre */}
-          <Text style={styles.modalTitle}>{title}</Text>
+          <Text style={styles.modalTitle}>Parcours verrouillé 🔒</Text>
           
           {/* Message */}
-          <Text style={styles.modalText}>{message}</Text>
+          <Text style={styles.modalText}>
+            {parcoursTitle ? `Le parcours "${parcoursTitle}" n'est` : "Ce parcours n'est"} pas encore disponible. 
+            Vous pouvez le débloquer avec vos Dodji ou terminer les parcours précédents pour y accéder.
+          </Text>
 
           {/* Message d'erreur */}
           {error && (
@@ -107,7 +86,7 @@ const CustomModal: React.FC<CustomModalProps> = ({
           
           {/* Boutons */}
           <View style={styles.buttonContainer}>
-            {type === 'parcours' && unlockCost !== null && (
+            {unlockCost !== null && (
               <TouchableOpacity
                 style={[styles.button, styles.unlockButton]}
                 onPress={handleUnlock}
@@ -122,13 +101,12 @@ const CustomModal: React.FC<CustomModalProps> = ({
             )}
             
             <TouchableOpacity
-              style={[styles.button, type === 'parcours' ? styles.secondaryButton : null]}
+              style={[styles.button, styles.secondaryButton]}
               onPress={onClose}
             >
-              <Text style={[
-                styles.buttonText,
-                type === 'parcours' ? styles.secondaryButtonText : null
-              ]}>{buttonText}</Text>
+              <Text style={[styles.buttonText, styles.secondaryButtonText]}>
+                Continuer
+              </Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -186,7 +164,6 @@ const styles = StyleSheet.create({
     gap: 10
   },
   button: {
-    backgroundColor: '#F3FF90',
     paddingVertical: 12,
     paddingHorizontal: 30,
     borderRadius: 50,
@@ -212,4 +189,4 @@ const styles = StyleSheet.create({
   }
 });
 
-export default CustomModal; 
+export default ParcoursLockedModal; 

@@ -1,4 +1,4 @@
-import React, { useEffect, useCallback } from 'react';
+import React, { useEffect, useCallback, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Dimensions, Alert } from 'react-native';
 import { useAuth } from '../../src/hooks/useAuth';
 import { useHomeOptimized } from '../../src/hooks/useHomeOptimized';
@@ -11,6 +11,7 @@ import { GestureHandlerRootView, Gesture, GestureDetector } from 'react-native-g
 import Animated, { useAnimatedStyle, withSpring, useSharedValue, runOnJS } from 'react-native-reanimated';
 import Svg, { Path, Circle } from 'react-native-svg';
 import { useQueryClient } from '@tanstack/react-query';
+import ParcoursLockedModal from '../../src/components/ui/ParcoursLockedModal';
 
 const LEVELS: Level[] = ['Débutant', 'Avancé', 'Expert'];
 const { width } = Dimensions.get('window');
@@ -254,6 +255,14 @@ export default function HomeScreen() {
     fetchTreeData();
   }, [fetchTreeData, queryClient]);
 
+  const [selectedParcoursId, setSelectedParcoursId] = useState<string | null>(null);
+
+  const handleParcoursUnlock = () => {
+    if (selectedParcoursId) {
+      router.push(`/course/${selectedParcoursId}`);
+    }
+  };
+
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
@@ -276,13 +285,20 @@ export default function HomeScreen() {
 
   return (
     <GestureHandlerRootView style={styles.container}>
-      {/* Modal personnalisé */}
-      <CustomModal
-        visible={isModalVisible}
-        onClose={() => setIsModalVisible(false)}
-        title={modalData.title}
-        message={modalData.message}
-      />
+      {/* Modal pour les parcours bloqués */}
+      {selectedParcoursId && user && (
+        <ParcoursLockedModal
+          visible={isModalVisible}
+          onClose={() => {
+            setIsModalVisible(false);
+            setSelectedParcoursId(null);
+          }}
+          parcoursId={selectedParcoursId}
+          userId={user.uid}
+          onUnlock={handleParcoursUnlock}
+          parcoursTitle={homeDesign?.parcours?.[selectedParcoursId]?.titre}
+        />
+      )}
 
       {/* Arbre de parcours avec le design dynamique */}
       <GestureDetector gesture={gesture}>
@@ -291,7 +307,22 @@ export default function HomeScreen() {
             <TreeBackground
               imageUrl={homeDesign.imageUrl}
               positions={homeDesign.positions}
-              onPositionPress={handlePositionPress}
+              onPositionPress={(positionId, order) => {
+                if (order !== undefined && homeDesign.parcours) {
+                  const orderStr = order.toString();
+                  if (homeDesign.parcours[orderStr]) {
+                    const parcours = homeDesign.parcours[orderStr];
+                    if (parcours.id) {
+                      if (parcours.status === 'blocked') {
+                        setSelectedParcoursId(parcours.id);
+                        setIsModalVisible(true);
+                      } else {
+                        handlePositionPress(positionId, order);
+                      }
+                    }
+                  }
+                }
+              }}
               parcours={homeDesign.parcours}
             />
           ) : (

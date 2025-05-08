@@ -17,6 +17,9 @@ import { useAuth } from './useAuth';
 import { Section, Level, Course, HomeDesign } from '../types/home';
 import { useDodji } from './useDodji';
 import { Alert } from 'react-native';
+import { useRouter } from 'expo-router';
+import { useQuery } from '@tanstack/react-query';
+import { useHomeDesign } from './queries/useHomeQueries';
 
 // TreeData par défaut pour éviter l'erreur d'accès à indexOf
 const DEFAULT_TREE_DATA = {
@@ -70,6 +73,11 @@ export const useHome = () => {
     streak,
     lastViewedCourse,
   } = useAppSelector(state => state.home);
+
+  const router = useRouter();
+  const { data: homeDesignData, isLoading: homeDesignLoading } = useQuery<HomeDesign>(['homeDesign']);
+  const [isModalVisible, setIsModalVisible] = useState(false);
+  const [selectedParcoursId, setSelectedParcoursId] = useState<string | null>(null);
 
   // État local sécurisé pour le design de la page d'accueil
   const [safeHomeDesign, setSafeHomeDesign] = useState<HomeDesign>(DEFAULT_HOME_DESIGN);
@@ -164,19 +172,8 @@ export const useHome = () => {
           
           if (isBlocked) {
             console.log(`Le parcours ${parcours.id} est verrouillé 🔒`);
-            Alert.alert(
-              "Parcours verrouillé 🔒",
-              "Ce parcours n'est pas encore disponible. Vous devez d'abord terminer les parcours précédents pour y accéder.",
-              [
-                {
-                  text: "Compris",
-                  style: "default"
-                }
-              ],
-              {
-                cancelable: true,
-              }
-            );
+            setSelectedParcoursId(parcours.id);
+            setIsModalVisible(true);
           } else {
             // Naviguer vers la page du parcours sans ajouter le paramètre from
             console.log(`Navigation vers le parcours: /course/${parcours.id}`);
@@ -190,6 +187,11 @@ export const useHome = () => {
       console.log(`Aucun ordre spécifié ou pas de parcours disponibles`);
     }
   }, [safeHomeDesign.parcours, router]);
+  
+  // Fonction pour changer de section
+  const changeSection = useCallback((section: Section) => {
+    dispatch(setCurrentSection(section));
+  }, [dispatch]);
   
   return {
     currentSection: currentSection || 'Bourse',
@@ -206,6 +208,11 @@ export const useHome = () => {
     fetchTreeData,
     resetError,
     handlePositionPress,
+    changeSection,
+    isModalVisible,
+    setIsModalVisible,
+    selectedParcoursId,
+    setSelectedParcoursId,
     // Fonctions pour changer de section/niveau avec chargement du design approprié
     changeSection: useCallback((section: Section) => {
       dispatch(setCurrentSection(section));

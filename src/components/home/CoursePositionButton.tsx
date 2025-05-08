@@ -1,7 +1,9 @@
-import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ViewStyle, Alert } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, ViewStyle } from 'react-native';
 import { Parcours } from '../../types/firebase';
 import { CoursePosition } from '../ui/CoursePosition';
+import ParcoursLockedModal from '../ui/ParcoursLockedModal';
+import { useAuth } from '../../hooks/useAuth';
 
 interface CoursePositionButtonProps {
   parcours: Parcours;
@@ -18,23 +20,25 @@ const CoursePositionButton: React.FC<CoursePositionButtonProps> = ({
   onPress,
   style
 }) => {
+  const [isModalVisible, setIsModalVisible] = useState(false);
+  const { user } = useAuth();
+
   const handlePress = () => {
     if (parcours.status === 'blocked') {
-      Alert.alert(
-        "Parcours verrouillé 🔒",
-        "Ce parcours n'est pas encore disponible. Vous devez d'abord terminer les parcours précédents pour y accéder.",
-        [
-          {
-            text: "Compris",
-            style: "default"
-          }
-        ],
-        {
-          cancelable: true,
-        }
-      );
+      console.log('Ouverture du modal pour le parcours:', {
+        id: parcours.id,
+        niveau: parcours.niveau,
+        status: parcours.status,
+        userId: user?.uid
+      });
+      setIsModalVisible(true);
       return;
     }
+    onPress(parcours.id);
+  };
+
+  const handleUnlock = () => {
+    // Rafraîchir l'interface après le déblocage
     onPress(parcours.id);
   };
 
@@ -46,25 +50,37 @@ const CoursePositionButton: React.FC<CoursePositionButtonProps> = ({
     return 'standard';
   };
 
+  if (!user) return null;
+
   return (
-    <View style={[styles.container, style]}>
-      <CoursePosition
-        type={getPositionType()}
-        status={parcours.status}
-        size={size}
-        title={parcours.titre || parcours.title}
-        onPress={handlePress}
+    <>
+      <View style={[styles.container, style]}>
+        <CoursePosition
+          type={getPositionType()}
+          status={parcours.status}
+          size={size}
+          title={parcours.titre || parcours.title}
+          onPress={handlePress}
+          parcoursId={parcours.id}
+          isActive={isActive}
+        />
+        
+        {/* Badge d'ordre si fourni */}
+        {parcours.ordre !== undefined && (
+          <View style={styles.orderBadge}>
+            <Text style={styles.orderText}>{parcours.ordre}</Text>
+          </View>
+        )}
+      </View>
+
+      <ParcoursLockedModal
+        visible={isModalVisible}
+        onClose={() => setIsModalVisible(false)}
         parcoursId={parcours.id}
-        isActive={isActive}
+        userId={user.uid}
+        onUnlock={handleUnlock}
       />
-      
-      {/* Badge d'ordre si fourni */}
-      {parcours.ordre !== undefined && (
-        <View style={styles.orderBadge}>
-          <Text style={styles.orderText}>{parcours.ordre}</Text>
-        </View>
-      )}
-    </View>
+    </>
   );
 };
 
@@ -72,25 +88,23 @@ const styles = StyleSheet.create({
   container: {
     alignItems: 'center',
     justifyContent: 'center',
-    position: 'relative',
   },
   orderBadge: {
     position: 'absolute',
-    top: -5,
-    right: -5,
+    top: -10,
+    right: -10,
     backgroundColor: '#F3FF90',
     borderRadius: 12,
     width: 24,
     height: 24,
-    justifyContent: 'center',
     alignItems: 'center',
-    zIndex: 3,
+    justifyContent: 'center',
   },
   orderText: {
-    color: '#000000',
+    color: '#0A0400',
     fontSize: 12,
-    fontWeight: 'bold',
-  },
+    fontFamily: 'Arboria-Medium',
+  }
 });
 
 export default CoursePositionButton; 
