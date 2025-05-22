@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
-import { View, StyleSheet, Dimensions, Text, TouchableOpacity, Image, Animated } from 'react-native';
+import { View, StyleSheet, Dimensions, Text, TouchableOpacity, Image, Animated, ScrollView } from 'react-native';
 import { Video, ResizeMode, VideoFullscreenUpdateEvent, Audio } from 'expo-av';
 import { useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -58,6 +58,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ videoId: initialVideoI
   const [currentTime, setCurrentTime] = useState<number>(0);
   const [duration, setDuration] = useState<number>(0);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [isDescriptionExpanded, setIsDescriptionExpanded] = useState(false);
 
   // Get data from useVideo hook but rename the setter functions
   const {
@@ -552,169 +553,213 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ videoId: initialVideoI
 
   return (
     <View style={[styles.container, isFullscreen && styles.fullscreen]}>
-      <View style={styles.videoContainer} onTouchStart={toggleControls}>
-        {/* Si la vidéo n'a pas démarré, afficher la miniature avec un bouton play */}
-        {!videoStarted && useThumbnail ? (
-          <View style={styles.thumbnailContainer}>
-            <Image 
-              source={{ uri: useThumbnail }}
-              style={styles.thumbnail}
-              resizeMode="cover"
-            />
-            <TouchableOpacity style={styles.closeButton} onPress={handleBack}>
-              <MaterialCommunityIcons name="close" size={24} color="white" />
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.playButton} onPress={startVideo}>
-              <Animated.View style={{ 
-                transform: [{ scale: pulseAnim }],
-                alignItems: 'center',
-                justifyContent: 'center'
-              }}>
-                <MaterialCommunityIcons name="play" size={70} color="white" />
-              </Animated.View>
-            </TouchableOpacity>
-          </View>
-        ) : !videoStarted ? (
-          <View style={styles.placeholderContainer}>
-            <TouchableOpacity style={styles.closeButton} onPress={handleBack}>
-              <MaterialCommunityIcons name="close" size={24} color="white" />
-            </TouchableOpacity>
-            <Text style={styles.placeholderText}>Chargement...</Text>
-            <TouchableOpacity style={styles.playButton} onPress={startVideo}>
-              <Animated.View style={{ 
-                transform: [{ scale: pulseAnim }],
-                alignItems: 'center',
-                justifyContent: 'center'
-              }}>
-                <MaterialCommunityIcons name="play" size={70} color="white" />
-              </Animated.View>
-            </TouchableOpacity>
-          </View>
-        ) : null}
-
-        {/* Vidéo en arrière-plan, masquée jusqu'à ce qu'on clique sur play */}
-        <Video
-          ref={videoRef}
-          source={videoSource}
-          style={[styles.video, !videoStarted && { opacity: 0, height: 0 }]}
-          useNativeControls={false}
-          resizeMode={ResizeMode.CONTAIN}
-          isLooping={false}
-          shouldPlay={videoStarted && isPlaying}
-          isMuted={false}
-          volume={1.0}
-          onError={handleVideoError}
-          onFullscreenUpdate={onFullscreenUpdate}
-          onPlaybackStatusUpdate={onPlaybackStatusUpdate}
-        />
-        
-        {/* Bouton de fermeture affiché uniquement lorsque la vidéo est en cours de lecture */}
-        {videoStarted && showControls && (
-          <TouchableOpacity style={styles.closeButton} onPress={handleBack}>
-            <MaterialCommunityIcons name="close" size={24} color="white" />
-          </TouchableOpacity>
-        )}
-
-        {/* Contrôles de lecture (affiché uniquement pendant la lecture et quand showControls est true) */}
-        {videoStarted && showControls && (
-          <VideoControls
-            isPlaying={isPlaying}
-            currentTime={currentTime}
-            duration={duration}
-            isFullscreen={isFullscreen}
-            onPlayPause={originalTogglePlayback}
-            onSeek={(time) => {
-              if (videoRef.current) {
-                videoRef.current.setPositionAsync(time * 1000).catch(err => {
-                  console.error('Erreur lors de la recherche:', err);
-                });
-              }
-            }}
-            onFullscreen={toggleFullscreen}
-            onBack={handleBack}
-            onSettings={() => setShowSettings(true)}
-          />
-        )}
-        
-        {/* Ombre en bas de la vidéo pour améliorer la visibilité du texte */}
-        {videoStarted && (
-          <View style={styles.videoOverlay} pointerEvents="none" />
-        )}
-      </View>
-
-      {/* Paramètres de lecture (affiché uniquement quand showSettings est true) */}
-      {videoStarted && showSettings && (
-        <VideoSettings
-          visible={showSettings}
-          playbackSpeed={playbackSpeed}
-          quality={quality}
-          isSubtitleEnabled={isSubtitleEnabled}
-          onPlaybackSpeedChange={setPlaybackSpeed}
-          onQualityChange={setQuality}
-          onSubtitleToggle={() => setIsSubtitleEnabled(!isSubtitleEnabled)}
-          onClose={() => setShowSettings(false)}
-        />
-      )}
-
-      {/* Informations sur la vidéo - affichées en permanence sauf en mode plein écran */}
-      {!isFullscreen && (
-        <View style={styles.content}>
-          {/* Titre principal de la vidéo */}
-          <Text style={styles.title} numberOfLines={2}>
-            {currentVideo?.titre || currentVideo?.title || "Titre non disponible"}
-          </Text>
-        
-          {/* Affichage de la durée */}
-          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 24 }}>
-            <Text style={{ color: '#FFFFFF' }}>
-              Durée : {currentVideo?.duree || (typeof currentVideo?.duration === 'number' 
-                ? `${Math.floor(currentVideo.duration / 60)} minutes` 
-                : currentVideo?.duration || '5 minutes')}
-            </Text>
-          </View>
-          
-          {/* Section Résumé */}
-          <View style={{ marginBottom: 32 }}>
-            <Text style={{
-              fontSize: 20,
-              fontWeight: 'bold',
-              color: '#FFFFFF',
-              marginBottom: 8,
-            }}>Résumé</Text>
-            <Text style={{
-              color: '#FFFFFF',
-              lineHeight: 22,
-            }}>{currentVideo.description}</Text>
-          </View>
-          
-          {/* Section vidéo suivante */}
-          {nextVideo || (isLastVideo && quizId) ? (
-            <>
-              <Text style={{
-                fontSize: 20,
-                fontWeight: 'bold',
-                color: '#FFFFFF',
-                marginTop: 24,
-                marginBottom: 8,
-              }}>{isLastVideo && quizId ? 'Quiz final' : 'Vidéo suivante'}</Text>
-              <NextVideo 
-                video={nextVideo} 
-                onNavigate={handleVideoSelect}
-                courseId={currentVideo?.courseId}
-                isLastVideo={isLastVideo}
-                quizId={quizId || undefined}
+      <TouchableOpacity style={styles.fixedCloseButton} onPress={handleBack}>
+        <MaterialCommunityIcons name="close" size={24} color="white" />
+      </TouchableOpacity>
+      
+      <ScrollView style={styles.scrollContainer} contentContainerStyle={styles.scrollContent}>
+        <View style={styles.videoContainer} onTouchStart={toggleControls}>
+          {/* Si la vidéo n'a pas démarré, afficher la miniature avec un bouton play */}
+          {!videoStarted && useThumbnail ? (
+            <View style={styles.thumbnailContainer}>
+              <Image 
+                source={{ uri: useThumbnail }}
+                style={styles.thumbnail}
+                resizeMode="contain"
+                onLoad={(event) => {
+                  const { width, height } = event.nativeEvent.source;
+                  if (width && height) {
+                    const imageStyle = {
+                      width: '100%',
+                      height: undefined,
+                      aspectRatio: width / height,
+                    };
+                    event.target.setNativeProps({ style: imageStyle });
+                  }
+                }}
               />
-            </>
-          ) : (
-            <Text style={{
-              fontSize: 16,
-              color: '#AAAAAA',
-              marginTop: 24,
-              marginBottom: 8,
-            }}>Aucune vidéo suivante disponible</Text>
+              <TouchableOpacity 
+                style={[styles.playButton, { position: 'absolute', top: '50%', left: '50%', transform: [{ translateX: -40 }, { translateY: -40 }] }]} 
+                onPress={startVideo}
+              >
+                <Animated.View style={{ 
+                  transform: [{ scale: pulseAnim }],
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}>
+                  <MaterialCommunityIcons name="play" size={70} color="white" />
+                </Animated.View>
+              </TouchableOpacity>
+            </View>
+          ) : !videoStarted ? (
+            <View style={styles.placeholderContainer}>
+              <TouchableOpacity style={styles.closeButton} onPress={handleBack}>
+                <MaterialCommunityIcons name="close" size={24} color="white" />
+              </TouchableOpacity>
+              <Text style={styles.placeholderText}>Chargement...</Text>
+              <TouchableOpacity style={styles.playButton} onPress={startVideo}>
+                <Animated.View style={{ 
+                  transform: [{ scale: pulseAnim }],
+                  alignItems: 'center',
+                  justifyContent: 'center'
+                }}>
+                  <MaterialCommunityIcons name="play" size={70} color="white" />
+                </Animated.View>
+              </TouchableOpacity>
+            </View>
+          ) : null}
+
+          {/* Vidéo en arrière-plan, masquée jusqu'à ce qu'on clique sur play */}
+          <Video
+            ref={videoRef}
+            source={videoSource}
+            style={[styles.video, !videoStarted && { opacity: 0, height: 0 }]}
+            useNativeControls={false}
+            resizeMode={ResizeMode.CONTAIN}
+            isLooping={false}
+            shouldPlay={videoStarted && isPlaying}
+            isMuted={false}
+            volume={1.0}
+            onError={handleVideoError}
+            onFullscreenUpdate={onFullscreenUpdate}
+            onPlaybackStatusUpdate={onPlaybackStatusUpdate}
+          />
+          
+          {/* Bouton de fermeture affiché uniquement lorsque la vidéo est en cours de lecture */}
+          {videoStarted && showControls && (
+            <TouchableOpacity style={styles.closeButton} onPress={handleBack}>
+              <MaterialCommunityIcons name="close" size={24} color="white" />
+            </TouchableOpacity>
+          )}
+
+          {/* Contrôles de lecture (affiché uniquement pendant la lecture et quand showControls est true) */}
+          {videoStarted && showControls && (
+            <VideoControls
+              isPlaying={isPlaying}
+              currentTime={currentTime}
+              duration={duration}
+              isFullscreen={isFullscreen}
+              onPlayPause={originalTogglePlayback}
+              onSeek={(time) => {
+                if (videoRef.current) {
+                  videoRef.current.setPositionAsync(time * 1000).catch(err => {
+                    console.error('Erreur lors de la recherche:', err);
+                  });
+                }
+              }}
+              onFullscreen={toggleFullscreen}
+              onBack={handleBack}
+              onSettings={() => setShowSettings(true)}
+            />
+          )}
+          
+          {/* Ombre en bas de la vidéo pour améliorer la visibilité du texte */}
+          {videoStarted && (
+            <View style={styles.videoOverlay} pointerEvents="none" />
           )}
         </View>
-      )}
+
+        {/* Paramètres de lecture (affiché uniquement quand showSettings est true) */}
+        {videoStarted && showSettings && (
+          <VideoSettings
+            visible={showSettings}
+            playbackSpeed={playbackSpeed}
+            quality={quality}
+            isSubtitleEnabled={isSubtitleEnabled}
+            onPlaybackSpeedChange={setPlaybackSpeed}
+            onQualityChange={setQuality}
+            onSubtitleToggle={() => setIsSubtitleEnabled(!isSubtitleEnabled)}
+            onClose={() => setShowSettings(false)}
+          />
+        )}
+
+        {/* Informations sur la vidéo - affichées en permanence sauf en mode plein écran */}
+        {!isFullscreen && (
+          <View style={styles.content}>
+            {/* Titre principal de la vidéo */}
+            <Text style={styles.title} numberOfLines={3}>
+              {currentVideo?.titre || currentVideo?.title || "Titre non disponible"}
+            </Text>
+          
+            {/* Affichage de la durée */}
+            <View style={styles.durationContainer}>
+              <Text style={styles.duration}>
+                Durée : {(() => {
+                  let minutes;
+                  if (typeof currentVideo?.duration === 'number') {
+                    minutes = Math.ceil(currentVideo.duration / 60);
+                  } else if (currentVideo?.duree) {
+                    // Si la durée est au format "X minutes"
+                    const match = currentVideo.duree.match(/(\d+)/);
+                    minutes = match ? parseInt(match[0]) : 1;
+                  } else {
+                    minutes = 1;
+                  }
+                  return `${minutes}min`;
+                })()}
+              </Text>
+            </View>
+
+            {/* Bouton de lecture */}
+            {!videoStarted && (
+              <TouchableOpacity style={styles.startButton} onPress={startVideo}>
+                <Text style={styles.startButtonText}>Lecture</Text>
+                <MaterialCommunityIcons name="play" size={20} color="#FFFFFF" />
+              </TouchableOpacity>
+            )}
+            
+            {/* Section Résumé */}
+            <View style={{ marginBottom: 32 }}>
+              <Text style={styles.sectionTitle}>Résumé</Text>
+              <View>
+                <Text 
+                  style={styles.sectionContent}
+                  numberOfLines={isDescriptionExpanded ? undefined : 3}
+                  onTextLayout={({ nativeEvent: { lines } }) => {
+                    // Mettre à jour la visibilité du bouton "Plus" uniquement si le texte a plus de 3 lignes
+                    if (lines.length > 3 && !isDescriptionExpanded) {
+                      setIsDescriptionExpanded(false);
+                    }
+                  }}
+                >
+                  {currentVideo.description}
+                </Text>
+                {!isDescriptionExpanded && currentVideo.description && currentVideo.description.length > 100 && (
+                  <TouchableOpacity 
+                    style={styles.expandButton}
+                    onPress={() => setIsDescriptionExpanded(true)}
+                  >
+                    <Text style={styles.expandButtonText}>...afficher plus</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            </View>
+            
+            {/* Section vidéo suivante */}
+            {nextVideo || (isLastVideo && quizId) ? (
+              <>
+                <Text style={styles.sectionTitle}>
+                  {isLastVideo && quizId ? 'Quiz final' : 'Vidéo suivante'}
+                </Text>
+                <NextVideo 
+                  video={nextVideo} 
+                  onNavigate={handleVideoSelect}
+                  courseId={currentVideo?.courseId}
+                  isLastVideo={isLastVideo}
+                  quizId={quizId || undefined}
+                />
+              </>
+            ) : (
+              <Text style={{
+                fontSize: 16,
+                color: '#AAAAAA',
+                marginTop: 24,
+                marginBottom: 8,
+              }}>Aucune vidéo suivante disponible</Text>
+            )}
+          </View>
+        )}
+      </ScrollView>
     </View>
   );
 };
@@ -734,7 +779,6 @@ const styles = StyleSheet.create({
   },
   videoContainer: {
     width: '100%',
-    aspectRatio: 16 / 9,
     backgroundColor: '#000',
     position: 'relative',
   },
@@ -770,19 +814,13 @@ const styles = StyleSheet.create({
     color: '#fff',
   },
   thumbnailContainer: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    zIndex: 10,
-    justifyContent: 'center',
-    alignItems: 'center',
+    width: '100%',
+    position: 'relative',
   },
   thumbnail: {
     width: '100%',
-    height: '100%',
-    position: 'absolute',
+    height: undefined,
+    aspectRatio: 1,
   },
   placeholderContainer: {
     width: '100%',
@@ -851,9 +889,87 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
   },
   title: {
-    fontSize: 28,
-    fontWeight: 'bold',
+    fontSize: 32,
+    fontFamily: 'Arboria-Bold',
     color: '#FFFFFF',
-    marginBottom: 12,
+    marginBottom: 16,
+    letterSpacing: -1.6,
+    lineHeight: 38,
+    textAlign: 'center',
+  },
+  durationContainer: {
+    marginBottom: 24,
+    alignItems: 'center',
+  },
+  duration: {
+    color: '#FFFFFF',
+    fontFamily: 'Arboria-Medium',
+    fontSize: 14,
+    lineHeight: 14,
+    letterSpacing: 0,
+    textAlign: 'center',
+    fontWeight: '400',
+  },
+  startButton: {
+    backgroundColor: '#9BEC00',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    borderRadius: 100,
+    width: '100%',
+    marginBottom: 24,
+    gap: 8,
+  },
+  startButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontFamily: 'Arboria-Medium',
+    fontWeight: '500',
+  },
+  scrollContainer: {
+    flex: 1,
+  },
+  scrollContent: {
+    flexGrow: 1,
+  },
+  sectionTitle: {
+    fontSize: 20,
+    fontFamily: 'Arboria-Bold',
+    color: '#FFFFFF',
+    marginBottom: 8,
+    lineHeight: 20,
+    letterSpacing: 0,
+    fontWeight: '400',
+  },
+  sectionContent: {
+    color: '#FFFFFF',
+    fontFamily: 'Helvetica Neue',
+    fontSize: 15,
+    lineHeight: 15,
+    letterSpacing: 0,
+    fontWeight: '400',
+  },
+  fixedCloseButton: {
+    position: 'absolute',
+    top: 45,
+    right: 16,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 999,
+  },
+  expandButton: {
+    marginTop: 8,
+    alignSelf: 'flex-start',
+  },
+  expandButtonText: {
+    color: '#9BEC00',
+    fontSize: 14,
+    fontFamily: 'Arboria-Medium',
   },
 }); 
