@@ -51,19 +51,17 @@ export const useCatalogue = () => {
         // Utiliser le champ thumbnail s'il existe, sinon utiliser imageUrl
         const thumbnailUrl = data.thumbnail || data.imageUrl || '';
         
-        // S'assurer que videos est toujours défini comme un tableau
         return {
           id: doc.id,
           ...data,
           title: data.title || '',
           titre: data.titre || data.title || '',
           description: data.description || '',
-          theme: data.theme || 'bourse',
+          domaine: data.domaine || 'bourse',
           level: data.level || 'debutant',
-          imageUrl: thumbnailUrl, // Utiliser thumbnail comme imageUrl
+          imageUrl: thumbnailUrl,
           videoCount: videoCount,
           videos: Array.isArray(data.videos) ? data.videos : [],
-          // Ajouter des valeurs par défaut pour les propriétés requises
           order: data.order || 0,
           position: data.position || { x: 0, y: 0 },
           quiz: data.quiz || { id: '', title: '', description: '', questions: [], position: { x: 0, y: 0 } }
@@ -96,14 +94,19 @@ export const useCatalogue = () => {
 
     let result = [...parcours];
 
-    // Filtrer par thème
+    // Filtrer par thème (utiliser le champ domaine)
     if (themeFilter !== 'all') {
-      result = result.filter(item => item && item.theme === themeFilter);
+      result = result.filter(item => item && item.domaine?.toLowerCase() === themeFilter);
     }
 
     // Filtrer par niveau
     if (levelFilter !== 'all') {
-      result = result.filter(item => item && item.level === levelFilter);
+      const niveauMap = {
+        'debutant': 'Débutant',
+        'avance': 'Avancé',
+        'expert': 'Expert'
+      };
+      result = result.filter(item => item && item.niveau === niveauMap[levelFilter]);
     }
 
     // Filtrer par recherche textuelle
@@ -152,9 +155,9 @@ export const useCatalogue = () => {
     // Sélectionner un parcours en vedette (le premier par défaut, ou un aléatoire)
     const featured = validParcours[0];
     
-    // Parcours par thème
-    const bourse = validParcours.filter(p => p.theme === 'bourse');
-    const crypto = validParcours.filter(p => p.theme === 'crypto');
+    // Parcours par thème (utiliser le champ domaine)
+    const bourse = validParcours.filter(p => p.domaine?.toLowerCase() === 'bourse');
+    const crypto = validParcours.filter(p => p.domaine?.toLowerCase() === 'crypto');
     
     // Parcours par niveau
     const debutant = validParcours.filter(p => p.level === 'debutant');

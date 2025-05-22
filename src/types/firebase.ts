@@ -44,6 +44,7 @@ export interface Parcours {
   titre?: string;
   description: string;
   theme: 'bourse' | 'crypto';
+  domaine: 'bourse' | 'crypto';
   level: 'debutant' | 'avance' | 'expert';
   niveau: 'Débutant' | 'Avancé' | 'Expert';
   ordre: number;

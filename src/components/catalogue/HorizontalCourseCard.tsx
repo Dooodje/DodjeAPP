@@ -35,25 +35,6 @@ const HorizontalCourseCard: React.FC<HorizontalCourseCardProps> = ({
     }
   }, [parcours.level]);
 
-  // Obtenir le nombre de vidéos
-  const videosCount = useMemo(() => {
-    // Utiliser videoCount s'il existe, sinon compter les vidéos
-    if (parcours.videoCount !== undefined) {
-      return parcours.videoCount;
-    }
-    
-    // Vérifier si videoIds existe
-    if (parcours.videoIds && Array.isArray(parcours.videoIds)) {
-      return parcours.videoIds.length;
-    }
-    
-    // Fallback: compter les vidéos dans le tableau videos
-    if (!parcours.videos || !Array.isArray(parcours.videos)) {
-      return 0;
-    }
-    return parcours.videos.length;
-  }, [parcours]);
-
   return (
     <TouchableOpacity 
       style={styles.container}
@@ -90,10 +71,6 @@ const HorizontalCourseCard: React.FC<HorizontalCourseCardProps> = ({
         <View style={styles.metaContainer}>
           <Text style={styles.levelText}>
             {levelLabel}
-          </Text>
-          
-          <Text style={styles.videosCount}>
-            {videosCount} vidéo{videosCount > 1 ? 's' : ''}
           </Text>
         </View>
       </View>
@@ -157,11 +134,6 @@ const styles = StyleSheet.create({
     fontFamily: 'Arboria-Book',
     fontSize: 12,
     color: '#CCC',
-  },
-  videosCount: {
-    fontFamily: 'Arboria-Book',
-    fontSize: 12,
-    color: '#999',
   },
 });
 
