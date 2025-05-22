@@ -9,38 +9,53 @@ export const SettingsHeader: React.FC = () => {
   const insets = useSafeAreaInsets();
 
   return (
-    <View style={[styles.container, { paddingTop: Math.max(20, insets.top) }]}>
-      <TouchableOpacity
-        style={styles.backButton}
-        onPress={() => router.back()}
-      >
-        <MaterialCommunityIcons
-          name="arrow-left"
-          size={24}
-          color="#fff"
-        />
-      </TouchableOpacity>
-      <Text style={styles.title}>Paramètres</Text>
+    <View style={[styles.container, { paddingTop: Math.max(10, insets.top - 10) }]}>
+      <View style={styles.headerRow}>
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={() => router.back()}
+        >
+          <MaterialCommunityIcons
+            name="arrow-left"
+            size={24}
+            color="#fff"
+          />
+        </TouchableOpacity>
+        <View style={styles.titleContainer}>
+          <Text style={styles.title}>Paramètres</Text>
+        </View>
+      </View>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
+    flexDirection: 'column',
+    paddingHorizontal: 20,
+    paddingBottom: 5,
+    backgroundColor: '#0A0400',
+  },
+  headerRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingBottom: 20,
-    backgroundColor: '#0A0400',
-    borderBottomWidth: 1,
-    borderBottomColor: '#1a1a1a',
+    width: '100%',
+    marginTop: -20,
   },
   backButton: {
-    marginRight: 16,
+    position: 'absolute',
+    left: 0,
+    zIndex: 1,
+  },
+  titleContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   title: {
     fontSize: 24,
     fontWeight: 'bold',
     color: '#fff',
+    textAlign: 'center',
   },
 }); 
