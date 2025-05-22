@@ -2,6 +2,13 @@ import React from 'react';
 import { View, StyleSheet, Text, TouchableOpacity } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { TokenPackProps } from '../../types/shop';
+import Pack1 from '../Pack1';
+import Pack2 from '../Pack2';
+import Pack3 from '../Pack3';
+import Pack4 from '../Pack4';
+import Pack5 from '../Pack5';
+import Pack6 from '../Pack6';
+import LogoDodjeBlanc from '../LogoDodjeBlanc';
 
 export const TokenPack: React.FC<TokenPackProps> = ({
   pack,
@@ -10,7 +17,7 @@ export const TokenPack: React.FC<TokenPackProps> = ({
 }) => {
   // Vérifier si le pack est actif
   if (pack.status === 'inactive') {
-    return null; // Ne pas afficher les packs inactifs
+    return null;
   }
   
   // Calculer le montant du bonus si totalTokens n'est pas défini
@@ -26,56 +33,56 @@ export const TokenPack: React.FC<TokenPackProps> = ({
       style={[
         styles.container,
         isSelected && styles.selectedContainer,
-        pack.isPopular && styles.popularContainer,
-        pack.isBestValue && styles.bestValueContainer
+        pack.isPopular && styles.popularContainer
       ]}
       onPress={() => onSelect(pack)}
     >
-      {pack.isPopular && (
-        <View style={styles.popularBadge}>
-          <MaterialCommunityIcons name="star" size={16} color="#fff" />
-          <Text style={styles.popularText}>Populaire</Text>
-        </View>
-      )}
-
-      {pack.isBestValue && (
-        <View style={styles.bestValueBadge}>
-          <MaterialCommunityIcons name="trophy" size={16} color="#fff" />
-          <Text style={styles.bestValueText}>Meilleure valeur</Text>
-        </View>
-      )}
-
       <View style={styles.content}>
+        <View style={styles.imageContainer}>
+          {pack.name.toLowerCase().includes('starter') && (
+            <Pack1 width={140} height={140} />
+          )}
+          {pack.name.toLowerCase().includes('basique') && (
+            <Pack2 width={140} height={140} />
+          )}
+          {pack.name.toLowerCase().includes('standard') && (
+            <Pack3 width={140} height={140} />
+          )}
+          {pack.name.toLowerCase().includes('premium') && (
+            <Pack4 width={140} height={140} />
+          )}
+          {pack.name.toLowerCase().includes('expert') && (
+            <Pack5 width={140} height={140} />
+          )}
+          {pack.name.toLowerCase().includes('ultime') && (
+            <Pack6 width={140} height={140} />
+          )}
+        </View>
+
+        <Text style={styles.amount}>
+          {totalTokens.toLocaleString()}<LogoDodjeBlanc width={14} height={14} />
+        </Text>
+
         <View style={styles.header}>
           <Text style={styles.name}>{pack.name}</Text>
-          <Text style={styles.price}>{pack.price}€</Text>
+          {bonusAmount > 0 && (
+            <View style={styles.bonusContainer}>
+              <Text style={styles.bonusText}>
+                {pack.bonus}% offert
+              </Text>
+            </View>
+          )}
         </View>
 
-        <View style={styles.amountContainer}>
-          <MaterialCommunityIcons name="currency-usd" size={24} color="#06D001" />
-          <Text style={styles.amount}>
-            {totalTokens.toLocaleString()} Dodji
-          </Text>
+        <View style={styles.priceContainer}>
+          <Text style={styles.price}>{pack.price.toFixed(2)}€</Text>
         </View>
 
-        {bonusAmount > 0 && (
-          <View style={styles.bonusContainer}>
-            <MaterialCommunityIcons name="gift" size={16} color="#06D001" />
-            <Text style={styles.bonusText}>
-              +{bonusAmount.toLocaleString()} Dodji bonus ({pack.bonus}%)
-            </Text>
+        {pack.isPopular && (
+          <View style={styles.popularBadge}>
+            <MaterialCommunityIcons name="star" size={16} color="#fff" />
+            <Text style={styles.popularText}>Populaire</Text>
           </View>
-        )}
-
-        <View style={styles.valueContainer}>
-          <MaterialCommunityIcons name="calculator" size={14} color="#ccc" />
-          <Text style={styles.valueText}>
-            {(pack.price / totalTokens).toFixed(3)}€ par jeton
-          </Text>
-        </View>
-
-        {pack.description && (
-          <Text style={styles.description}>{pack.description}</Text>
         )}
       </View>
 
@@ -90,22 +97,71 @@ export const TokenPack: React.FC<TokenPackProps> = ({
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: '#1A1A1A',
+    backgroundColor: '#0A0400',
     borderRadius: 12,
     padding: 16,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: '#2A2A2A',
+    borderColor: 'transparent',
+    alignItems: 'center',
+    flex: 1,
   },
   selectedContainer: {
-    borderColor: '#06D001',
-    backgroundColor: '#1A1A1A',
+    borderColor: '#9BEC00',
   },
   popularContainer: {
     borderColor: '#FF9500',
   },
-  bestValueContainer: {
-    borderColor: '#06D001',
+  content: {
+    alignItems: 'center',
+    gap: 5,
+    width: '100%',
+  },
+  imageContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: 140,
+    height: 140,
+  },
+  header: {
+    alignItems: 'center',
+    width: '100%',
+    gap: 4,
+  },
+  name: {
+    fontSize: 17,
+    fontFamily: 'Arboria-Bold',
+    color: '#9BEC00',
+    textAlign: 'center',
+  },
+  amount: {
+    fontSize: 16,
+    fontFamily: 'Arboria-Medium',
+    color: '#fff',
+    textAlign: 'center',
+  },
+  priceContainer: {
+    backgroundColor: '#9BEC00',
+    paddingVertical: 12,
+    width: '100%',
+    borderRadius: 25,
+    marginTop: 5,
+  },
+  price: {
+    fontSize: 13,
+    fontFamily: 'Arboria-Bold',
+    color: '#fff',
+    textAlign: 'center',
+  },
+  bonusContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  bonusText: {
+    fontSize: 12,
+    color: '#FFFFFF',
+    fontFamily: 'Arboria-Medium',
   },
   popularBadge: {
     position: 'absolute',
@@ -122,82 +178,16 @@ const styles = StyleSheet.create({
   popularText: {
     fontSize: 12,
     color: '#fff',
-    fontWeight: '500',
-  },
-  bestValueBadge: {
-    position: 'absolute',
-    top: -12,
-    right: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: '#06D001',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  bestValueText: {
-    fontSize: 12,
-    color: '#fff',
-    fontWeight: '500',
-  },
-  content: {
-    gap: 8,
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  name: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#fff',
-  },
-  price: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#06D001',
-  },
-  amountContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  amount: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#06D001',
-  },
-  bonusContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  bonusText: {
-    fontSize: 14,
-    color: '#06D001',
-  },
-  description: {
-    fontSize: 14,
-    color: '#ccc',
-    lineHeight: 20,
+    fontFamily: 'Arboria-Medium',
   },
   selectedBadge: {
     position: 'absolute',
     top: 16,
     right: 16,
   },
-  valueContainer: {
+  row: {
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    marginTop: 4,
-    marginBottom: 4,
-  },
-  valueText: {
-    fontSize: 12,
-    color: '#ccc',
-    fontStyle: 'italic',
+    justifyContent: 'space-between',
+    marginBottom: 5,
   },
 }); 

@@ -3,11 +3,12 @@ import { View, StyleSheet, ScrollView, TouchableOpacity, Text } from 'react-nati
 import { useRouter } from 'expo-router';
 import { useShop } from '../../hooks/useShop';
 import { useAuth } from '../../hooks/useAuth';
-import { DodjiBalance } from '../../components/shop/DodjiBalance';
-import { TokenPack } from '../../components/shop/TokenPack';
+import { TokenPack as TokenPackComponent } from '../../components/shop/TokenPack';
 import { DodjeOneCard } from '../../components/shop/DodjeOneCard';
 import { LoadingSpinner } from '../../components/ui/LoadingSpinner';
 import MediaError from '../../components/ui/MediaError';
+import { TokenPack } from '../../types/shop';
+import DodjeOneBanner from '../../components/shop/DodjeOneBanner';
 
 export default function ShopScreen() {
   const router = useRouter();
@@ -38,6 +39,15 @@ export default function ShopScreen() {
       .sort((a, b) => a.price - b.price);
   }, [tokenPacks]);
 
+  // Grouper les packs par rangées de 3
+  const packRows = useMemo(() => {
+    const rows = [];
+    for (let i = 0; i < activePacks.length; i += 3) {
+      rows.push(activePacks.slice(i, i + 3));
+    }
+    return rows;
+  }, [activePacks]);
+
   // Afficher le chargement si l'authentification ou les données sont en cours de chargement
   if (authLoading || isLoading) {
     return (
@@ -47,19 +57,12 @@ export default function ShopScreen() {
     );
   }
 
-  // Vérifier si l'utilisateur est authentifié avant d'autoriser les achats
-  const handlePurchase = () => {
+  const handlePackSelection = (pack: TokenPack) => {
     if (!isAuthenticated) {
-      // Rediriger vers la page de connexion
       router.push('/(auth)/login');
       return;
     }
-
-    if (selectedPack) {
-      purchaseTokenPack(selectedPack);
-    } else if (selectedSubscription) {
-      purchaseSubscription(selectedSubscription);
-    }
+    purchaseTokenPack(pack);
   };
 
   if (error) {
@@ -76,39 +79,24 @@ export default function ShopScreen() {
   return (
     <View style={styles.container}>
       <ScrollView style={styles.content}>
-        {isAuthenticated ? (
-          <DodjiBalance
-            balance={user?.dodji || 0}
-            onRefresh={() => reset()}
-          />
-        ) : (
-          <TouchableOpacity 
-            style={styles.loginPrompt}
-            onPress={() => router.push('/(auth)/login')}
-          >
-            <Text style={styles.loginPromptText}>
-              Connectez-vous pour accéder à votre solde de Dodji
-            </Text>
-          </TouchableOpacity>
-        )}
-
+        <DodjeOneBanner onPress={() => router.push('/dodjeone')} />
+        <Text style={styles.title}>Nos packs Dodji :</Text>
+        
         {/* Section Packs de Dodji */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Packs de Dodji</Text>
-          {activePacks.length > 0 ? (
-            activePacks.map((pack) => (
-              <TokenPack
-                key={pack.id}
-                pack={pack}
-                onSelect={selectTokenPack}
-                isSelected={selectedPack?.id === pack.id}
-              />
-            ))
-          ) : (
-            <Text style={styles.emptyText}>
-              Aucun pack de jetons disponible pour le moment.
-            </Text>
-          )}
+          {packRows.map((row, rowIndex) => (
+            <View key={rowIndex} style={styles.row}>
+              {row.map((pack) => (
+                <View key={pack.id} style={styles.packContainer}>
+                  <TokenPackComponent
+                    pack={pack}
+                    onSelect={handlePackSelection}
+                    isSelected={false}
+                  />
+                </View>
+              ))}
+            </View>
+          ))}
         </View>
 
         {/* Section DodjeOne */}
@@ -122,21 +110,6 @@ export default function ShopScreen() {
             />
           </View>
         )}
-
-        {/* Boutons d'action */}
-        <View style={styles.actions}>
-          {(selectedPack || selectedSubscription) && (
-            <TouchableOpacity
-              style={styles.purchaseButton}
-              onPress={handlePurchase}
-              disabled={isPurchasing}
-            >
-              <Text style={styles.purchaseButtonText}>
-                {isPurchasing ? 'Traitement...' : isAuthenticated ? 'Acheter' : 'Se connecter pour acheter'}
-              </Text>
-            </TouchableOpacity>
-          )}
-        </View>
       </ScrollView>
     </View>
   );
@@ -149,11 +122,29 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-    marginTop: 70,
+    marginTop: 160,
+    paddingHorizontal: 16,
+  },
+  title: {
+    fontSize: 24,
+    fontFamily: 'Arboria-Bold',
+    color: '#fff',
+    marginBottom: 0,
+    marginTop: 30,
+    paddingHorizontal: 16,
   },
   section: {
-    padding: 16,
+    paddingTop: 0,
     gap: 12,
+  },
+  row: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 5,
+  },
+  packContainer: {
+    flex: 1,
+    marginHorizontal: 5,
   },
   sectionTitle: {
     fontSize: 20,
@@ -175,22 +166,5 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
     color: '#fff',
-  },
-  loginPrompt: {
-    margin: 16,
-    padding: 16,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  loginPromptText: {
-    color: '#fff',
-    textAlign: 'center',
-  },
-  emptyText: {
-    color: '#ccc',
-    textAlign: 'center',
-    padding: 16,
-    fontStyle: 'italic',
   },
 }); 

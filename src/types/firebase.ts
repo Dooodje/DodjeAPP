@@ -16,6 +16,7 @@ export interface UserData {
   dodji: number;
   streak: number;
   isDodjeOne: boolean;
+  level: number;
   
   // Horodatages importants
   createdAt: string;
