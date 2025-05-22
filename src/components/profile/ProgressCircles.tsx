@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { UserProfile } from '../../types/profile';
+import Svg, { Circle } from 'react-native-svg';
 
 interface ProgressCirclesProps {
   profile: UserProfile;
@@ -23,36 +24,46 @@ export const ProgressCircles: React.FC<ProgressCirclesProps> = ({ profile }) => 
 
   // Render a circular progress indicator
   const renderProgressCircle = (percentage: number, label: string) => {
-    // Calculate the circle's path
-    const size = 100;
-    const radius = 45;
+    const size = 120;
+    const strokeWidth = 8;
+    const radius = (size - strokeWidth) / 2;
     const circumference = 2 * Math.PI * radius;
+    const alpha = (percentage / 100) * 360;
     const strokeDashoffset = circumference - (percentage / 100) * circumference;
     
     return (
       <View style={styles.progressContainer}>
         <View style={styles.circleContainer}>
+          <Svg width={size} height={size}>
           {/* Background Circle */}
-          <View style={[styles.circle, styles.backgroundCircle]} />
-          
-          {/* Foreground Circle (SVG would be better, but using View for simplicity) */}
-          <View style={styles.progressCircleContainer}>
-            <View 
-              style={[
-                styles.progressCircle,
-                {
-                  borderWidth: 5,
-                  borderColor: '#9BEC00',
-                  backgroundColor: 'transparent',
-                  // Using opacity to simulate partial circle
-                  opacity: percentage / 100,
-                }
-              ]} 
+            <Circle
+              cx={size / 2}
+              cy={size / 2}
+              r={radius}
+              stroke="rgba(255, 255, 255, 0.1)"
+              strokeWidth={strokeWidth}
+              fill="none"
             />
-          </View>
+          
+            {/* Progress Circle */}
+            <Circle
+              cx={size / 2}
+              cy={size / 2}
+              r={radius}
+              stroke="#9BEC00"
+              strokeWidth={strokeWidth}
+              fill="none"
+              strokeDasharray={circumference}
+              strokeDashoffset={strokeDashoffset}
+              strokeLinecap="round"
+              transform={`rotate(-90 ${size / 2} ${size / 2})`}
+            />
+          </Svg>
           
           {/* Percentage Text */}
+          <View style={styles.percentageContainer}>
           <Text style={styles.percentageText}>{percentage}%</Text>
+          </View>
         </View>
         <Text style={styles.labelText}>{label}</Text>
       </View>
@@ -72,48 +83,31 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-around',
     alignItems: 'center',
-    marginVertical: 20,
+    paddingVertical: 20,
   },
   progressContainer: {
     alignItems: 'center',
   },
   circleContainer: {
-    width: 100,
-    height: 100,
+    width: 120,
+    height: 120,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 10,
+    marginBottom: 12,
   },
-  circle: {
-    width: 90,
-    height: 90,
-    borderRadius: 45,
-    position: 'absolute',
-  },
-  backgroundCircle: {
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-  },
-  progressCircleContainer: {
-    width: 90,
-    height: 90,
+  percentageContainer: {
     position: 'absolute',
     justifyContent: 'center',
     alignItems: 'center',
-    overflow: 'hidden',
-  },
-  progressCircle: {
-    width: 90,
-    height: 90,
-    borderRadius: 45,
   },
   percentageText: {
-    fontSize: 20,
+    fontSize: 24,
     color: '#FFFFFF',
-    fontWeight: 'bold',
+    fontFamily: 'Arboria-Bold',
   },
   labelText: {
     fontSize: 16,
     color: '#FFFFFF',
-    marginTop: 5,
+    fontFamily: 'Arboria-Medium',
   },
 }); 

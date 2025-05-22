@@ -86,7 +86,7 @@ export class ProfileService {
         },
         badges: data.badges || [],
         quests: data.quests || [],
-        dodjiBalance: data.dodjiBalance || 0,
+        dodji: data.dodji || 0,
         isDodjeOne: data.isDodjeOne || false,
         createdAt: processDate(data.createdAt),
         updatedAt: processDate(data.updatedAt)
@@ -185,6 +185,21 @@ export class ProfileService {
     }
   }
 
+  // Mettre à jour la progression complète
+  async updateProfileProgress(userId: string, progress: UserProfile['progress']): Promise<void> {
+    try {
+      const userRef = doc(db, this.COLLECTION, userId);
+      await updateDoc(userRef, {
+        progress,
+        updatedAt: Timestamp.now()
+      });
+      console.log('Progression du profil mise à jour avec succès:', progress);
+    } catch (error) {
+      console.error('Erreur lors de la mise à jour de la progression complète:', error);
+      throw error;
+    }
+  }
+
   // Ajouter un badge
   async addBadge(userId: string, badge: Badge): Promise<void> {
     try {
@@ -256,7 +271,7 @@ export class ProfileService {
         },
         badges: [],
         quests: [],
-        dodjiBalance: 0,
+        dodji: 0,
         isDodjeOne: false,
         createdAt: nowDate,
         updatedAt: nowDate

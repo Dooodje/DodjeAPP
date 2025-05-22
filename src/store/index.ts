@@ -13,6 +13,7 @@ import videoReducer from './slices/videoSlice';
 import settingsReducer from './slices/settingsSlice';
 import { Section, Level } from '../types/home';
 import { webStorage } from '../config/web';
+import progressUpdateMiddleware from './middleware/progressUpdateMiddleware';
 
 // Valeurs par défaut sécurisées
 const DEFAULT_SECTION: Section = 'Bourse';
@@ -158,7 +159,7 @@ export const store = configureStore({
     getDefaultMiddleware({
       serializableCheck: false,
       immutableCheck: false
-    }).concat(loggerMiddleware, safetyMiddleware),
+    }).concat(loggerMiddleware, safetyMiddleware, progressUpdateMiddleware),
 });
 
 // Créer le persistor pour redux-persist

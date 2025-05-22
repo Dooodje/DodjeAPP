@@ -1,11 +1,12 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Section } from '../../types/home';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import DailyStrike from '../DailyStrike';
 import SymbolBlancComponent from '../SymboleBlanc';
+import { useUserStreak } from '../../hooks/useUserStreak';
 
 interface AnnexeHeaderProps {
   level?: number;
@@ -29,6 +30,7 @@ export const AnnexeHeader: React.FC<AnnexeHeaderProps> = ({
   onBackPress,
 }) => {
   const insets = useSafeAreaInsets();
+  const { streak, loading } = useUserStreak();
   
   return (
     <View style={styles.headerWrapper}>
@@ -48,7 +50,11 @@ export const AnnexeHeader: React.FC<AnnexeHeaderProps> = ({
           ) : (
             <View style={styles.dailyStreakContainer}>
               <DailyStrike width={22} height={22} />
-              <Text style={styles.levelText}>{level}</Text>
+              {loading ? (
+                <ActivityIndicator size="small" color="#9BEC00" style={styles.loader} />
+              ) : (
+                <Text style={styles.levelText}>{streak}</Text>
+              )}
             </View>
           )}
           
@@ -213,5 +219,8 @@ const styles = StyleSheet.create({
   },
   selectedSectionText: {
     color: '#000',
+  },
+  loader: {
+    marginLeft: 8,
   },
 }); 

@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Dimensions } from 'react-native';
-import FondCo from '../FondCo';
+import DodjePlusBanniere from '../DodjePlusBanniere';
 
 interface DodjeOneBannerProps {
   onPress: () => void;
@@ -11,7 +11,9 @@ export const DodjeOneBanner: React.FC<DodjeOneBannerProps> = ({ onPress }) => {
   return (
     <View style={styles.container}>
       <View style={styles.background}>
-        <FondCo width={screenWidth} height={screenWidth} />
+        <View style={styles.bannerWrapper}>
+          <DodjePlusBanniere width={screenWidth} height={140} />
+        </View>
         <View style={styles.content}>
           <View style={styles.trialBadge}>
             <Text style={styles.trialText}>Essai sans frais unique 7 jours</Text>
@@ -41,10 +43,21 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     position: 'relative',
   },
+  bannerWrapper: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+    opacity: 0.8,
+    transform: [{ scale: 1.2 }],
+  },
   content: {
     alignItems: 'center',
-    zIndex: 1,
-    position: 'relative',
+    zIndex: 2,
+    position: 'absolute',
     gap: 8,
   },
   trialBadge: {

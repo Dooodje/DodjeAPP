@@ -12,6 +12,7 @@ import {
   resetProfile
 } from '../store/slices/profileSlice';
 import { UserProfile, Badge, Quest } from '../types/profile';
+import { ProfileProgressionService } from '../services/businessLogic/ProfileProgressionService';
 
 export const useProfile = (userId: string) => {
   const dispatch = useDispatch();
@@ -164,6 +165,32 @@ export const useProfile = (userId: string) => {
     dispatch(selectQuest(quest));
   }, [dispatch]);
 
+  // Calculer et mettre à jour la progression complète des parcours
+  const calculateAndUpdateProgress = useCallback(async () => {
+    if (!userId) {
+      console.log('calculateAndUpdateProgress: userId est vide, opération annulée');
+      return;
+    }
+
+    try {
+      dispatch(setLoading(true));
+      const progress = await ProfileProgressionService.calculateAndUpdateUserProgress(userId);
+      
+      // Rafraîchir le profil pour obtenir les données mises à jour
+      const updatedProfile = await profileService.getUserProfile(userId);
+      if (updatedProfile) {
+        dispatch(setProfile(updatedProfile));
+      }
+      
+      return progress;
+    } catch (error) {
+      console.error('Erreur lors du calcul et de la mise à jour de la progression:', error);
+      dispatch(setError('Erreur lors du calcul de la progression'));
+    } finally {
+      dispatch(setLoading(false));
+    }
+  }, [dispatch, userId]);
+
   // Réinitialiser le profil
   const reset = useCallback(() => {
     dispatch(resetProfile());
@@ -193,6 +220,7 @@ export const useProfile = (userId: string) => {
     updateUserQuest,
     selectUserBadge,
     selectUserQuest,
+    calculateAndUpdateProgress,
     reset
   };
 }; 

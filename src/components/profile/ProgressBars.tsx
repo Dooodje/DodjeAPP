@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { UserProfile } from '../../types/profile';
+import { ProgressUpdateButton } from './ProgressUpdateButton';
 
 interface ProgressBarsProps {
   profile: UserProfile;
@@ -68,7 +69,12 @@ export const ProgressBars: React.FC<ProgressBarsProps> = ({ profile }) => {
 
   return (
     <View style={styles.container}>
-      <Text style={styles.title}>Progression</Text>
+      <View style={styles.headerContainer}>
+        <Text style={styles.title}>Progression</Text>
+        <ProgressUpdateButton 
+          onUpdateComplete={() => console.log('Progression mise à jour avec succès')}
+        />
+      </View>
       {renderProgressBar(
         'bourse',
         bourseData.percentage,
@@ -90,11 +96,16 @@ const styles = StyleSheet.create({
     backgroundColor: '#0A0400',
     padding: 20,
   },
+  headerContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 20,
+  },
   title: {
     fontSize: 20,
     fontWeight: 'bold',
     color: '#fff',
-    marginBottom: 20,
   },
   progressContainer: {
     marginBottom: 20,

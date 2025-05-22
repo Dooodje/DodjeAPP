@@ -1,5 +1,5 @@
 import React, { useEffect, ReactNode } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Image, ImageBackground, ViewStyle } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Image, ImageBackground, ViewStyle, Dimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -7,6 +7,7 @@ import { useDodjeOne } from '../../hooks/useDodjeOne';
 import { usePerformanceMonitor } from '../../utils/performance';
 import { withErrorHandling } from '../../utils/errorHandling';
 import { AppRoute } from '../../types/routes';
+import DodjePlusBanniere from '../../components/DodjePlusBanniere';
 
 // Ce composant sera utilisé comme motif de fond pour la carte jaune
 function YellowPatternBackground({ children, style }: { children: ReactNode; style?: ViewStyle }) {
@@ -25,6 +26,7 @@ function YellowPatternBackground({ children, style }: { children: ReactNode; sty
 
 export function DodjeOneScreen() {
   const router = useRouter();
+  const screenWidth = Dimensions.get('window').width;
   const {
     subscription,
     isLoading,
@@ -156,8 +158,10 @@ export function DodjeOneScreen() {
   return (
     <SafeAreaView style={styles.container} edges={['top', 'bottom']}>
       <ScrollView style={styles.scrollView} contentContainerStyle={styles.scrollViewContent}>
-        {/* Card with yellow background and pattern */}
-        <YellowPatternBackground style={styles.subscriptionCard}>
+        <View style={styles.subscriptionCard}>
+          <View style={styles.backgroundWrapper}>
+            <DodjePlusBanniere width={screenWidth * 2} height={screenWidth * 2} />
+          </View>
           <TouchableOpacity style={styles.closeButton} onPress={() => router.back()}>
             <MaterialCommunityIcons name="close" size={24} color="#000" />
           </TouchableOpacity>
@@ -171,7 +175,7 @@ export function DodjeOneScreen() {
           <Text style={styles.subtitle}>
             Optimise ton expérience et prépare la suite.
           </Text>
-        </YellowPatternBackground>
+        </View>
         
         {/* Price Button */}
         <TouchableOpacity 
@@ -230,8 +234,21 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: '#0A0400',
   },
+  backgroundWrapper: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+    opacity: 0.8,
+    transform: [{ scale: 1.2 }],
+    zIndex: 0,
+  },
   scrollView: {
     flex: 1,
+    zIndex: 1,
   },
   scrollViewContent: {
     paddingBottom: 40,
@@ -276,6 +293,7 @@ const styles = StyleSheet.create({
     paddingBottom: 30,
     marginTop: 0,
     paddingTop: 60,
+    overflow: 'hidden',
   },
   closeButton: {
     position: 'absolute',

@@ -49,7 +49,7 @@ export interface UserProfile {
   progress: Progress;
   badges: Badge[];
   quests: Quest[];
-  dodjiBalance: number;
+  dodji: number;
   isDodjeOne: boolean;
   createdAt: Date;
   updatedAt: Date;
