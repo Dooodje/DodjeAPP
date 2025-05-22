@@ -163,7 +163,7 @@ const styles = StyleSheet.create({
     width: 55,
   },
   levelText: {
-    color: '#fff',
+    color: '#9BEC00',
     fontSize: 18,
     fontFamily: 'Arboria-Medium',
     marginLeft: 0,
@@ -183,7 +183,7 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   pointsText: {
-    color: '#fff',
+    color: '#F1E61C',
     fontSize: 18,
     fontFamily: 'Arboria-Bold',
     marginRight: 0,

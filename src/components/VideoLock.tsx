@@ -7,7 +7,7 @@ interface VideoLockProps {
   height?: number;
 }
 
-export const VideoLock: React.FC<VideoLockProps> = ({ width = 24, height = 24 }) => {
+export const VideoLock: React.FC<VideoLockProps> = ({ width = 88, height = 91.5 }) => {
   return (
     <View style={{ width, height, justifyContent: 'center', alignItems: 'center' }}>
       <VideoLockSvg width={width} height={height} />

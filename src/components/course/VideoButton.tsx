@@ -4,7 +4,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import VideoOn from '../../components/VideoOn';
 import VideoOff from '../../components/VideoOff';
 import VideoLock from '../../components/VideoLock';
-import LockMarron from '../../components/LockMarron';
+import Vector from '../../components/Vector';
 import VideoLockedModal from '../ui/VideoLockedModal';
 
 // Constantes pour les dimensions
@@ -121,17 +121,12 @@ const VideoButton: React.FC<VideoButtonProps> = ({
           <VideoOff width={DEFAULT_BUTTON_SIZE} height={DEFAULT_BUTTON_SIZE} />
         ) : (
           <View style={styles.blockedContainer}>
-            <VideoOff width={DEFAULT_BUTTON_SIZE} height={DEFAULT_BUTTON_SIZE} color="#7C6354" />
+            <VideoLock width={DEFAULT_BUTTON_SIZE} height={DEFAULT_BUTTON_SIZE} />
             <View style={styles.vectorContainer}>
-              <LockMarron width={DEFAULT_BUTTON_SIZE * 0.55} height={DEFAULT_BUTTON_SIZE * 0.55} />
+              <Vector width={DEFAULT_BUTTON_SIZE * 0.6} height={DEFAULT_BUTTON_SIZE * 0.6} />
             </View>
           </View>
         )}
-        <View style={styles.contentContainer}>
-          <Text style={styles.title} numberOfLines={2}>
-            {title}
-          </Text>
-        </View>
       </TouchableOpacity>
 
       <VideoLockedModal
@@ -172,7 +167,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     width: '100%',
     height: '100%',
-    transform: [{ translateY: -2 }],
     zIndex: 2,
   },
   blockedButton: {

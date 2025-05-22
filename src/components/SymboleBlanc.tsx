@@ -1,23 +1,23 @@
 import React from 'react';
 import { View } from 'react-native';
-import SymboleBlanc from '../assets/SymboleBlanc.svg';
+import DodjiSvg from '../assets/Dodji.svg';
 
-interface SymbleBlancProps {
+interface DodjiProps {
   width?: number;
   height?: number;
 }
 
-const SymbolBlancComponent: React.FC<SymbleBlancProps> = ({ width = 100, height = 100 }) => {
+export const Dodji: React.FC<DodjiProps> = ({ width = 21, height = 32 }) => {
   return (
     <View style={{ 
       width, 
-      height, 
-      justifyContent: 'center', 
-      alignItems: 'center' 
+      height,
+      justifyContent: 'center',
+      alignItems: 'center'
     }}>
-      <SymboleBlanc width={width} height={height} />
+      <DodjiSvg width={width} height={height} />
     </View>
   );
 };
 
-export default SymbolBlancComponent; 
+export default Dodji; 

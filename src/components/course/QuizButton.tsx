@@ -1,14 +1,19 @@
 import React, { useMemo, useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Dimensions } from 'react-native';
+import { View, StyleSheet, TouchableOpacity, Dimensions, Text } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { QuizOff } from '../QuizOff';
+import QuizOn from '../QuizOn';
+import { LogoDodjeBlanc } from '../LogoDodjeBlanc';
+import { Vector } from '../Vector';
 import { useAuth } from '../../hooks/useAuth';
 import { QuizStatusService } from '../../services/businessLogic/QuizStatusService';
 import QuizLockedModal from '../ui/QuizLockedModal';
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from '../../config/firebase';
 
 // Constantes pour les dimensions
 const { width: screenWidth } = Dimensions.get('window');
-const DEFAULT_BUTTON_SIZE = 80; // Plus grand pour être plus visible
+const DEFAULT_BUTTON_SIZE = 90; // Ajusté à 90
 
 interface QuizButtonProps {
   id: string;
@@ -32,20 +37,28 @@ const QuizButton: React.FC<QuizButtonProps> = ({
   const { user } = useAuth();
   const [quizStatus, setQuizStatus] = useState<'blocked' | 'unblocked' | 'completed'>('blocked');
   const [isModalVisible, setIsModalVisible] = useState(false);
+  const [tokenReward, setTokenReward] = useState<number>(0);
 
   useEffect(() => {
-    const loadQuizStatus = async () => {
+    const loadQuizData = async () => {
       if (!user?.uid) return;
       try {
+        // Charger le statut du quiz
         const status = await QuizStatusService.getQuizStatus(user.uid, id);
         setQuizStatus(status?.status || 'blocked');
+
+        // Charger les données du quiz depuis Firestore
+        const quizDoc = await getDoc(doc(db, 'quizzes', id));
+        if (quizDoc.exists()) {
+          setTokenReward(quizDoc.data().tokenReward || 0);
+        }
       } catch (error) {
-        console.error('Erreur lors du chargement du statut du quiz:', error);
+        console.error('Erreur lors du chargement des données du quiz:', error);
         setQuizStatus('blocked');
       }
     };
 
-    loadQuizStatus();
+    loadQuizData();
   }, [user?.uid, id]);
 
   // Calculer la position absolue en pixels
@@ -92,31 +105,34 @@ const QuizButton: React.FC<QuizButtonProps> = ({
             }
           }}
         >
-          <View style={styles.glow} />
-          {quizStatus === 'blocked' ? (
-            <QuizOff width={40} height={40} />
-          ) : (
-            <MaterialIcons 
-              name={quizStatus === 'completed' ? "check-circle" : "help"} 
-              size={40} 
-              color="#000" 
-            />
-          )}
+          <View style={styles.contentContainer}>
+            {quizStatus === 'completed' ? (
+              <QuizOn width={90} height={90} />
+            ) : (
+              <View style={styles.quizOffContainer}>
+                <QuizOff width={90} height={90} />
+                {quizStatus === 'blocked' && (
+                  <View style={styles.vectorContainer}>
+                    <Vector width={45} height={45} />
+                  </View>
+                )}
+              </View>
+            )}
+            <View style={styles.textOverlay}>
+              <Text style={[
+                styles.quizText,
+                quizStatus !== 'blocked' && styles.textUnblocked
+              ]}>Quizz</Text>
+              <View style={[
+                styles.rewardContainer,
+                quizStatus !== 'blocked' && styles.textUnblocked
+              ]}>
+                <Text style={styles.rewardText}>+{tokenReward}</Text>
+                <LogoDodjeBlanc width={14} height={20} />
+              </View>
+            </View>
+          </View>
         </TouchableOpacity>
-        
-        <View style={[
-          styles.labelContainer,
-          quizStatus === 'blocked' && styles.labelBlocked
-        ]}>
-          <Text style={styles.title}>{title}</Text>
-          <Text style={styles.subtitle}>
-            {quizStatus === 'blocked' 
-              ? 'Terminez les vidéos pour débloquer' 
-              : quizStatus === 'completed'
-              ? 'Quiz complété !'
-              : 'Testons vos connaissances !'}
-          </Text>
-        </View>
       </View>
 
       <QuizLockedModal
@@ -141,67 +157,64 @@ const styles = StyleSheet.create({
   buttonContent: {
     width: '100%',
     height: '100%',
-    borderRadius: DEFAULT_BUTTON_SIZE / 2,
-    backgroundColor: '#FFC107',
     justifyContent: 'center',
     alignItems: 'center',
-    elevation: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.6,
-    shadowRadius: 5,
-    borderWidth: 3,
-    borderColor: '#FFD54F',
+  },
+  contentContainer: {
+    alignItems: 'center',
+    position: 'relative',
+    width: '100%',
+    height: '100%',
+    justifyContent: 'center',
+  },
+  textOverlay: {
+    position: 'absolute',
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: '100%',
+    height: '100%',
   },
   buttonBlocked: {
-    backgroundColor: '#666666',
-    borderColor: '#888888',
+    backgroundColor: 'transparent',
+    borderColor: 'transparent',
+    elevation: 0,
+    shadowOpacity: 0,
   },
-  glow: {
-    position: 'absolute',
-    width: '50%',
-    height: '50%',
-    borderRadius: 25,
-    backgroundColor: 'rgba(255, 255, 255, 0.3)',
-    top: '15%',
-    left: '15%',
+  quizText: {
+    color: '#FFFFFF',
+    fontSize: 20,
+    fontFamily: 'Arboria-Medium',
+    textAlign: 'center',
+    opacity: 0.5,
   },
-  labelContainer: {
-    position: 'absolute',
-    top: DEFAULT_BUTTON_SIZE + 5,
-    width: 140,
-    backgroundColor: 'rgba(0, 0, 0, 0.8)',
-    borderRadius: 10,
-    padding: 8,
+  rewardContainer: {
+    flexDirection: 'row',
     alignItems: 'center',
-    left: -(140 - DEFAULT_BUTTON_SIZE) / 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.8,
-    shadowRadius: 3,
-    elevation: 5,
-    borderWidth: 2,
-    borderColor: '#FFC107',
+    justifyContent: 'center',
+    marginTop: 4,
+    opacity: 0.5,
   },
-  labelBlocked: {
-    borderColor: '#666666',
-  },
-  title: {
-    color: '#FFF',
-    fontSize: 16,
-    fontWeight: 'bold',
-    marginBottom: 3,
-    maxWidth: 120,
+  rewardText: {
+    color: '#FFFFFF',
+    fontSize: 20,
+    fontFamily: 'Arboria-Medium',
     textAlign: 'center',
-    textShadowColor: 'rgba(0, 0, 0, 0.9)',
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 2,
+    marginRight: 4,
   },
-  subtitle: {
-    color: '#FFC107',
-    fontSize: 12,
-    textAlign: 'center',
-    fontStyle: 'italic',
+  quizOffContainer: {
+    position: 'relative',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  vectorContainer: {
+    position: 'absolute',
+    top: '50%',
+    left: '50%',
+    transform: [{ translateX: -22.5 }, { translateY: -22.5 }],
+    zIndex: 2,
+  },
+  textUnblocked: {
+    opacity: 1,
   },
 });
 
