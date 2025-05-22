@@ -715,6 +715,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ videoId: initialVideoI
                 <Text 
                   style={styles.sectionContent}
                   numberOfLines={isDescriptionExpanded ? undefined : 3}
+                  ellipsizeMode="clip"
                   onTextLayout={({ nativeEvent: { lines } }) => {
                     // Mettre à jour la visibilité du bouton "Plus" uniquement si le texte a plus de 3 lignes
                     if (lines.length > 3 && !isDescriptionExpanded) {
@@ -738,9 +739,6 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ videoId: initialVideoI
             {/* Section vidéo suivante */}
             {nextVideo || (isLastVideo && quizId) ? (
               <>
-                <Text style={styles.sectionTitle}>
-                  {isLastVideo && quizId ? 'Quiz final' : 'Vidéo suivante'}
-                </Text>
                 <NextVideo 
                   video={nextVideo} 
                   onNavigate={handleVideoSelect}
@@ -968,7 +966,7 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
   },
   expandButtonText: {
-    color: '#9BEC00',
+    color: '#F3FF90',
     fontSize: 14,
     fontFamily: 'Arboria-Medium',
   },

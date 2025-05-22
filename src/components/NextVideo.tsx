@@ -77,6 +77,9 @@ export const NextVideo: React.FC<NextVideoProps> = ({
       <>
         <View style={styles.container}>
           <View style={styles.videoCard}>
+            {/* Titre "Vidéo suivante" */}
+            <Text style={styles.sectionTitle}>Vidéo suivante</Text>
+
             {/* Layout horizontal avec icône à gauche et infos à droite */}
             <View style={styles.contentRow}>
               {/* Icône du quiz */}
@@ -195,8 +198,20 @@ export const NextVideo: React.FC<NextVideoProps> = ({
   
   // Récupérer les informations de la vidéo
   const titre = video.titre || video.title || "Chargement...";
-  const duree = video.duree || 
-    (typeof video.duration === 'string' ? video.duration : '00:00');
+  const duree = (() => {
+    if (video.duree) {
+      // Gérer le format "XX:XX"
+      const timeMatch = video.duree.match(/(\d+):(\d+)/);
+      if (timeMatch) {
+        // Si format XX:XX, prendre les minutes et arrondir au supérieur si il y a des secondes
+        const mins = parseInt(timeMatch[1]);
+        const secs = parseInt(timeMatch[2]);
+        return `${secs > 0 ? mins + 1 : mins}min`;
+      }
+    }
+    // Fallback si pas de format valide
+    return "1min";
+  })();
   const thumbnail = video.thumbnail || "";
 
   console.log('🔄 Rendu avec données:', { titre, duree, thumbnail, completionStatus });
@@ -204,6 +219,9 @@ export const NextVideo: React.FC<NextVideoProps> = ({
   return (
     <View style={styles.container}>
       <View style={styles.videoCard}>
+        {/* Titre "Vidéo suivante" */}
+        <Text style={styles.sectionTitle}>Vidéo suivante</Text>
+
         {/* Layout horizontal avec miniature à gauche et infos à droite */}
         <View style={styles.contentRow}>
           {/* Miniature de la vidéo */}
@@ -236,22 +254,24 @@ export const NextVideo: React.FC<NextVideoProps> = ({
         <TouchableOpacity 
           style={[
             styles.lectureButton,
-            completionStatus === 'blocked' && styles.lectureButtonDisabled
+            completionStatus === 'blocked' ? styles.lectureButtonDisabled : { backgroundColor: '#9BEC00' }
           ]}
           onPress={handleNavigation}
           disabled={completionStatus === 'blocked'}
         >
           <Text style={[
             styles.lectureButtonText,
-            completionStatus === 'blocked' && styles.lectureButtonTextDisabled
+            { color: '#FFFFFF' }
           ]}>
-            LECTURE
+            {completionStatus === 'blocked' ? 'Verrouillé' : "C'est parti !"}
           </Text>
-          <MaterialCommunityIcons 
-            name="play" 
-            size={20} 
-            color={completionStatus === 'blocked' ? '#666666' : '#000000'} 
-          />
+          {completionStatus === 'blocked' && (
+            <MaterialCommunityIcons 
+              name="lock"
+              size={20} 
+              color="#FFFFFF"
+            />
+          )}
         </TouchableOpacity>
       </View>
     </View>
@@ -260,22 +280,22 @@ export const NextVideo: React.FC<NextVideoProps> = ({
 
 const styles = StyleSheet.create({
   container: {
-    marginVertical: 10,
-    paddingHorizontal: 16,
+    marginVertical: 16,
+    paddingHorizontal: 0,
   },
   videoCard: {
-    backgroundColor: '#1A1A1A',
+    backgroundColor: 'rgba(124, 99, 84, 0.10)',
     borderRadius: 12,
-    padding: 16,
+    padding: 24,
     gap: 16,
   },
   contentRow: {
     flexDirection: 'row',
-    gap: 12,
+    gap: 16,
   },
   thumbnailContainer: {
-    width: 120,
-    height: 68,
+    width: 160,
+    height: 90,
     borderRadius: 8,
     overflow: 'hidden',
     backgroundColor: '#2A2A2A',
@@ -295,13 +315,17 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   videoTitle: {
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: 20,
+    fontFamily: 'Arboria-Bold',
     color: '#FFFFFF',
     marginBottom: 4,
+    lineHeight: 20,
+    letterSpacing: 0,
+    fontWeight: '400',
   },
   videoDuration: {
     fontSize: 14,
+    fontFamily: 'Arboria-Medium',
     color: '#999999',
   },
   lectureButton: {
@@ -315,14 +339,28 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   lectureButtonDisabled: {
-    backgroundColor: '#333333',
+    backgroundColor: '#7C6354',
+    opacity: 0.5,
   },
   lectureButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: 15,
+    fontFamily: 'Arboria-Bold',
     color: '#000000',
+    lineHeight: 15,
+    letterSpacing: 0,
+    fontWeight: '400',
+    textAlign: 'center',
   },
   lectureButtonTextDisabled: {
-    color: '#666666',
+    color: '#FFFFFF',
+  },
+  sectionTitle: {
+    fontSize: 20,
+    fontFamily: 'Arboria-Bold',
+    color: '#FFFFFF',
+    marginBottom: 4,
+    lineHeight: 20,
+    letterSpacing: 0,
+    fontWeight: '400',
   },
 }); 
