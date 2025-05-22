@@ -78,7 +78,13 @@ export default function ShopScreen() {
 
   return (
     <View style={styles.container}>
-      <ScrollView style={styles.content}>
+      <ScrollView 
+        style={styles.content}
+        contentContainerStyle={styles.contentContainer}
+        showsVerticalScrollIndicator={false}
+        scrollEventThrottle={16}
+        bounces={true}
+        overScrollMode="auto">
         <DodjeOneBanner onPress={() => router.push('/dodjeone')} />
         <Text style={styles.title}>Nos packs Dodji :</Text>
         
@@ -122,8 +128,11 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-    marginTop: 160,
+  },
+  contentContainer: {
+    paddingTop: 160,
     paddingHorizontal: 16,
+    paddingBottom: 70,
   },
   title: {
     fontSize: 24,

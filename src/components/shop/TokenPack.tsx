@@ -8,7 +8,7 @@ import Pack3 from '../Pack3';
 import Pack4 from '../Pack4';
 import Pack5 from '../Pack5';
 import Pack6 from '../Pack6';
-import LogoDodjeBlanc from '../LogoDodjeBlanc';
+import SymboleBlanc from '../SymboleBlanc';
 
 export const TokenPack: React.FC<TokenPackProps> = ({
   pack,
@@ -60,7 +60,7 @@ export const TokenPack: React.FC<TokenPackProps> = ({
         </View>
 
         <Text style={styles.amount}>
-          {totalTokens.toLocaleString()}<LogoDodjeBlanc width={14} height={14} />
+          {totalTokens.toLocaleString()}<SymboleBlanc width={14} height={14} />
         </Text>
 
         <View style={styles.header}>
@@ -137,7 +137,7 @@ const styles = StyleSheet.create({
   amount: {
     fontSize: 16,
     fontFamily: 'Arboria-Medium',
-    color: '#fff',
+    color: '#F1E61C',
     textAlign: 'center',
   },
   priceContainer: {
