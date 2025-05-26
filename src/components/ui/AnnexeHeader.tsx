@@ -4,6 +4,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Section } from '../../types/home';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useRouter } from 'expo-router';
 import DailyStrike from '../DailyStrike';
 import SymbolBlancComponent from '../SymboleBlanc';
 import { useUserStreak } from '../../hooks/useUserStreak';
@@ -31,6 +32,11 @@ export const AnnexeHeader: React.FC<AnnexeHeaderProps> = ({
 }) => {
   const insets = useSafeAreaInsets();
   const { streak, loading } = useUserStreak();
+  const router = useRouter();
+  
+  const handlePointsPress = () => {
+    router.push('/(tabs)/boutique');
+  };
   
   return (
     <View style={styles.headerWrapper}>
@@ -58,12 +64,12 @@ export const AnnexeHeader: React.FC<AnnexeHeaderProps> = ({
             </View>
           )}
           
-          <View style={styles.pointsContainer}>
+          <TouchableOpacity style={styles.pointsContainer} onPress={handlePointsPress}>
             <Text style={styles.pointsText}>{points}</Text>
             <View style={styles.symbolContainer}>
               <SymbolBlancComponent width={22} height={22} />
             </View>
-          </View>
+          </TouchableOpacity>
         </View>
         
         {title && (

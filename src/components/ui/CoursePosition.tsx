@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ViewStyle } from 'react-native';
+import Animated, { useSharedValue, useAnimatedStyle, withRepeat, withTiming, Easing } from 'react-native-reanimated';
 // import { AnneauVector } from './vectors/AnneauVectors';
 import Color0 from '../../components/Color0';
 import SegmentedRing from '../../components/SegmentedRing';
@@ -39,6 +40,32 @@ export const CoursePosition: React.FC<CoursePositionProps> = ({
   // Récupérer les données des vidéos et du parcours
   const { totalVideos, completedVideos, loading: videosLoading } = useParcoursVideos(parcoursId || '');
   const { parcoursData, loading: parcoursLoading } = useParcours(parcoursId || '');
+
+  // Animation pour l'effet de rebond
+  const bounceScale = useSharedValue(1);
+
+  // Démarrer l'animation de rebond pour les parcours "unblocked"
+  useEffect(() => {
+    if (status === 'unblocked') {
+      bounceScale.value = withRepeat(
+        withTiming(1.1, {
+          duration: 800,
+          easing: Easing.bezier(0.25, 0.46, 0.45, 0.94),
+        }),
+        -1, // Répéter indéfiniment
+        true // Reverse (aller-retour)
+      );
+    } else {
+      bounceScale.value = withTiming(1, { duration: 200 });
+    }
+  }, [status, bounceScale]);
+
+  // Style animé pour l'effet de rebond
+  const bounceAnimatedStyle = useAnimatedStyle(() => {
+    return {
+      transform: [{ scale: bounceScale.value }],
+    };
+  });
 
   // Déterminer si les données du parcours sont disponibles et valides
   const hasParcoursData = !!parcoursId && !parcoursLoading && parcoursData;
@@ -122,16 +149,18 @@ export const CoursePosition: React.FC<CoursePositionProps> = ({
         onPress={onPress}
         activeOpacity={0.8}
       >
-        {/* Anneau segmenté en fonction du nombre de vidéos */}
-        <SegmentedRing 
-          width={ringWidth}
-          height={ringHeight}
-          totalSegments={videoCount}
-          completedSegments={validCompletedVideos}
-          ringColor={getRingColor()}
-          completedColor="#06D001"
-          ringWidth={6}
-        />
+        {/* Anneau segmenté avec animation de rebond pour les parcours unblocked */}
+        <Animated.View style={status === 'unblocked' ? bounceAnimatedStyle : undefined}>
+          <SegmentedRing 
+            width={ringWidth}
+            height={ringHeight}
+            totalSegments={videoCount}
+            completedSegments={validCompletedVideos}
+            ringColor={getRingColor()}
+            completedColor="#06D001"
+            ringWidth={6}
+          />
+        </Animated.View>
         
         {/* Pastille centrale */}
         <View style={styles.pastilleContainer}>

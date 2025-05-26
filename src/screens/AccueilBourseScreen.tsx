@@ -10,6 +10,7 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { useHome } from '../hooks/useHome';
 import { useNavigation } from '@react-navigation/native';
+import { usePathname } from 'expo-router';
 import { Section, Level } from '../types/home';
 
 // Import components from the project - use named imports
@@ -193,7 +194,7 @@ const AccueilBourseScreen = () => {
         </ScrollView>
         
         {/* Menu at the bottom */}
-        <IlotMenu />
+        <IlotMenu activeRoute={usePathname()} />
       </View>
     </SafeAreaView>
   );

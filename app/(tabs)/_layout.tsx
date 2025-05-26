@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import { Tabs } from 'expo-router';
-import { useRouter, useSegments } from 'expo-router';
+import { useRouter, useSegments, usePathname } from 'expo-router';
 import { useAuth } from '../../src/hooks/useAuth';
 import { View, StyleSheet, Dimensions, TouchableOpacity } from 'react-native';
 import { IlotMenu } from '../../src/components/IlotMenu';
@@ -37,9 +37,11 @@ export default function TabLayout() {
   
   // Nous utilisons un custom tab bar
   const CustomTabBar = ({ state, descriptors, navigation }: BottomTabBarProps) => {
+    const pathname = usePathname(); // Obtenir la route actuelle
+    
     return (
       <View style={styles.tabBarContainer}>
-        <IlotMenu style={styles.ilotMenu} />
+        <IlotMenu style={styles.ilotMenu} activeRoute={pathname} />
         {/* Zones tactiles pour la navigation */}
         <View style={styles.touchableContainer}>
           <TouchableOpacity 
