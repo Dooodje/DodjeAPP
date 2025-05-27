@@ -1,4 +1,4 @@
-import { collection, doc, getDoc, getDocs, query, where, setDoc, updateDoc } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs, query, where, setDoc, updateDoc, onSnapshot } from 'firebase/firestore';
 import { getDownloadURL, ref } from 'firebase/storage';
 import { db, storage } from '../config/firebase';
 import { Section, Level, TreeData, Course } from '../types/home';
@@ -273,6 +273,283 @@ export const homeService = {
         imageUrl: '',
         positions: {}
       };
+    }
+  },
+
+  /**
+   * Observer les données de design de la page d'accueil en temps réel
+   */
+  observeHomeDesign: (section: Section, level: Level, callback: (data: { imageUrl: string; positions: Record<string, { x: number; y: number; order?: number; isAnnex: boolean }> }) => void) => {
+    try {
+      console.log(`🔄 Observation du design pour section=${section}, level=${level}`);
+      
+      const designQuery = query(
+        collection(db, 'home_designs'),
+        where('domaine', '==', section),
+        where('niveau', '==', level)
+      );
+      
+      return onSnapshot(designQuery, async (snapshot) => {
+        try {
+          if (snapshot.empty) {
+            console.log(`Aucun design trouvé pour section=${section}, level=${level}`);
+            callback({
+              imageUrl: '',
+              positions: {}
+            });
+            return;
+          }
+          
+          // Prendre le premier document correspondant
+          const designDoc = snapshot.docs[0];
+          const designData = designDoc.data();
+          
+          // Récupérer l'URL complète de l'image si nécessaire
+          let imageUrl = designData.imageUrl || '';
+          if (imageUrl && !imageUrl.startsWith('http')) {
+            imageUrl = await getImageUrlFromPath(imageUrl);
+          }
+          
+          // Construire l'objet des positions
+          const positions = designData.positions || {};
+          
+          console.log(`✅ Design mis à jour pour section=${section}, level=${level}`);
+          callback({
+            imageUrl,
+            positions
+          });
+        } catch (error) {
+          console.error('Erreur lors du traitement des données de design:', error);
+          callback({
+            imageUrl: '',
+            positions: {}
+          });
+        }
+      }, (error) => {
+        console.error('Erreur lors de l\'observation du design:', error);
+        callback({
+          imageUrl: '',
+          positions: {}
+        });
+      });
+    } catch (error) {
+      console.error('Erreur lors de la configuration de l\'observation du design:', error);
+      // Retourner une fonction de nettoyage vide en cas d'erreur
+      return () => {};
+    }
+  },
+
+  /**
+   * Observer les parcours d'une section et niveau en temps réel
+   */
+  observeParcours: (section: Section, level: Level, callback: (parcours: Record<string, any>) => void) => {
+    try {
+      console.log(`🔄 Observation des parcours pour section=${section}, level=${level}`);
+      
+      const parcoursQuery = query(
+        collection(db, 'parcours'),
+        where('domaine', '==', section),
+        where('niveau', '==', level)
+      );
+      
+      return onSnapshot(parcoursQuery, (snapshot) => {
+        try {
+          const parcours: Record<string, any> = {};
+          
+          if (!snapshot.empty) {
+            snapshot.forEach(doc => {
+              const parcoursData = doc.data();
+              const ordre = parcoursData.ordre || 0;
+              
+              // Sauvegarder les données du parcours avec l'ordre comme clé
+              parcours[ordre.toString()] = {
+                id: doc.id,
+                ...parcoursData,
+                status: 'blocked' // Statut par défaut, sera mis à jour par observeUserParcours
+              };
+            });
+          }
+          
+          console.log(`✅ Parcours mis à jour pour section=${section}, level=${level}:`, Object.keys(parcours));
+          callback(parcours);
+        } catch (error) {
+          console.error('Erreur lors du traitement des données de parcours:', error);
+          callback({});
+        }
+      }, (error) => {
+        console.error('Erreur lors de l\'observation des parcours:', error);
+        callback({});
+      });
+    } catch (error) {
+      console.error('Erreur lors de la configuration de l\'observation des parcours:', error);
+      // Retourner une fonction de nettoyage vide en cas d'erreur
+      return () => {};
+    }
+  },
+
+  /**
+   * Observer les statuts des parcours d'un utilisateur en temps réel
+   */
+  observeUserParcours: (userId: string, callback: (statuses: Record<string, any>) => void) => {
+    try {
+      console.log(`🔄 Observation des statuts de parcours pour l'utilisateur ${userId}`);
+      
+      const userParcoursRef = collection(db, `users/${userId}/parcours`);
+      
+      return onSnapshot(userParcoursRef, (snapshot) => {
+        try {
+          const statuses: Record<string, any> = {};
+          
+          snapshot.forEach(doc => {
+            statuses[doc.id] = doc.data();
+          });
+          
+          console.log(`✅ Statuts de parcours mis à jour pour l'utilisateur ${userId}:`, Object.keys(statuses));
+          callback(statuses);
+        } catch (error) {
+          console.error('Erreur lors du traitement des statuts de parcours:', error);
+          callback({});
+        }
+      }, (error) => {
+        console.error('Erreur lors de l\'observation des statuts de parcours:', error);
+        callback({});
+      });
+    } catch (error) {
+      console.error('Erreur lors de la configuration de l\'observation des statuts de parcours:', error);
+      // Retourner une fonction de nettoyage vide en cas d'erreur
+      return () => {};
+    }
+  },
+
+  /**
+   * Observer les statistiques d'un utilisateur en temps réel
+   */
+  observeUserStats: (userId: string, callback: (stats: { streak: number; dodji: number }) => void) => {
+    try {
+      console.log(`🔄 Observation des statistiques pour l'utilisateur ${userId}`);
+      
+      const userDocRef = doc(db, 'users', userId);
+      
+      return onSnapshot(userDocRef, (snapshot) => {
+        try {
+          if (!snapshot.exists()) {
+            callback({
+              streak: 0,
+              dodji: 0
+            });
+            return;
+          }
+          
+          const userData = snapshot.data();
+          const stats = {
+            streak: userData.streak || 0,
+            dodji: userData.dodji || 0
+          };
+          
+          console.log(`✅ Statistiques mises à jour pour l'utilisateur ${userId}:`, stats);
+          callback(stats);
+        } catch (error) {
+          console.error('Erreur lors du traitement des statistiques utilisateur:', error);
+          callback({
+            streak: 0,
+            dodji: 0
+          });
+        }
+      }, (error) => {
+        console.error('Erreur lors de l\'observation des statistiques utilisateur:', error);
+        callback({
+          streak: 0,
+          dodji: 0
+        });
+      });
+    } catch (error) {
+      console.error('Erreur lors de la configuration de l\'observation des statistiques utilisateur:', error);
+      // Retourner une fonction de nettoyage vide en cas d'erreur
+      return () => {};
+    }
+  },
+
+  /**
+   * Observer les données complètes de la page d'accueil avec parcours en temps réel
+   */
+  observeHomeDesignWithParcours: (section: Section, level: Level, userId?: string, callback?: (data: { imageUrl: string; positions: Record<string, { x: number; y: number; order?: number; isAnnex: boolean }>; parcours?: Record<string, any> }) => void) => {
+    if (!callback) {
+      console.error('Callback requis pour observeHomeDesignWithParcours');
+      return () => {};
+    }
+
+    const unsubscribeFunctions: (() => void)[] = [];
+    let homeDesignData: { imageUrl: string; positions: Record<string, { x: number; y: number; order?: number; isAnnex: boolean }> } = { imageUrl: '', positions: {} };
+    let parcoursData: Record<string, any> = {};
+    let userStatuses: Record<string, any> = {};
+
+    // Fonction pour combiner et envoyer les données
+    const sendCombinedData = () => {
+      const combinedParcours = { ...parcoursData };
+      
+      // Appliquer les statuts utilisateur aux parcours
+      Object.keys(combinedParcours).forEach(key => {
+        const parcours = combinedParcours[key];
+        if (parcours && parcours.id && userStatuses[parcours.id]) {
+          combinedParcours[key] = {
+            ...parcours,
+            status: userStatuses[parcours.id].status || 'blocked'
+          };
+        }
+      });
+
+      callback({
+        ...homeDesignData,
+        parcours: combinedParcours
+      });
+    };
+
+    try {
+      // Observer le design de la page d'accueil
+      const unsubscribeDesign = homeService.observeHomeDesign(section, level, (designData) => {
+        homeDesignData = designData;
+        sendCombinedData();
+      });
+      unsubscribeFunctions.push(unsubscribeDesign);
+
+      // Observer les parcours
+      const unsubscribeParcours = homeService.observeParcours(section, level, (parcours) => {
+        parcoursData = parcours;
+        sendCombinedData();
+      });
+      unsubscribeFunctions.push(unsubscribeParcours);
+
+      // Observer les statuts utilisateur si un utilisateur est connecté
+      if (userId) {
+        const unsubscribeUserParcours = homeService.observeUserParcours(userId, (statuses) => {
+          userStatuses = statuses;
+          sendCombinedData();
+        });
+        unsubscribeFunctions.push(unsubscribeUserParcours);
+      }
+
+      // Retourner une fonction de nettoyage qui désabonne tous les listeners
+      return () => {
+        console.log('🧹 Nettoyage des listeners de la page d\'accueil');
+        unsubscribeFunctions.forEach(unsubscribe => {
+          try {
+            unsubscribe();
+          } catch (error) {
+            console.error('Erreur lors du nettoyage d\'un listener:', error);
+          }
+        });
+      };
+    } catch (error) {
+      console.error('Erreur lors de la configuration de l\'observation complète:', error);
+      // Nettoyer les listeners déjà configurés
+      unsubscribeFunctions.forEach(unsubscribe => {
+        try {
+          unsubscribe();
+        } catch (cleanupError) {
+          console.error('Erreur lors du nettoyage d\'urgence:', cleanupError);
+        }
+      });
+      return () => {};
     }
   }
 };

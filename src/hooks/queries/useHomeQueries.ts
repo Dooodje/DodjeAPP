@@ -1,89 +1,172 @@
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Section, Level, HomeDesign } from '../../types/home';
-import { getHomeDesignWithParcours } from '../../services/home';
+import { useQuery } from '@tanstack/react-query';
+import { useEffect, useState, useRef } from 'react';
+import { getHomeDesignWithParcours, homeService } from '../../services/home';
+import { Section, Level } from '../../types/home';
 
-// Clés pour les requêtes
+// Clés de requête pour la gestion du cache
 export const HOME_QUERY_KEYS = {
-  home: 'home',
-  homeDesign: (section: Section, level: Level) => 
-    ['home', 'design', section, level],
+  homeDesign: (section: Section, level: Level, userId?: string) => 
+    ['homeDesign', section, level, userId] as const,
 };
 
 /**
- * Hook pour récupérer le design de la page d'accueil avec les parcours
- * Utilise TanStack Query pour mettre en cache et optimiser les requêtes
+ * Hook personnalisé pour observer les données de la page d'accueil en temps réel
  */
-export function useHomeDesign(
-  section: Section,
-  level: Level,
-  userId?: string,
-  options = {}
-) {
-  const queryClient = useQueryClient();
-  
-  return useQuery({
-    queryKey: HOME_QUERY_KEYS.homeDesign(section, level),
-    queryFn: async () => {
-      const data = await getHomeDesignWithParcours(section, level, userId);
-      
-      // Formater les données pour garantir une structure cohérente
-      const safeDesign: HomeDesign = {
-        domaine: section,
-        niveau: level,
-        imageUrl: data.imageUrl || '',
-        positions: data.positions || {},
-        parcours: data.parcours || {}
-      };
-      
-      return safeDesign;
-    },
-    // Rendre l'initialisation des données plus rapide
-    placeholderData: () => {
-      // Essayer de réutiliser les données d'une autre section ou niveau comme valeur temporaire
-      const cachedDesigns = queryClient.getQueriesData<HomeDesign>({
-        queryKey: ['home', 'design']
-      });
-      
-      // Trouver le design mis en cache le plus récent
-      if (cachedDesigns.length > 0) {
-        return cachedDesigns[0][1];
+export function useHomeDesign(section: Section, level: Level, userId?: string) {
+  const [data, setData] = useState<{
+    imageUrl: string;
+    positions: Record<string, { x: number; y: number; order?: number; isAnnex: boolean }>;
+    parcours?: Record<string, any>;
+  } | undefined>(undefined);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
+  const unsubscribeRef = useRef<(() => void) | null>(null);
+
+  useEffect(() => {
+    console.log(`🔄 Configuration des listeners pour section=${section}, level=${level}, userId=${userId}`);
+    
+    setIsLoading(true);
+    setError(null);
+
+    // Nettoyer le listener précédent s'il existe
+    if (unsubscribeRef.current) {
+      unsubscribeRef.current();
+      unsubscribeRef.current = null;
+    }
+
+    try {
+      // Configurer le listener temps réel
+      const unsubscribe = homeService.observeHomeDesignWithParcours(
+        section,
+        level,
+        userId,
+        (homeData) => {
+          console.log(`✅ Données de la page d'accueil mises à jour:`, homeData);
+          setData(homeData);
+          setIsLoading(false);
+          setError(null);
+        }
+      );
+
+      unsubscribeRef.current = unsubscribe;
+    } catch (err) {
+      console.error('Erreur lors de la configuration du listener:', err);
+      setError(err instanceof Error ? err : new Error('Erreur inconnue'));
+      setIsLoading(false);
+    }
+
+    // Fonction de nettoyage
+    return () => {
+      if (unsubscribeRef.current) {
+        console.log('🧹 Nettoyage du listener useHomeDesign');
+        unsubscribeRef.current();
+        unsubscribeRef.current = null;
       }
-      
-      // Valeur par défaut à utiliser si aucune donnée n'est mise en cache
-      return {
-        domaine: section,
-        niveau: level,
-        imageUrl: '',
-        positions: {},
-        parcours: {}
-      };
-    },
-    refetchOnMount: true, // Toujours récupérer les données à jour lors du montage
-    ...options
-  });
+    };
+  }, [section, level, userId]);
+
+  // Nettoyer lors du démontage du composant
+  useEffect(() => {
+    return () => {
+      if (unsubscribeRef.current) {
+        console.log('🧹 Nettoyage final du listener useHomeDesign');
+        unsubscribeRef.current();
+        unsubscribeRef.current = null;
+      }
+    };
+  }, []);
+
+  return {
+    data,
+    isLoading,
+    error,
+    // Fonction pour forcer un rechargement (pour compatibilité avec l'ancien code)
+    refetch: () => {
+      console.log('🔄 Rechargement forcé des données de la page d\'accueil (listeners temps réel actifs)');
+      // En mode temps réel, pas besoin de recharger manuellement
+      // Les listeners se chargent automatiquement des mises à jour
+    }
+  };
 }
 
 /**
- * Fonction pour précharger les designs de la page d'accueil
- * Peut être appelée lors de l'initialisation de l'application ou de la navigation
+ * Hook pour observer les statistiques utilisateur en temps réel
  */
-export function prefetchHomeDesigns(
-  queryClient: any,
-  userId?: string
-) {
-  // Précharger les sections/niveaux les plus courants
-  const sections: Section[] = ['Bourse', 'Crypto'];
-  const levels: Level[] = ['Débutant', 'Avancé'];
-  
-  // Précharger chaque combinaison avec une priorité basse
-  sections.forEach(section => {
-    levels.forEach(level => {
-      queryClient.prefetchQuery({
-        queryKey: HOME_QUERY_KEYS.homeDesign(section, level),
-        queryFn: () => getHomeDesignWithParcours(section, level, userId),
-        staleTime: 10 * 60 * 1000, // 10 minutes
-        cacheTime: 15 * 60 * 1000, // 15 minutes
+export function useUserStats(userId?: string) {
+  const [data, setData] = useState<{ streak: number; dodji: number } | undefined>(undefined);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
+  const unsubscribeRef = useRef<(() => void) | null>(null);
+
+  useEffect(() => {
+    if (!userId) {
+      setData(undefined);
+      setIsLoading(false);
+      setError(null);
+      return;
+    }
+
+    console.log(`🔄 Configuration du listener pour les statistiques de l'utilisateur ${userId}`);
+    
+    setIsLoading(true);
+    setError(null);
+
+    // Nettoyer le listener précédent s'il existe
+    if (unsubscribeRef.current) {
+      unsubscribeRef.current();
+      unsubscribeRef.current = null;
+    }
+
+    try {
+      // Configurer le listener temps réel pour les statistiques
+      const unsubscribe = homeService.observeUserStats(userId, (stats) => {
+        console.log(`✅ Statistiques utilisateur mises à jour:`, stats);
+        setData(stats);
+        setIsLoading(false);
+        setError(null);
       });
-    });
-  });
-} 
+
+      unsubscribeRef.current = unsubscribe;
+    } catch (err) {
+      console.error('Erreur lors de la configuration du listener des statistiques:', err);
+      setError(err instanceof Error ? err : new Error('Erreur inconnue'));
+      setIsLoading(false);
+    }
+
+    // Fonction de nettoyage
+    return () => {
+      if (unsubscribeRef.current) {
+        console.log('🧹 Nettoyage du listener useUserStats');
+        unsubscribeRef.current();
+        unsubscribeRef.current = null;
+      }
+    };
+  }, [userId]);
+
+  // Nettoyer lors du démontage du composant
+  useEffect(() => {
+    return () => {
+      if (unsubscribeRef.current) {
+        console.log('🧹 Nettoyage final du listener useUserStats');
+        unsubscribeRef.current();
+        unsubscribeRef.current = null;
+      }
+    };
+  }, []);
+
+  return {
+    data,
+    isLoading,
+    error
+  };
+}
+
+/**
+ * Fonction pour précharger les designs de page d'accueil (pour compatibilité)
+ * Note: Avec les listeners temps réel, le préchargement est moins critique
+ */
+export const prefetchHomeDesigns = async (queryClient: any, sections: Section[], levels: Level[]) => {
+  console.log('📦 Préchargement des designs de page d\'accueil (mode temps réel)');
+  // En mode temps réel, nous n'avons pas besoin de précharger autant
+  // Les données seront automatiquement mises à jour via les listeners
+}; 

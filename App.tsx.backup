@@ -1,0 +1,53 @@
+import 'expo-router/entry';
+import React, { useState, useEffect } from 'react';
+import { View } from 'react-native';
+import { Provider } from 'react-redux';
+import { store } from './src/store';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { QueryProvider } from './src/providers/QueryProvider';
+import { AppInitializationScreen } from './src/components/AppInitializationScreen';
+import { useAuth } from './src/hooks/useAuth';
+import { router } from 'expo-router';
+
+// Composant principal qui gère l'état d'initialisation
+function AppContent() {
+  const [isAppReady, setIsAppReady] = useState(false);
+  const { isAuthenticated, isLoading } = useAuth();
+
+  // Gérer la redirection après l'initialisation
+  useEffect(() => {
+    if (isAppReady && !isLoading) {
+      if (isAuthenticated) {
+        // Utilisateur connecté -> rediriger vers l'écran d'accueil
+        router.replace('/(tabs)');
+      } else {
+        // Utilisateur non connecté -> rediriger vers l'écran d'ouverture
+        router.replace('/');
+      }
+    }
+  }, [isAppReady, isAuthenticated, isLoading]);
+
+  // Afficher l'écran d'initialisation tant que l'app n'est pas prête
+  if (!isAppReady) {
+    return (
+      <AppInitializationScreen 
+        onInitialized={() => setIsAppReady(true)} 
+      />
+    );
+  }
+
+  // Une fois l'app prête, afficher une vue vide car la navigation sera gérée par expo-router
+  return <View style={{ flex: 1 }} />;
+}
+
+export default function App() {
+  return (
+    <Provider store={store}>
+      <QueryProvider>
+        <SafeAreaProvider>
+          <AppContent />
+        </SafeAreaProvider>
+      </QueryProvider>
+    </Provider>
+  );
+} 

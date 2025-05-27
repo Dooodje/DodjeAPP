@@ -1,4 +1,4 @@
-import { collection, doc, getDoc, getDocs, query, where, updateDoc, setDoc, Timestamp, FieldValue } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs, query, where, updateDoc, setDoc, Timestamp, FieldValue, onSnapshot } from 'firebase/firestore';
 import { db } from './firebase';
 import { Video, VideoProgress, RelatedVideo, LastVideoResult } from '../types/video';
 
@@ -6,6 +6,158 @@ const VIDEOS_COLLECTION = 'videos';
 const USERS_COLLECTION = 'users';
 
 export const videoService = {
+  // Observer une vidéo en temps réel
+  observeVideoById(videoId: string, callback: (video: Video | null) => void): () => void {
+    if (!videoId) {
+      console.warn('❌ observeVideoById - ID vidéo non spécifié');
+      callback(null);
+      return () => {};
+    }
+
+    console.log(`🔍 observeVideoById - Configuration de l'observation pour la vidéo ${videoId}`);
+    
+    const videoRef = doc(db, VIDEOS_COLLECTION, videoId);
+    
+    const unsubscribe = onSnapshot(
+      videoRef,
+      (docSnapshot) => {
+        if (docSnapshot.exists()) {
+          const videoData = docSnapshot.data();
+          
+          // S'assurer que l'URL vidéo est définie et valide
+          const videoUrl = videoData.videoUrl || '';
+          
+          console.log(`🎥 observeVideoById - URL vidéo mise à jour pour ${videoId}: ${videoUrl}`);
+          
+          // Créer l'objet Video avec l'id et les données
+          const video: Video = {
+            id: videoId,
+            title: videoData.title || '',
+            titre: videoData.titre || videoData.title || '',
+            description: videoData.description || '',
+            videoUrl: videoUrl,
+            duration: videoData.duration || 0,
+            duree: videoData.duree || '00:00',
+            thumbnail: videoData.thumbnail || '',
+            order: videoData.order || 0,
+            courseId: videoData.courseId || videoData.parcoursId || '',
+            isUnlocked: true // Forcer toutes les vidéos comme débloquées
+          };
+          
+          console.log(`✅ observeVideoById - Vidéo ${videoId} mise à jour reçue`);
+          callback(video);
+        } else {
+          console.warn(`❌ observeVideoById - Vidéo ${videoId} non trouvée`);
+          callback(null);
+        }
+      },
+      (error) => {
+        console.error(`❌ observeVideoById - Erreur lors de l'observation de la vidéo ${videoId}:`, error);
+        callback(null);
+      }
+    );
+
+    return unsubscribe;
+  },
+
+  // Observer la progression d'une vidéo en temps réel
+  observeVideoProgress(userId: string, videoId: string, callback: (progress: {
+    currentTime: number;
+    duration: number;
+    completionStatus: string;
+    lastUpdated: Date;
+  } | null) => void): () => void {
+    if (!userId || !videoId) {
+      console.warn('❌ observeVideoProgress - userId et videoId sont requis');
+      callback(null);
+      return () => {};
+    }
+
+    console.log(`🔍 observeVideoProgress - Configuration de l'observation pour la progression ${userId}/${videoId}`);
+    
+    const videoRef = doc(db, `${USERS_COLLECTION}/${userId}/video/${videoId}`);
+    
+    const unsubscribe = onSnapshot(
+      videoRef,
+      (docSnapshot) => {
+        if (docSnapshot.exists()) {
+          const data = docSnapshot.data();
+          const progress = {
+            currentTime: data.currentTime || 0,
+            duration: data.duration || 0,
+            completionStatus: data.completionStatus || 'notStarted',
+            lastUpdated: data.lastUpdated instanceof Timestamp 
+              ? data.lastUpdated.toDate() 
+              : new Date(data.lastUpdated || Date.now())
+          };
+          
+          console.log(`✅ observeVideoProgress - Progression mise à jour pour ${videoId}:`, progress);
+          callback(progress);
+        } else {
+          // Retourner un objet par défaut si aucune progression n'existe
+          const defaultProgress = {
+            currentTime: 0,
+            duration: 0,
+            completionStatus: 'notStarted',
+            lastUpdated: new Date()
+          };
+          
+          console.log(`ℹ️ observeVideoProgress - Aucune progression trouvée pour ${videoId}, utilisation des valeurs par défaut`);
+          callback(defaultProgress);
+        }
+      },
+      (error) => {
+        console.error(`❌ observeVideoProgress - Erreur lors de l'observation de la progression ${videoId}:`, error);
+        callback(null);
+      }
+    );
+
+    return unsubscribe;
+  },
+
+  // Observer les vidéos liées d'un cours en temps réel
+  observeRelatedVideos(courseId: string | undefined, currentVideoId: string, callback: (videos: RelatedVideo[]) => void): () => void {
+    if (!courseId) {
+      console.log('ℹ️ observeRelatedVideos - courseId non défini, retour d\'un tableau vide');
+      callback([]);
+      return () => {};
+    }
+
+    console.log(`🔍 observeRelatedVideos - Configuration de l'observation pour les vidéos du cours ${courseId}`);
+    
+    const videosQuery = query(
+      collection(db, VIDEOS_COLLECTION),
+      where('courseId', '==', courseId)
+    );
+    
+    const unsubscribe = onSnapshot(
+      videosQuery,
+      (querySnapshot) => {
+        const relatedVideos = querySnapshot.docs
+          .map(doc => {
+            const videoData = doc.data() as Video;
+            return {
+              id: doc.id,
+              title: videoData.title,
+              thumbnail: videoData.thumbnail || videoData.videoUrl,
+              duration: videoData.duration,
+              progress: 0
+            } as RelatedVideo;
+          })
+          .filter(video => video.id !== currentVideoId); // Filtrer la vidéo courante
+        
+        console.log(`✅ observeRelatedVideos - ${relatedVideos.length} vidéos liées mises à jour pour le cours ${courseId}`);
+        callback(relatedVideos);
+      },
+      (error) => {
+        console.error(`❌ observeRelatedVideos - Erreur lors de l'observation des vidéos liées:`, error);
+        callback([]);
+      }
+    );
+
+    return unsubscribe;
+  },
+
   // Récupérer une vidéo par son ID
   async getVideoById(videoId: string): Promise<Video | null> {
     if (!videoId) {
@@ -392,5 +544,90 @@ export const videoService = {
       console.error('❌ Erreur lors de la récupération de la prochaine vidéo par ordre:', error);
       return null;
     }
+  },
+
+  // Observer la prochaine vidéo d'un cours en temps réel
+  observeNextVideo(courseId: string | undefined, currentVideoId: string, callback: (nextVideo: Video | LastVideoResult | null) => void): () => void {
+    if (!courseId) {
+      console.log('ℹ️ observeNextVideo - courseId non défini, retour null');
+      callback(null);
+      return () => {};
+    }
+
+    console.log(`🔍 observeNextVideo - Configuration de l'observation pour la prochaine vidéo du cours ${courseId}, vidéo actuelle: ${currentVideoId}`);
+    
+    const courseRef = doc(db, 'parcours', courseId);
+    
+    const unsubscribe = onSnapshot(
+      courseRef,
+      async (docSnapshot) => {
+        if (!docSnapshot.exists()) {
+          console.log('⚠️ observeNextVideo - document de parcours non trouvé');
+          callback(null);
+          return;
+        }
+        
+        try {
+          const courseData = docSnapshot.data();
+          const videoIds = courseData.videoIds || [];
+          
+          console.log('🔍 observeNextVideo - Liste des IDs de vidéos du parcours mise à jour:', videoIds);
+          
+          if (!videoIds.length) {
+            console.log('⚠️ observeNextVideo - aucune vidéo dans ce parcours');
+            callback(null);
+            return;
+          }
+          
+          // Trouver l'index de la vidéo actuelle dans la liste
+          const currentIndex = videoIds.indexOf(currentVideoId);
+          console.log(`🔍 observeNextVideo - Index de la vidéo actuelle: ${currentIndex}`);
+          
+          if (currentIndex === -1) {
+            console.log('⚠️ observeNextVideo - vidéo actuelle non trouvée dans la liste des IDs');
+            callback(null);
+            return;
+          }
+          
+          // S'il n'y a pas de vidéo suivante dans la liste
+          if (currentIndex >= videoIds.length - 1) {
+            console.log('⚠️ observeNextVideo - pas de vidéo suivante dans la liste');
+            // Récupérer le quizId du parcours
+            const quizId = courseData.quizId;
+            console.log('📝 Quiz ID trouvé:', quizId);
+            callback({
+              isLastVideo: true,
+              quizId
+            });
+            return;
+          }
+          
+          // Récupérer l'ID de la prochaine vidéo
+          const nextVideoId = videoIds[currentIndex + 1];
+          console.log(`🔍 observeNextVideo - ID de la prochaine vidéo: ${nextVideoId}`);
+          
+          // Récupérer les détails de la prochaine vidéo
+          const nextVideo = await this.getVideoById(nextVideoId);
+          
+          if (!nextVideo) {
+            console.log('⚠️ observeNextVideo - détails de la prochaine vidéo non trouvés');
+            callback(null);
+            return;
+          }
+          
+          console.log(`✅ observeNextVideo - Prochaine vidéo trouvée: ${nextVideo.title}`);
+          callback(nextVideo);
+        } catch (error) {
+          console.error('❌ observeNextVideo - Erreur lors du traitement:', error);
+          callback(null);
+        }
+      },
+      (error) => {
+        console.error(`❌ observeNextVideo - Erreur lors de l'observation du parcours ${courseId}:`, error);
+        callback(null);
+      }
+    );
+
+    return unsubscribe;
   }
 }; 

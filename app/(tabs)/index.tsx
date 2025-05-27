@@ -129,7 +129,10 @@ export default function HomeScreen() {
     prefetchNextLevelData,
     isModalVisible,
     setIsModalVisible,
-    modalData
+    modalData,
+    isPreloading,
+    preloadedCount,
+    allImagesData
   } = useHomeOptimized();
 
   // Hook pour gérer les streaks de connexion
@@ -149,18 +152,10 @@ export default function HomeScreen() {
 
   // Précharger les données du niveau suivant et précédent
   useEffect(() => {
-    // Précharger le niveau suivant si disponible
-    if (currentLevelIndex < LEVELS.length - 1) {
-      const nextLevel = LEVELS[currentLevelIndex + 1];
-      prefetchNextLevelData(nextLevel, currentSection);
-    }
-    
-    // Précharger le niveau précédent si disponible
-    if (currentLevelIndex > 0) {
-      const prevLevel = LEVELS[currentLevelIndex - 1];
-      prefetchNextLevelData(prevLevel, currentSection);
-    }
-  }, [currentLevel, currentSection, prefetchNextLevelData, currentLevelIndex]);
+    // Toutes les données sont déjà préchargées au montage du composant
+    // Plus besoin de précharger individuellement
+    console.log(`📊 Niveau actuel: ${currentLevel}, données déjà disponibles`);
+  }, [currentLevel, currentSection, currentLevelIndex]);
 
   // Gérer le changement de niveau avec animation
   const handleLevelChange = useCallback((direction: 'next' | 'prev') => {
@@ -175,16 +170,11 @@ export default function HomeScreen() {
       return;
     }
 
-    // Précharger davantage en fonction de la nouvelle direction
-    if (direction === 'next' && newIndex < LEVELS.length - 1) {
-      prefetchNextLevelData(LEVELS[newIndex + 1], currentSection);
-    } else if (direction === 'prev' && newIndex > 0) {
-      prefetchNextLevelData(LEVELS[newIndex - 1], currentSection);
-    }
-
+    // Les données sont déjà préchargées, donc changement instantané
+    console.log(`🔄 Changement vers ${LEVELS[newIndex]} - données déjà préchargées`);
     changeLevel(LEVELS[newIndex]);
     translateX.value = withSpring(0);
-  }, [currentLevel, changeLevel, translateX, currentSection, prefetchNextLevelData]);
+  }, [currentLevel, changeLevel, translateX]);
 
   // Configurer le geste de swipe
   const gesture = Gesture.Pan()
@@ -227,11 +217,8 @@ export default function HomeScreen() {
 
   // Fonction pour gérer le changement de section (Bourse/Crypto)
   const handleSectionChange = (section: Section) => {
-    // Précharger les données du nouveau section pour les différents niveaux
-    LEVELS.forEach(level => {
-      prefetchNextLevelData(level, section);
-    });
-    
+    // Les données sont déjà préchargées, donc pas besoin de précharger à nouveau
+    console.log(`🔄 Changement vers ${section} - données déjà préchargées`);
     changeSection(section);
   };
 
@@ -276,7 +263,17 @@ export default function HomeScreen() {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#06D001" />
-        <Text style={styles.loadingText}>Chargement de votre parcours...</Text>
+        <Text style={styles.loadingText}>
+          {isPreloading 
+            ? `Chargement de toutes les sous-pages... (${preloadedCount}/6)`
+            : 'Chargement de votre parcours...'
+          }
+        </Text>
+        {isPreloading && (
+          <Text style={styles.subLoadingText}>
+            Préparation de Bourse et Crypto pour tous les niveaux
+          </Text>
+        )}
       </View>
     );
   }
@@ -340,6 +337,11 @@ export default function HomeScreen() {
                 }
               }}
               parcours={homeDesign.parcours}
+              imageDimensions={homeDesign.imageDimensions}
+              isImageLoaded={homeDesign.isImageLoaded}
+              currentSection={currentSection}
+              currentLevel={currentLevel}
+              allImagesData={allImagesData}
             />
           ) : (
             <View style={styles.emptyContainer}>
@@ -432,6 +434,12 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     marginTop: 10,
     fontSize: 16,
+  },
+  subLoadingText: {
+    color: '#CCCCCC',
+    marginTop: 5,
+    fontSize: 14,
+    textAlign: 'center',
   },
   errorContainer: {
     flex: 1,

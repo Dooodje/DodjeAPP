@@ -280,6 +280,18 @@ function RootLayoutNav() {
         }}
       />
       <Stack.Screen
+        name="opening"
+        options={{
+          headerShown: false,
+        }}
+      />
+      <Stack.Screen
+        name="preopening"
+        options={{
+          headerShown: false,
+        }}
+      />
+      <Stack.Screen
         name="(auth)"
         options={{
           headerShown: false,

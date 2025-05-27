@@ -1,5 +1,5 @@
 import { db } from '@/config/firebase';
-import { collection, doc, getDoc, getDocs, query, setDoc, where, orderBy } from 'firebase/firestore';
+import { collection, doc, getDoc, getDocs, query, setDoc, where, orderBy, onSnapshot } from 'firebase/firestore';
 import { VideoStatus, VideoProgress, VideoStatusUpdate, UserVideo } from '@/types/video';
 import { QuizStatusService } from './QuizStatusService';
 
@@ -282,6 +282,96 @@ export class VideoStatusService {
         } catch (error) {
             console.error('Error unlocking next video:', error);
             throw error;
+        }
+    }
+
+    /**
+     * Observer les vidéos d'un parcours en temps réel pour un utilisateur
+     */
+    static observeUserVideosInParcours(
+        userId: string,
+        parcoursId: string,
+        callback: (videos: UserVideo[]) => void
+    ): () => void {
+        try {
+            console.log(`🔄 VideoStatusService - Observation des vidéos pour userId=${userId}, parcoursId=${parcoursId}`);
+            
+            const videosQuery = query(
+                collection(db, this.USERS_COLLECTION, userId, 'video'),
+                where('metadata.courseId', '==', parcoursId)
+            );
+
+            return onSnapshot(videosQuery, (snapshot) => {
+                try {
+                    const videos = snapshot.docs.map(doc => {
+                        const data = doc.data() as UserVideo;
+                        console.log('📼 VideoStatusService - Vidéo observée:', {
+                            videoId: doc.id,
+                            status: data.completionStatus,
+                            progress: data.progress
+                        });
+                        return data;
+                    });
+                    
+                    // Trier côté client avec gestion des valeurs undefined
+                    videos.sort((a, b) => (a.ordre || 0) - (b.ordre || 0));
+                    
+                    console.log(`✅ VideoStatusService - Vidéos mises à jour en temps réel: ${videos.length} vidéos`);
+                    callback(videos);
+                } catch (error) {
+                    console.error('Erreur lors du traitement des vidéos observées:', error);
+                    callback([]);
+                }
+            }, (error) => {
+                console.error('Erreur lors de l\'observation des vidéos:', error);
+                callback([]);
+            });
+        } catch (error) {
+            console.error('Erreur lors de la configuration de l\'observation des vidéos:', error);
+            // Retourner une fonction de nettoyage vide en cas d'erreur
+            return () => {};
+        }
+    }
+
+    /**
+     * Observer les données d'un parcours en temps réel
+     */
+    static observeParcours(
+        parcoursId: string,
+        callback: (parcoursData: any) => void
+    ): () => void {
+        try {
+            console.log(`🔄 VideoStatusService - Observation du parcours ${parcoursId}`);
+            
+            const parcoursRef = doc(db, 'parcours', parcoursId);
+            
+            return onSnapshot(parcoursRef, (snapshot) => {
+                try {
+                    if (!snapshot.exists()) {
+                        console.log(`Parcours ${parcoursId} non trouvé`);
+                        callback(null);
+                        return;
+                    }
+                    
+                    const parcoursData = snapshot.data();
+                    console.log(`✅ VideoStatusService - Données du parcours mises à jour:`, {
+                        parcoursId,
+                        videoCount: parcoursData?.videoCount || 0,
+                        titre: parcoursData?.titre || parcoursData?.title
+                    });
+                    callback(parcoursData);
+                } catch (error) {
+                    console.error('Erreur lors du traitement des données du parcours:', error);
+                    callback(null);
+                }
+            }, (error) => {
+                console.error('Erreur lors de l\'observation du parcours:', error);
+                callback(null);
+            });
+        } catch (error) {
+            console.error('Erreur lors de la configuration de l\'observation du parcours:', error);
+            // Retourner une fonction de nettoyage vide en cas d'erreur
+            return () => {};
         }
     }
 } 

@@ -1,4 +1,4 @@
-import { useEffect, useCallback, useState } from 'react';
+import { useEffect, useCallback, useState, useRef } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { useRouter } from 'expo-router';
 import { videoService } from '../services/video';
@@ -29,6 +29,12 @@ export const useVideo = (videoId: string, userId: string) => {
   const router = useRouter();
   const [nextVideo, setNextVideo] = useState<Video | null>(null);
 
+  // Références pour stocker les fonctions de désabonnement
+  const unsubscribeVideoRef = useRef<(() => void) | null>(null);
+  const unsubscribeProgressRef = useRef<(() => void) | null>(null);
+  const unsubscribeRelatedRef = useRef<(() => void) | null>(null);
+  const unsubscribeNextVideoRef = useRef<(() => void) | null>(null);
+
   // Sélecteurs pour l'état Redux
   const {
     currentVideo,
@@ -45,161 +51,197 @@ export const useVideo = (videoId: string, userId: string) => {
     thumbnailUrl
   } = useSelector((state: RootState) => state.video);
 
-  // Charger la vidéo et les vidéos connexes
+  // Configurer les listeners en temps réel
   useEffect(() => {
-    const loadVideo = async () => {
-      try {
-        if (!videoId) {
-          dispatch(setError('ID de vidéo manquant'));
-          return;
-        }
-        
-        // Réinitialiser l'état avant de charger la nouvelle vidéo
-        dispatch(setLoading(true));
-        dispatch(setThumbnailUrl('')); // Réinitialiser la miniature avec une chaîne vide
-        dispatch(setPlaying(false)); // Assurons-nous que la vidéo est en pause
-        
-        const video = await videoService.getVideoById(videoId);
-        
-        if (!video) {
-          dispatch(setError('Vidéo non trouvée'));
-          return;
-        }
+    if (!videoId) {
+      dispatch(setError('ID de vidéo manquant'));
+      return;
+    }
 
-        // S'assurer que la durée est correctement définie
-        if (video.duree && typeof video.duree === 'string') {
-          // Si le champ duree existe et est une chaîne, le convertir en nombre pour duration
-          console.log(`⏱️ Conversion de la durée string en secondes: ${video.duree}`);
-          const durationParts = video.duree.split(':');
-          if (durationParts.length === 2) {
-            const minutes = parseInt(durationParts[0], 10);
-            const seconds = parseInt(durationParts[1], 10);
-            video.duration = minutes * 60 + seconds;
-          }
-        }
-        
-        console.log(`⏱️ Durée finale de la vidéo: ${video.duration} secondes`);
+    console.log(`🔍 useVideo - Configuration des listeners en temps réel pour la vidéo ${videoId}`);
+    
+    // Réinitialiser l'état avant de configurer les nouveaux listeners
+    dispatch(setLoading(true));
+    dispatch(setThumbnailUrl(''));
+    dispatch(setPlaying(false));
+    dispatch(setError(null));
 
-        // Récupérer la progression de l'utilisateur
-        if (userId) {
-          try {
-            const progress = await videoService.getVideoProgress(userId, videoId);
-            if (progress) {
-              video.progress = {
-                currentTime: progress.currentTime,
-                duration: progress.duration,
-                completionStatus: progress.completionStatus as VideoCompletionStatus,
-                lastUpdated: progress.lastUpdated,
-                percentage: (progress.currentTime / progress.duration) * 100,
-                metadata: {
-                  videoId: videoId,
-                  courseId: video.courseId,
-                  videoSection: '',
-                  videoTitle: video.title || video.titre || '',
-                  progress: (progress.currentTime / progress.duration) * 100
-                }
-              };
-              video.lastWatchedPosition = progress.currentTime;
-              console.log('Last watched time:', progress.currentTime);
-            }
-          } catch (progressErr) {
-            console.error('Erreur lors de la récupération de la progression:', progressErr);
-            // Ne pas bloquer le chargement de la vidéo si on n'a pas pu récupérer la progression
-          }
-        }
-
-        // Toutes les vidéos sont considérées comme débloquées
-        video.isUnlocked = true;
-
-        dispatch(setCurrentVideo(video));
-
-        // Mettre à jour la miniature directement depuis le document de la vidéo
-        try {
-          // Utiliser directement le champ thumbnail du document vidéo
-          if (video.thumbnail) {
-            console.log(`🖼️ Miniature trouvée dans la vidéo: ${video.thumbnail}`);
-            dispatch(setThumbnailUrl(video.thumbnail));
-          } else {
-            console.log(`⚠️ Aucune miniature trouvée dans la vidéo`);
-            dispatch(setThumbnailUrl(''));
-          }
-        } catch (thumbnailErr) {
-          console.error(`❌ Erreur lors de la récupération de la miniature:`, thumbnailErr);
-          dispatch(setThumbnailUrl(''));
-        }
-        
-        // Terminer le chargement de la vidéo
+    // 1. Observer la vidéo en temps réel
+    const unsubscribeVideo = videoService.observeVideoById(videoId, async (video) => {
+      if (!video) {
+        dispatch(setError('Vidéo non trouvée'));
         dispatch(setLoading(false));
+        return;
+      }
 
-        // Charger les vidéos connexes si courseId est défini
-        try {
-          const related = await videoService.getRelatedVideos(video.courseId, videoId);
-          dispatch(setRelatedVideos(related));
+      console.log(`✅ useVideo - Données vidéo mises à jour reçues pour ${videoId}`);
+
+      // S'assurer que la durée est correctement définie
+      if (video.duree && typeof video.duree === 'string') {
+        console.log(`⏱️ Conversion de la durée string en secondes: ${video.duree}`);
+        const durationParts = video.duree.split(':');
+        if (durationParts.length === 2) {
+          const minutes = parseInt(durationParts[0], 10);
+          const seconds = parseInt(durationParts[1], 10);
+          video.duration = minutes * 60 + seconds;
+        }
+      }
+      
+      console.log(`⏱️ Durée finale de la vidéo: ${video.duration} secondes`);
+
+      // Toutes les vidéos sont considérées comme débloquées
+      video.isUnlocked = true;
+
+      dispatch(setCurrentVideo(video));
+
+      // Mettre à jour la miniature
+      if (video.thumbnail) {
+        console.log(`🖼️ Miniature trouvée dans la vidéo: ${video.thumbnail}`);
+        dispatch(setThumbnailUrl(video.thumbnail));
+      } else {
+        console.log(`⚠️ Aucune miniature trouvée dans la vidéo`);
+        dispatch(setThumbnailUrl(''));
+      }
+
+      dispatch(setLoading(false));
+    });
+
+    unsubscribeVideoRef.current = unsubscribeVideo;
+
+    // 2. Observer la progression de l'utilisateur en temps réel (si userId est disponible)
+    if (userId) {
+      const unsubscribeProgress = videoService.observeVideoProgress(userId, videoId, (progress) => {
+        if (progress && currentVideo) {
+          console.log(`✅ useVideo - Progression mise à jour reçue pour ${videoId}:`, progress);
           
-          // Charger la prochaine vidéo du parcours
-          console.log('⏭️ Tentative de récupération de la prochaine vidéo pour courseId:', video.courseId, ', videoId:', videoId);
-          console.log('⏭️ Les données de la vidéo actuelle:', video);
+          // Mettre à jour la progression dans la vidéo courante
+          const updatedVideo = {
+            ...currentVideo,
+            progress: {
+              currentTime: progress.currentTime,
+              duration: progress.duration,
+              completionStatus: progress.completionStatus as VideoCompletionStatus,
+              lastUpdated: progress.lastUpdated,
+              percentage: (progress.currentTime / progress.duration) * 100,
+              metadata: {
+                videoId: videoId,
+                courseId: currentVideo.courseId,
+                videoSection: '',
+                videoTitle: currentVideo.title || currentVideo.titre || '',
+                progress: (progress.currentTime / progress.duration) * 100
+              }
+            },
+            lastWatchedPosition: progress.currentTime
+          };
           
-          const next = await videoService.getNextVideo(video.courseId, videoId);
-          console.log('⏭️ Résultat de getNextVideo:', next);
-          
-          if (next) {
+          dispatch(setCurrentVideo(updatedVideo));
+          console.log('Last watched time updated:', progress.currentTime);
+        }
+      });
+
+      unsubscribeProgressRef.current = unsubscribeProgress;
+    }
+
+    // Nettoyer lors du démontage du composant
+    return () => {
+      console.log('🧹 useVideo - Nettoyage des listeners');
+      if (unsubscribeVideoRef.current) {
+        unsubscribeVideoRef.current();
+        unsubscribeVideoRef.current = null;
+      }
+      if (unsubscribeProgressRef.current) {
+        unsubscribeProgressRef.current();
+        unsubscribeProgressRef.current = null;
+      }
+      if (unsubscribeRelatedRef.current) {
+        unsubscribeRelatedRef.current();
+        unsubscribeRelatedRef.current = null;
+      }
+      if (unsubscribeNextVideoRef.current) {
+        unsubscribeNextVideoRef.current();
+        unsubscribeNextVideoRef.current = null;
+      }
+      dispatch(resetVideo());
+    };
+  }, [videoId, userId, dispatch]);
+
+  // 3. Observer les vidéos liées quand la vidéo courante est chargée
+  useEffect(() => {
+    if (currentVideo?.courseId) {
+      console.log(`🔍 useVideo - Configuration du listener des vidéos liées pour le cours ${currentVideo.courseId}`);
+      
+      const unsubscribeRelated = videoService.observeRelatedVideos(
+        currentVideo.courseId, 
+        videoId, 
+        (relatedVideos) => {
+          console.log(`✅ useVideo - ${relatedVideos.length} vidéos liées mises à jour`);
+          dispatch(setRelatedVideos(relatedVideos));
+        }
+      );
+
+      unsubscribeRelatedRef.current = unsubscribeRelated;
+
+      return () => {
+        if (unsubscribeRelatedRef.current) {
+          unsubscribeRelatedRef.current();
+          unsubscribeRelatedRef.current = null;
+        }
+      };
+    }
+  }, [currentVideo?.courseId, videoId, dispatch]);
+
+  // 4. Observer la prochaine vidéo en temps réel quand la vidéo courante est chargée
+  useEffect(() => {
+    if (currentVideo?.courseId) {
+      console.log(`🔍 useVideo - Configuration du listener de la prochaine vidéo pour le cours ${currentVideo.courseId}`);
+      
+      const unsubscribeNextVideo = videoService.observeNextVideo(
+        currentVideo.courseId, 
+        videoId, 
+        (nextVideoResult) => {
+          if (nextVideoResult) {
             // Vérifier si c'est la dernière vidéo avec un quiz
-            if ('isLastVideo' in next) {
-              console.log('⏭️ Dernière vidéo avec quiz détectée');
+            if ('isLastVideo' in nextVideoResult) {
+              console.log('⏭️ observeNextVideo - Dernière vidéo avec quiz détectée');
               setNextVideo(null);
               return;
             }
             
             // C'est une vidéo normale
-            const videoNext = next as Video;
-            // S'assurer que la vidéo suivante a toutes les propriétés nécessaires
+            const videoNext = nextVideoResult as Video;
             const completeNextVideo: Video = {
               ...videoNext,
-              isUnlocked: true, // On considère toutes les vidéos débloquées
-              // Ajouter les propriétés requises qui pourraient manquer
+              isUnlocked: true,
               id: videoNext.id || '',
               title: videoNext.title || 'Vidéo sans titre',
-              titre: videoNext.titre || videoNext.title || 'Vidéo sans titre', // Assurer la compatibilité du titre
+              titre: videoNext.titre || videoNext.title || 'Vidéo sans titre',
               description: videoNext.description || 'Aucune description disponible',
-              videoUrl: videoNext.videoUrl || '', // Ne pas utiliser d'URL de fallback
+              videoUrl: videoNext.videoUrl || '',
               duration: videoNext.duration || 0,
-              duree: videoNext.duree || '00:00', // Assurer la compatibilité du format de durée
-              thumbnail: videoNext.thumbnail || '', // S'assurer que thumbnail est présent
-              courseId: video.courseId
+              duree: videoNext.duree || '00:00',
+              thumbnail: videoNext.thumbnail || '',
+              courseId: currentVideo.courseId
             };
             
-            console.log('⏭️ Prochaine vidéo formatée:', JSON.stringify(completeNextVideo));
-            console.log('⏭️ URL vidéo suivante:', completeNextVideo.videoUrl);
-            console.log('⏭️ Durée formatée:', completeNextVideo.duree);
-            console.log('⏭️ Miniature:', completeNextVideo.thumbnail);
+            console.log('⏭️ observeNextVideo - Prochaine vidéo mise à jour:', completeNextVideo.title);
             setNextVideo(completeNextVideo);
           } else {
-            console.log('⏭️ Aucune prochaine vidéo trouvée');
+            console.log('⏭️ observeNextVideo - Aucune prochaine vidéo trouvée');
             setNextVideo(null);
           }
-        } catch (relatedErr) {
-          console.error('Erreur lors de la récupération des vidéos liées:', relatedErr);
-          // Ne pas bloquer le chargement de la vidéo principale si on n'a pas pu récupérer les vidéos liées
-          dispatch(setRelatedVideos([]));
-          setNextVideo(null);
         }
-      } catch (err) {
-        console.error('Erreur lors du chargement de la vidéo:', err);
-        dispatch(setError(err instanceof Error ? err.message : 'Une erreur est survenue'));
-      } finally {
-        dispatch(setLoading(false));
-      }
-    };
+      );
 
-    if (videoId) {
-      loadVideo();
+      unsubscribeNextVideoRef.current = unsubscribeNextVideo;
+
+      return () => {
+        if (unsubscribeNextVideoRef.current) {
+          unsubscribeNextVideoRef.current();
+          unsubscribeNextVideoRef.current = null;
+        }
+      };
     }
-
-    return () => {
-      dispatch(resetVideo());
-    };
-  }, [videoId, userId, dispatch]);
+  }, [currentVideo?.courseId, videoId]);
 
   // Convertir la durée de format "MM:SS" en secondes
   const convertDurationToSeconds = (duration: string): number => {

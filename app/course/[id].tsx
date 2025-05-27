@@ -11,7 +11,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { Course, CourseContent } from '../../src/types/course';
 import { useAuth } from '../../src/hooks/useAuth';
 import { QuizStatusService } from '../../src/services/businessLogic/QuizStatusService';
-import { collection, getDocs } from 'firebase/firestore';
+import { collection, getDocs, onSnapshot } from 'firebase/firestore';
 import { db } from '../../src/services/firebase';
 import { Rectangle11 } from '../../src/components/Rectangle11';
 import ParcoursLockedModal from '../../src/components/ui/ParcoursLockedModal';
@@ -77,8 +77,9 @@ export default function CoursePage() {
   const [parcoursStatus, setParcoursStatus] = useState<'blocked' | 'unblocked' | 'in_progress' | 'completed' | null>(null);
   const [isModalVisible, setIsModalVisible] = useState(false);
   
-  // Référence pour stocker la fonction de désabonnement
-  const unsubscribeRef = useRef<(() => void) | null>(null);
+  // Références pour stocker les fonctions de désabonnement
+  const unsubscribeParcoursRef = useRef<(() => void) | null>(null);
+  const unsubscribeVideoStatusRef = useRef<(() => void) | null>(null);
 
   // Callback pour recevoir les dimensions de l'image d'arrière-plan
   const handleImageDimensionsChange = useCallback((width: number, height: number) => {
@@ -173,6 +174,32 @@ export default function CoursePage() {
     }
   }, [user?.uid]);
 
+  // Fonction pour configurer le listener des statuts des vidéos en temps réel
+  const setupVideoStatusListener = useCallback(() => {
+    if (!user?.uid) return;
+
+    console.log('Configuration du listener des statuts des vidéos en temps réel');
+    
+    // Observer la sous-collection video de l'utilisateur
+    const userVideosRef = collection(db, 'users', user.uid, 'video');
+    const unsubscribe = onSnapshot(
+      userVideosRef,
+      (snapshot) => {
+        console.log('Mise à jour des statuts des vidéos reçue');
+        
+        // Mettre à jour les statuts des vidéos avec les nouvelles données
+        if (parcoursData) {
+          updateVideoStatuses(parcoursData);
+        }
+      },
+      (error) => {
+        console.error('Erreur lors de l\'observation des statuts des vidéos:', error);
+      }
+    );
+
+    unsubscribeVideoStatusRef.current = unsubscribe;
+  }, [user?.uid, parcoursData, updateVideoStatuses]);
+
   // Vérifier le statut du parcours
   useEffect(() => {
     const checkParcoursStatus = async () => {
@@ -194,33 +221,7 @@ export default function CoursePage() {
     checkParcoursStatus();
   }, [user?.uid, id]);
 
-  // Charger les données du parcours
-  useEffect(() => {
-    const loadParcoursData = async () => {
-      if (!id) return;
-
-      try {
-        setLoading(true);
-        const data = await courseService.getCourseById(id);
-        if (data) {
-          setParcoursData(data);
-        }
-      } catch (error) {
-        console.error('Erreur lors du chargement du parcours:', error);
-        Alert.alert(
-          "Erreur",
-          "Impossible de charger le parcours. Veuillez réessayer plus tard.",
-          [{ text: "OK", onPress: () => globalRouter.back() }]
-        );
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    loadParcoursData();
-  }, [id]);
-
-  // Configurer l'observation en temps réel
+  // Configurer l'observation en temps réel du parcours et des statuts des vidéos
   useEffect(() => {
     // Vérifier que nous avons un ID
     if (!id) {
@@ -234,8 +235,8 @@ export default function CoursePage() {
     setError(null);
     
     // Démarrer l'observation du parcours
-    const unsubscribe = courseService.observeParcoursDetail(id as string, async (data) => {
-      console.log('Données mises à jour reçues via observeParcoursDetail');
+    const unsubscribeParcours = courseService.observeParcoursDetail(id as string, async (data) => {
+      console.log('Données du parcours mises à jour reçues via observeParcoursDetail');
       
       // Vérifier s'il y a une erreur
       if (data.error) {
@@ -254,41 +255,68 @@ export default function CoursePage() {
       setLoading(false);
     });
     
-    // Stocker la fonction de désabonnement
-    unsubscribeRef.current = unsubscribe;
+    // Stocker la fonction de désabonnement du parcours
+    unsubscribeParcoursRef.current = unsubscribeParcours;
     
     // Nettoyer lors du démontage du composant
     return () => {
-      console.log('Nettoyage de l\'observation du parcours');
-      if (unsubscribeRef.current) {
-        unsubscribeRef.current();
-        unsubscribeRef.current = null;
+      console.log('Nettoyage des observations du parcours et des statuts des vidéos');
+      if (unsubscribeParcoursRef.current) {
+        unsubscribeParcoursRef.current();
+        unsubscribeParcoursRef.current = null;
+      }
+      if (unsubscribeVideoStatusRef.current) {
+        unsubscribeVideoStatusRef.current();
+        unsubscribeVideoStatusRef.current = null;
       }
     };
   }, [id, updateVideoStatuses]);
 
-  // Fonction pour réessayer en cas d'erreur
-  const handleRetry = () => {
-    // Réinitialiser l'observation
-    if (unsubscribeRef.current) {
-      unsubscribeRef.current();
-      unsubscribeRef.current = null;
+  // Configurer le listener des statuts des vidéos quand l'utilisateur et les données du parcours sont disponibles
+  useEffect(() => {
+    if (user?.uid && parcoursData) {
+      setupVideoStatusListener();
     }
     
-    // Redémarrer l'observation
+    return () => {
+      if (unsubscribeVideoStatusRef.current) {
+        unsubscribeVideoStatusRef.current();
+        unsubscribeVideoStatusRef.current = null;
+      }
+    };
+  }, [user?.uid, parcoursData, setupVideoStatusListener]);
+
+  // Fonction pour réessayer en cas d'erreur
+  const handleRetry = () => {
+    // Réinitialiser les observations
+    if (unsubscribeParcoursRef.current) {
+      unsubscribeParcoursRef.current();
+      unsubscribeParcoursRef.current = null;
+    }
+    if (unsubscribeVideoStatusRef.current) {
+      unsubscribeVideoStatusRef.current();
+      unsubscribeVideoStatusRef.current = null;
+    }
+    
+    // Redémarrer l'observation du parcours
     setLoading(true);
-    const unsubscribe = courseService.observeParcoursDetail(id as string, async (data) => {
+    const unsubscribeParcours = courseService.observeParcoursDetail(id as string, async (data) => {
       if (data.error) {
         setError(data.error);
       } else {
         setParcoursData(data);
         await updateVideoStatuses(data);
         setError(null);
+        
+        // Redémarrer le listener des statuts des vidéos
+        if (user?.uid) {
+          setupVideoStatusListener();
+        }
       }
       setLoading(false);
     });
     
-    unsubscribeRef.current = unsubscribe;
+    unsubscribeParcoursRef.current = unsubscribeParcours;
   };
 
   // Naviguer vers la page de la vidéo

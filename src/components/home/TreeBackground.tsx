@@ -1,7 +1,7 @@
 import React, { useMemo, useState, useEffect, useRef } from 'react';
 import { View, Image, StyleSheet, Dimensions, ScrollView, LayoutChangeEvent, Platform } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { PositionData } from '../../types/home';
+import { PositionData, Section, Level } from '../../types/home';
 import PositionButton from './PositionButton';
 import theme from '../../config/theme';
 
@@ -11,20 +11,49 @@ const HEADER_HEIGHT = 120;
 // Largeur de référence de l'image (iPhone 15 Pro Max)
 const REFERENCE_WIDTH = 550;
 
+// Toutes les combinaisons possibles pour pré-monter les images
+const ALL_SECTIONS: Section[] = ['Bourse', 'Crypto'];
+const ALL_LEVELS: Level[] = ['Débutant', 'Avancé', 'Expert'];
+
 interface TreeBackgroundProps {
-  imageUrl?: string; // Rendre explicitement optionnel
+  imageUrl?: string;
   positions: Record<string, PositionData>;
   onPositionPress: (positionId: string, order?: number) => void;
   parcours?: Record<string, any>;
+  imageDimensions?: {
+    width: number;
+    height: number;
+    finalWidth: number;
+    finalHeight: number;
+  };
+  isImageLoaded?: boolean;
+  // Nouvelles props pour le système de pré-montage
+  currentSection: Section;
+  currentLevel: Level;
+  allImagesData?: Map<string, {
+    url: string;
+    dimensions?: {
+      width: number;
+      height: number;
+      finalWidth: number;
+      finalHeight: number;
+    };
+    isLoaded: boolean;
+  }>;
 }
 
 const TreeBackground: React.FC<TreeBackgroundProps> = ({ 
   imageUrl, 
   positions, 
   onPositionPress,
-  parcours = {}
+  parcours = {},
+  imageDimensions,
+  isImageLoaded = false,
+  currentSection,
+  currentLevel,
+  allImagesData
 }) => {
-  const [imageDimensions, setImageDimensions] = useState({ width: 0, height: 0 });
+  const [calculatedDimensions, setCalculatedDimensions] = useState({ width: 0, height: 0 });
   const [scrollViewHeight, setScrollViewHeight] = useState(screenHeight);
   const [scrollViewWidth, setScrollViewWidth] = useState(screenWidth);
   const [imageLoadError, setImageLoadError] = useState(false);
@@ -36,9 +65,19 @@ const TreeBackground: React.FC<TreeBackgroundProps> = ({
     setScrollViewWidth(width);
   };
   
+  // Utiliser les dimensions pré-calculées si disponibles, sinon calculer
   useEffect(() => {
-    // Si l'URL est définie et non vide
-    if (imageUrl && imageUrl.trim() !== '') {
+    if (imageDimensions && imageDimensions.finalWidth && imageDimensions.finalHeight) {
+      // Utiliser les dimensions pré-calculées du cache
+      console.log(`🚀 Utilisation des dimensions en cache: ${imageDimensions.finalWidth}x${imageDimensions.finalHeight}`);
+      setCalculatedDimensions({
+        width: imageDimensions.finalWidth,
+        height: imageDimensions.finalHeight
+      });
+      setImageLoadError(false);
+    } else if (imageUrl && imageUrl.trim() !== '') {
+      // Fallback: calculer les dimensions si pas en cache
+      console.log('⚠️ Dimensions non disponibles en cache, calcul en cours...');
       Image.getSize(
         imageUrl, 
         (width, height) => {
@@ -54,7 +93,7 @@ const TreeBackground: React.FC<TreeBackgroundProps> = ({
             finalHeight = (height * screenWidth) / width;
           }
           
-          setImageDimensions({
+          setCalculatedDimensions({
             width: finalWidth,
             height: finalHeight
           });
@@ -63,7 +102,7 @@ const TreeBackground: React.FC<TreeBackgroundProps> = ({
         (error) => {
           console.error('Erreur lors du chargement des dimensions de l\'image:', error);
           setImageLoadError(true);
-          setImageDimensions({
+          setCalculatedDimensions({
             width: screenWidth,
             height: screenHeight * 2
           });
@@ -73,12 +112,12 @@ const TreeBackground: React.FC<TreeBackgroundProps> = ({
       // Si pas d'URL définie, définir les dimensions par défaut
       console.log('Pas d\'URL d\'image définie, utilisation des dimensions par défaut');
       setImageLoadError(true);
-      setImageDimensions({
+      setCalculatedDimensions({
         width: screenWidth,
         height: screenHeight * 2
       });
     }
-  }, [imageUrl]);
+  }, [imageUrl, imageDimensions]);
 
   const positionsArray = useMemo(() => {
     if (!positions) return [];
@@ -89,10 +128,23 @@ const TreeBackground: React.FC<TreeBackgroundProps> = ({
   }, [positions]);
 
   // Augmenter la hauteur du contenu pour permettre plus de défilement
-  const contentHeight = Math.max(imageDimensions.height + 100, scrollViewHeight * 1.5);
+  const contentHeight = Math.max(calculatedDimensions.height + 100, scrollViewHeight * 1.5);
 
   // Calculer la marge horizontale pour centrer l'image
   const horizontalMargin = screenWidth > REFERENCE_WIDTH ? (screenWidth - REFERENCE_WIDTH) / 2 : 0;
+
+  // Générer la clé actuelle pour identifier l'image active
+  const currentKey = `${currentSection}-${currentLevel}`;
+
+  // Créer les styles d'image communs
+  const getImageStyle = (dimensions: any) => [
+    styles.backgroundImage,
+    { 
+      height: dimensions?.finalHeight || calculatedDimensions.height,
+      width: dimensions?.finalWidth || calculatedDimensions.width,
+      marginHorizontal: horizontalMargin,
+    }
+  ];
 
   return (
     <ScrollView
@@ -114,27 +166,74 @@ const TreeBackground: React.FC<TreeBackgroundProps> = ({
         style={styles.gradient}
       />
       
-      {/* Image de parcours ou fond par défaut si l'image n'est pas disponible */}
-      {imageUrl && !imageLoadError ? (
+      {/* Pré-monter TOUTES les images de fond (cachées) */}
+      {allImagesData && ALL_SECTIONS.map(section => 
+        ALL_LEVELS.map(level => {
+          const key = `${section}-${level}`;
+          const imageData = allImagesData.get(key);
+          const isCurrentImage = key === currentKey;
+          
+          if (!imageData?.url) return null;
+          
+          return (
+            <Image
+              key={key}
+              source={{ uri: imageData.url }}
+              style={[
+                ...getImageStyle(imageData.dimensions),
+                {
+                  // Seule l'image actuelle est visible
+                  opacity: isCurrentImage ? 0.9 : 0,
+                  // Garder toutes les images dans le layout pour éviter les recalculs
+                  position: 'absolute',
+                  top: 0,
+                  zIndex: isCurrentImage ? 1 : 0
+                }
+              ]}
+              resizeMode="contain"
+              onError={() => {
+                if (isCurrentImage) {
+                  setImageLoadError(true);
+                }
+              }}
+              onLoad={() => {
+                if (isCurrentImage) {
+                  console.log(`🖼️ Image active affichée instantanément: ${key}`);
+                }
+              }}
+            />
+          );
+        })
+      ).flat()}
+      
+      {/* Image de fallback si aucune image pré-montée n'est disponible */}
+      {(!allImagesData || !allImagesData.get(currentKey)) && imageUrl && !imageLoadError && (
         <Image
           source={{ uri: imageUrl }}
           style={[
             styles.backgroundImage,
             { 
-              height: imageDimensions.height,
-              width: imageDimensions.width,
-              marginHorizontal: horizontalMargin
+              height: calculatedDimensions.height,
+              width: calculatedDimensions.width,
+              marginHorizontal: horizontalMargin,
+              opacity: isImageLoaded ? 0.9 : 0.5
             }
           ]}
           resizeMode="contain"
           onError={() => setImageLoadError(true)}
+          onLoad={() => {
+            console.log('🖼️ Image de fallback affichée');
+          }}
         />
-      ) : (
+      )}
+
+      {/* Fond par défaut si aucune image n'est disponible */}
+      {(!imageUrl || imageLoadError) && (!allImagesData || !allImagesData.get(currentKey)) && (
         <View 
           style={[
             styles.defaultBackground, 
             { 
-              height: imageDimensions.height,
+              height: calculatedDimensions.height,
               width: '100%'
             }
           ]} 
@@ -142,22 +241,26 @@ const TreeBackground: React.FC<TreeBackgroundProps> = ({
       )}
 
       {/* Points de parcours */}
-      {positionsArray.map((position) => (
-        <PositionButton
-          key={position.id}
-          id={position.id}
-          x={position.x}
-          y={position.y}
-          order={position.order}
-          isAnnex={position.isAnnex}
-          onPress={onPositionPress}
-          parcoursData={position.order && parcours[position.order.toString()]}
-          imageWidth={imageDimensions.width}
-          imageHeight={imageDimensions.height}
-          containerWidth={scrollViewWidth}
-          containerHeight={scrollViewHeight}
-        />
-      ))}
+      {positionsArray.map((position) => {
+        const parcoursData = parcours && position.order !== undefined ? parcours[position.order.toString()] : null;
+        
+        return (
+          <PositionButton
+            key={position.id}
+            id={position.id}
+            x={position.x}
+            y={position.y}
+            order={position.order}
+            isAnnex={position.isAnnex}
+            onPress={onPositionPress}
+            parcoursData={parcoursData}
+            imageWidth={calculatedDimensions.width}
+            imageHeight={calculatedDimensions.height}
+            containerWidth={scrollViewWidth}
+            containerHeight={scrollViewHeight}
+          />
+        );
+      })}
     </ScrollView>
   );
 };

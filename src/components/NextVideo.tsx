@@ -4,7 +4,7 @@ import { useRouter } from 'expo-router';
 import { Video } from '../types/video';
 import { Ionicons } from '@expo/vector-icons';
 import { getDisplayTime } from '../utils/timeUtils';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, onSnapshot } from 'firebase/firestore';
 import { db } from '../services/firebase';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useAuth } from '../hooks/useAuth';
@@ -36,33 +36,39 @@ export const NextVideo: React.FC<NextVideoProps> = ({
 
   // Si c'est la dernière vidéo et qu'il y a un quiz, on affiche le quiz
   if (isLastVideo && quizId) {
-    // Récupérer le statut du quiz
+    // Observer le statut du quiz en temps réel
     useEffect(() => {
-      const fetchQuizStatus = async () => {
-        if (!user?.uid || !quizId) return;
+      if (!user?.uid || !quizId) return;
 
-        try {
-          setIsLoading(true);
-          const quizStatusRef = doc(db, 'users', user.uid, 'quiz', quizId);
-          const quizStatusDoc = await getDoc(quizStatusRef);
+      console.log(`🔍 NextVideo - Configuration du listener pour le statut du quiz ${quizId}`);
+      setIsLoading(true);
 
-          if (quizStatusDoc.exists()) {
-            const status = quizStatusDoc.data().status as QuizStatus;
+      const quizStatusRef = doc(db, 'users', user.uid, 'quiz', quizId);
+      
+      const unsubscribe = onSnapshot(
+        quizStatusRef,
+        (docSnapshot) => {
+          if (docSnapshot.exists()) {
+            const status = docSnapshot.data().status as QuizStatus;
             setQuizStatus(status);
-            console.log('📊 Statut du quiz:', status);
+            console.log('✅ NextVideo - Statut du quiz mis à jour:', status);
           } else {
             setQuizStatus('blocked');
-            console.log('📊 Aucun statut trouvé pour le quiz, statut par défaut: blocked');
+            console.log('ℹ️ NextVideo - Aucun statut trouvé pour le quiz, statut par défaut: blocked');
           }
-        } catch (error) {
-          console.error('❌ Erreur lors de la récupération du statut du quiz:', error);
+          setIsLoading(false);
+        },
+        (error) => {
+          console.error('❌ NextVideo - Erreur lors de l\'observation du statut du quiz:', error);
           setQuizStatus('blocked');
-        } finally {
           setIsLoading(false);
         }
-      };
+      );
 
-      fetchQuizStatus();
+      return () => {
+        console.log('🧹 NextVideo - Nettoyage du listener du statut du quiz');
+        unsubscribe();
+      };
     }, [user?.uid, quizId]);
 
     const handleQuizAccess = () => {
@@ -141,30 +147,36 @@ export const NextVideo: React.FC<NextVideoProps> = ({
     );
   }
 
-  // Récupérer le statut de la vidéo suivante
+  // Observer le statut de la vidéo suivante en temps réel
   useEffect(() => {
-    const fetchVideoStatus = async () => {
-      if (!user?.uid || !video?.id) return;
+    if (!user?.uid || !video?.id) return;
 
-      try {
-        const videoStatusRef = doc(db, 'users', user.uid, 'video', video.id);
-        const videoStatusDoc = await getDoc(videoStatusRef);
+    console.log(`🔍 NextVideo - Configuration du listener pour le statut de la vidéo ${video.id}`);
 
-        if (videoStatusDoc.exists()) {
-          const status = videoStatusDoc.data().completionStatus;
+    const videoStatusRef = doc(db, 'users', user.uid, 'video', video.id);
+    
+    const unsubscribe = onSnapshot(
+      videoStatusRef,
+      (docSnapshot) => {
+        if (docSnapshot.exists()) {
+          const status = docSnapshot.data().completionStatus;
           setCompletionStatus(status);
-          console.log('📊 Statut de la vidéo suivante:', status);
+          console.log('✅ NextVideo - Statut de la vidéo suivante mis à jour:', status);
         } else {
           setCompletionStatus('blocked');
-          console.log('📊 Aucun statut trouvé pour la vidéo suivante, statut par défaut: blocked');
+          console.log('ℹ️ NextVideo - Aucun statut trouvé pour la vidéo suivante, statut par défaut: blocked');
         }
-      } catch (error) {
-        console.error('❌ Erreur lors de la récupération du statut de la vidéo:', error);
+      },
+      (error) => {
+        console.error('❌ NextVideo - Erreur lors de l\'observation du statut de la vidéo:', error);
         setCompletionStatus('blocked');
       }
-    };
+    );
 
-    fetchVideoStatus();
+    return () => {
+      console.log('🧹 NextVideo - Nettoyage du listener du statut de la vidéo');
+      unsubscribe();
+    };
   }, [user?.uid, video?.id]);
 
   const handleNavigation = () => {
