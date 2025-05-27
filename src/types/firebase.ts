@@ -21,6 +21,7 @@ export interface UserData {
   // Horodatages importants
   createdAt: string;
   lastLogin: string;
+  lastStreakUpdate?: string;
   
   // Champs optionnels
   settings?: {

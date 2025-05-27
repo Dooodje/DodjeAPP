@@ -8,6 +8,7 @@ import { useRouter } from 'expo-router';
 import DailyStrike from '../DailyStrike';
 import SymbolBlancComponent from '../SymboleBlanc';
 import { useUserStreak } from '../../hooks/useUserStreak';
+import { useStreak, StreakModal } from '../../streak';
 
 interface AnnexeHeaderProps {
   level?: number;
@@ -31,11 +32,17 @@ export const AnnexeHeader: React.FC<AnnexeHeaderProps> = ({
   onBackPress,
 }) => {
   const insets = useSafeAreaInsets();
-  const { streak, loading } = useUserStreak();
+  const { streak } = useUserStreak();
+  const { modalData: streakModalData, closeModal: closeStreakModal, claimReward, showStreakInfo } = useStreak();
   const router = useRouter();
   
   const handlePointsPress = () => {
     router.push('/(tabs)/boutique');
+  };
+  
+  const handleStreakPress = () => {
+    // Afficher le modal de streak avec les informations actuelles
+    showStreakInfo();
   };
   
   return (
@@ -54,14 +61,10 @@ export const AnnexeHeader: React.FC<AnnexeHeaderProps> = ({
               <MaterialCommunityIcons name="arrow-left" size={24} color="#fff" />
             </TouchableOpacity>
           ) : (
-            <View style={styles.dailyStreakContainer}>
+            <TouchableOpacity style={styles.dailyStreakContainer} onPress={handleStreakPress}>
               <DailyStrike width={22} height={22} />
-              {loading ? (
-                <ActivityIndicator size="small" color="#9BEC00" style={styles.loader} />
-              ) : (
-                <Text style={styles.levelText}>{streak}</Text>
-              )}
-            </View>
+              <Text style={styles.levelText}>{streak}</Text>
+            </TouchableOpacity>
           )}
           
           <TouchableOpacity style={styles.pointsContainer} onPress={handlePointsPress}>
@@ -122,6 +125,13 @@ export const AnnexeHeader: React.FC<AnnexeHeaderProps> = ({
         colors={['rgba(0, 0, 0, 0.7)', 'rgba(0, 0, 0, 0.5)', 'rgba(0, 0, 0, 0.2)', 'rgba(0, 0, 0, 0)']}
         locations={[0, 0.3, 0.7, 1]}
         style={styles.overlay}
+      />
+
+      {/* Modal de streak */}
+      <StreakModal
+        modalData={streakModalData}
+        onClose={closeStreakModal}
+        onClaimReward={claimReward}
       />
     </View>
   );

@@ -3,6 +3,7 @@ import { VideoStatusService } from './VideoStatusService';
 import { ParcoursStatusService } from './ParcoursStatusService';
 import { QuizStatusService } from './QuizStatusService';
 import { DodjiService } from './DodjiService';
+import { StreakInitializationService } from '@/streak/services/StreakInitializationService';
 import { collection, getDocs, query, where, DocumentData } from 'firebase/firestore';
 import { ParcoursStatusUpdate } from '@/types/parcours';
 import { VideoStatusUpdate } from '@/types/video';
@@ -49,6 +50,10 @@ export class UserInitializationService {
             // Initialize Dodji account
             await DodjiService.initializeUserDodji(userId);
             console.log('Compte Dodji initialisé');
+
+            // Initialize streak data
+            await StreakInitializationService.initializeUserStreak(userId);
+            console.log('Données de streak initialisées');
 
             // Initialize all statuses (parcours, videos, and quizzes)
             await this.initializeAllStatuses(userId);

@@ -202,6 +202,7 @@ export const useAuth = () => {
                 dodji: 0,
                 streak: 0,
                 isDodjeOne: false,
+                level: 1,
                 createdAt: new Date().toISOString(),
                 lastLogin: new Date().toISOString(),
               };
@@ -252,6 +253,9 @@ export const useAuth = () => {
       
       // Démarrer le cycle de rafraîchissement du token après connexion
       scheduleTokenRefresh();
+      
+      // NE PAS vérifier le streak ici - cela sera fait sur la page d'accueil
+      // pour éviter les conflits avec la navigation
       
       return userData;
     } catch (error: any) {

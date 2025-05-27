@@ -1,5 +1,5 @@
-import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
+import React, { useEffect, useRef } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Animated } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Section } from '../../types/home';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -8,6 +8,7 @@ import { useRouter } from 'expo-router';
 import DailyStrike from '../DailyStrike';
 import SymbolBlancComponent from '../SymboleBlanc';
 import { useUserStreak } from '../../hooks/useUserStreak';
+import { useStreak, StreakModal } from '../../streak';
 
 interface GlobalHeaderProps {
   level?: number;
@@ -31,11 +32,80 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
   onBackPress,
 }) => {
   const insets = useSafeAreaInsets();
-  const { streak, loading } = useUserStreak();
+  const { streak } = useUserStreak();
+  const { modalData: streakModalData, closeModal: closeStreakModal, claimReward, showStreakInfo } = useStreak();
   const router = useRouter();
+  
+  // Animation du compteur de points
+  const animatedPoints = useRef(new Animated.Value(points)).current;
+  const scaleAnimation = useRef(new Animated.Value(1)).current;
+  const colorAnimation = useRef(new Animated.Value(0)).current;
+  const displayedPoints = useRef(points);
+  const [currentDisplayPoints, setCurrentDisplayPoints] = React.useState(points);
+  
+  // Animer le changement de points
+  useEffect(() => {
+    if (points !== displayedPoints.current) {
+      const previousPoints = displayedPoints.current;
+      displayedPoints.current = points;
+      
+      console.log('🎭 GlobalHeader: Animation compteur de', previousPoints, 'à', points);
+      
+      // Animation du compteur qui se déroule
+      const listener = animatedPoints.addListener(({ value }) => {
+        setCurrentDisplayPoints(Math.floor(value));
+      });
+      
+      // Animation de scale pour attirer l'attention
+      Animated.sequence([
+        Animated.timing(scaleAnimation, {
+          toValue: 1.2,
+          duration: 200,
+          useNativeDriver: true,
+        }),
+        Animated.timing(scaleAnimation, {
+          toValue: 1,
+          duration: 1800,
+          useNativeDriver: true,
+        }),
+      ]).start();
+      
+      // Animation de couleur (jaune -> vert -> jaune)
+      Animated.sequence([
+        Animated.timing(colorAnimation, {
+          toValue: 1,
+          duration: 300,
+          useNativeDriver: false,
+        }),
+        Animated.timing(colorAnimation, {
+          toValue: 0,
+          duration: 1700,
+          useNativeDriver: false,
+        }),
+      ]).start();
+      
+      Animated.timing(animatedPoints, {
+        toValue: points,
+        duration: 2000, // 2 secondes pour correspondre à l'animation des Dodjis
+        useNativeDriver: false, // On ne peut pas utiliser useNativeDriver pour les valeurs numériques
+      }).start(() => {
+        animatedPoints.removeListener(listener);
+        setCurrentDisplayPoints(points);
+      });
+      
+      return () => {
+        animatedPoints.removeListener(listener);
+      };
+    }
+  }, [points, animatedPoints, scaleAnimation, colorAnimation]);
   
   const handlePointsPress = () => {
     router.push('/(tabs)/boutique');
+  };
+  
+  const handleStreakPress = () => {
+    // Afficher le modal de streak avec les informations actuelles
+    showStreakInfo();
   };
   
   return (
@@ -56,18 +126,28 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
               <MaterialCommunityIcons name="arrow-left" size={24} color="#fff" />
             </TouchableOpacity>
           ) : (
-            <View style={styles.dailyStreakContainer}>
+            <TouchableOpacity style={styles.dailyStreakContainer} onPress={handleStreakPress}>
               <DailyStrike width={22} height={22} />
-              {loading ? (
-                <ActivityIndicator size="small" color="#9BEC00" style={styles.loader} />
-              ) : (
-                <Text style={styles.levelText}>{streak}</Text>
-              )}
-            </View>
+              <Text style={styles.levelText}>{streak}</Text>
+            </TouchableOpacity>
           )}
           
           <TouchableOpacity style={styles.pointsContainer} onPress={handlePointsPress}>
-            <Text style={styles.pointsText}>{points}</Text>
+            <Animated.View style={{ transform: [{ scale: scaleAnimation }] }}>
+              <Animated.Text 
+                style={[
+                  styles.pointsText,
+                  {
+                    color: colorAnimation.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: ['#F1E61C', '#9BEC00'], // Jaune -> Vert
+                    }),
+                  }
+                ]}
+              >
+                {currentDisplayPoints}
+              </Animated.Text>
+            </Animated.View>
             <View style={styles.symbolContainer}>
               <SymbolBlancComponent width={22} height={22} />
             </View>
@@ -127,6 +207,13 @@ export const GlobalHeader: React.FC<GlobalHeaderProps> = ({
         colors={['rgba(0, 0, 0, 0.7)', 'rgba(0, 0, 0, 0.5)', 'rgba(0, 0, 0, 0.2)', 'rgba(0, 0, 0, 0)']}
         locations={[0, 0.3, 0.7, 1]}
         style={styles.overlay}
+      />
+
+      {/* Modal de streak */}
+      <StreakModal
+        modalData={streakModalData}
+        onClose={closeStreakModal}
+        onClaimReward={claimReward}
       />
     </View>
   );
@@ -245,8 +332,5 @@ const styles = StyleSheet.create({
   selectedSectionText: {
     color: '#0A0400',
     fontFamily: 'Arboria-Medium',
-  },
-  loader: {
-    marginLeft: 8,
   },
 }); 

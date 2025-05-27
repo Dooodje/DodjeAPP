@@ -12,6 +12,7 @@ import Animated, { useAnimatedStyle, withSpring, useSharedValue, runOnJS } from 
 import Svg, { Path, Circle } from 'react-native-svg';
 import { useQueryClient } from '@tanstack/react-query';
 import ParcoursLockedModal from '../../src/components/ui/ParcoursLockedModal';
+import { useStreak, StreakModal } from '../../src/streak';
 
 const LEVELS: Level[] = ['Débutant', 'Avancé', 'Expert'];
 const { width } = Dimensions.get('window');
@@ -130,6 +131,14 @@ export default function HomeScreen() {
     setIsModalVisible,
     modalData
   } = useHomeOptimized();
+
+  // Hook pour gérer les streaks de connexion
+  const { modalData: streakModalData, closeModal: closeStreakModal, claimReward } = useStreak();
+
+  // Log pour diagnostiquer la modal
+  React.useEffect(() => {
+    console.log('🏠 HomeScreen: Données de la modal streak:', streakModalData);
+  }, [streakModalData]);
 
   // Animation pour le swipe
   const translateX = useSharedValue(0);
@@ -299,6 +308,13 @@ export default function HomeScreen() {
           parcoursTitle={homeDesign?.parcours?.[selectedParcoursId]?.titre}
         />
       )}
+
+      {/* Modal de streak de connexion */}
+      <StreakModal
+        modalData={streakModalData}
+        onClose={closeStreakModal}
+        onClaimReward={claimReward}
+      />
 
       {/* Arbre de parcours avec le design dynamique */}
       <GestureDetector gesture={gesture}>
