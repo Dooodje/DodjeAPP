@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import Svg, { Text as SvgText, Defs, LinearGradient as SvgLinearGradient, Stop } from 'react-native-svg';
 import { StreakModalData } from '../types';
 import { DailyStrike } from '../../components/DailyStrike';
 import { Dodji } from '../../components/SymboleBlanc';
@@ -112,6 +113,34 @@ const getNextRewards = (currentStreak: number) => {
   return rewards;
 };
 
+// Composant pour texte avec gradient
+const GradientText: React.FC<{ children: string; fontSize: number }> = ({ children, fontSize }) => {
+  return (
+    <Svg height={70} width={119} style={{ alignSelf: 'flex-end', marginLeft: -15 }}>
+      <Defs>
+        <SvgLinearGradient id="textGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+          <Stop offset="0%" stopColor="#F3FF90" stopOpacity="1" />
+          <Stop offset="33%" stopColor="#9BEC00" stopOpacity="1" />
+          <Stop offset="66%" stopColor="#06D001" stopOpacity="1" />
+          <Stop offset="100%" stopColor="#059212" stopOpacity="1" />
+        </SvgLinearGradient>
+      </Defs>
+      <SvgText
+        fill="url(#textGradient)"
+        fontSize={fontSize}
+        fontFamily="Arboria-Bold"
+        fontWeight="bold"
+        x="50%"
+        y="100%"
+        textAnchor="middle"
+        letterSpacing="-5"
+      >
+        {children}
+      </SvgText>
+    </Svg>
+  );
+};
+
 export const StreakModal: React.FC<StreakModalProps> = ({ modalData, onClose, onClaimReward }) => {
   const scaleValue = React.useRef(new Animated.Value(0)).current;
   const [claiming, setClaiming] = React.useState(false);
@@ -202,23 +231,28 @@ export const StreakModal: React.FC<StreakModalProps> = ({ modalData, onClose, on
               },
             ]}
           >
-            {/* Icône de streak avec DailyStrike */}
-            <View style={styles.iconContainer}>
-              <DailyStrike width={120} height={120} />
-            </View>
-
-            {/* Compteur de jours principal */}
-            <View style={styles.mainStreakContainer}>
-              <Text style={styles.streakCount}>{modalData.streakCount}</Text>
-              <Text style={styles.streakMainLabel}>day streak!</Text>
-            </View>
-
-            {/* Message inspirant */}
-            {modalData.isNewRecord && (
-              <View style={styles.inspiringMessageContainer}>
-                <Text style={styles.inspiringMessageText}>Le gland s'ancre, les racines prennent.</Text>
+            {/* Haut du modal selon le design Figma */}
+            <View style={styles.topSection}>
+              {/* Frame principal avec icône et chiffre */}
+              <View style={styles.iconAndNumberContainer}>
+                {/* Frame avec icône et chiffre côte à côte */}
+                <View style={styles.iconNumberRow}>
+                  <View style={styles.iconContainer}>
+                    <DailyStrike width={58} height={106} />
+                  </View>
+                  <GradientText fontSize={90}>{modalData.streakCount.toString()}</GradientText>
+                </View>
+                {/* Texte "Daily streak !" */}
+                <Text style={styles.streakMainLabel}>Daily streak !</Text>
               </View>
-            )}
+              
+              {/* Message de félicitations */}
+              <View style={styles.congratulationsContainer}>
+                <Text style={styles.congratulationsText}>
+                  Bravo jeune gland !{'\n'}Tes racines s'ancrent de plus en plus.{'\n'}Voilà ta récompense.
+                </Text>
+              </View>
+            </View>
 
             {/* Indicateurs d'objectifs circulaires - TOUJOURS AFFICHÉS */}
             <View style={styles.goalsContainer}>
@@ -239,8 +273,8 @@ export const StreakModal: React.FC<StreakModalProps> = ({ modalData, onClose, on
                       progress={progressToWeekly}
                       color="#9BEC00"
                     >
-                      <Text style={styles.progressValue}>
-                        {modalData.streakCount % 7 === 0 ? '7/7j' : `${modalData.streakCount % 7}/7j`}
+                      <Text style={styles.daysLeftText}>
+                        {daysUntilWeekly === 1 ? 'Demain' : `Dans ${daysUntilWeekly}j`}
                       </Text>
                     </ProgressIndicator>
                   );
@@ -250,20 +284,6 @@ export const StreakModal: React.FC<StreakModalProps> = ({ modalData, onClose, on
                     <Text style={styles.goalReward}>+50</Text>
                     <Dodji width={10} height={15} />
                   </View>
-                  {(() => {
-                    const nextWeeklyStreak = Math.ceil((modalData.streakCount + 1) / 7) * 7;
-                    const daysUntilWeekly = nextWeeklyStreak - modalData.streakCount;
-                    
-                    if (nextWeeklyStreak % 30 === 0) {
-                      return null;
-                    }
-                    
-                    return (
-                      <Text style={styles.daysLeftText}>
-                        {daysUntilWeekly === 1 ? 'Demain' : `Dans ${daysUntilWeekly}j`}
-                      </Text>
-                    );
-                  })()}
                 </View>
               </View>
 
@@ -279,8 +299,8 @@ export const StreakModal: React.FC<StreakModalProps> = ({ modalData, onClose, on
                       progress={progressToMonthly}
                       color="#FFD700"
                     >
-                      <Text style={styles.progressValueGold}>
-                        {modalData.streakCount % 30 === 0 ? '30/30j' : `${modalData.streakCount % 30}/30j`}
+                      <Text style={styles.daysLeftTextGold}>
+                        {daysUntilMonthly === 1 ? 'Demain' : `Dans ${daysUntilMonthly}j`}
                       </Text>
                     </ProgressIndicator>
                   );
@@ -290,16 +310,6 @@ export const StreakModal: React.FC<StreakModalProps> = ({ modalData, onClose, on
                     <Text style={styles.goalRewardGold}>+250</Text>
                     <Dodji width={10} height={15} />
                   </View>
-                  {(() => {
-                    const nextMonthlyStreak = Math.ceil((modalData.streakCount + 1) / 30) * 30;
-                    const daysUntilMonthly = nextMonthlyStreak - modalData.streakCount;
-                    
-                    return (
-                      <Text style={styles.daysLeftTextGold}>
-                        {daysUntilMonthly === 1 ? 'Demain' : `Dans ${daysUntilMonthly}j`}
-                      </Text>
-                    );
-                  })()}
                 </View>
               </View>
             </View>
@@ -366,27 +376,31 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(155, 236, 0, 0.3)',
   },
   iconContainer: {
-    marginBottom: 16,
     alignItems: 'center',
   },
-  mainStreakContainer: {
+  topSection: {
     alignItems: 'center',
     marginBottom: 20,
+    width: 306,
+    gap: 10,
   },
-  streakCount: {
-    fontSize: 56,
-    fontFamily: 'Arboria-Black',
-    color: '#FFFFFF',
-    lineHeight: 56,
-    textShadowColor: 'rgba(155, 236, 0, 0.5)',
-    textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 4,
+  iconAndNumberContainer: {
+    alignItems: 'center',
+    gap: 16,
+    width: 199,
+  },
+  iconNumberRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'center',
+    width: '100%',
   },
   streakMainLabel: {
     fontSize: 20,
     fontFamily: 'Arboria-Medium',
     color: '#F3FF90',
-    marginTop: 2,
+    textAlign: 'center',
+    width: '100%',
   },
   currentRewardContainer: {
     marginBottom: 20,
@@ -481,17 +495,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 4,
   },
-  inspiringMessageContainer: {
-    marginBottom: 20,
-    padding: 12,
-    borderRadius: 12,
+  congratulationsContainer: {
+    marginTop: 10,
+    padding: 10,
+    borderRadius: 10,
     backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    width: '100%',
   },
-  inspiringMessageText: {
-    fontSize: 14,
+  congratulationsText: {
+    fontSize: 15,
     fontFamily: 'Arboria-Bold',
     color: '#FFFFFF',
     textAlign: 'center',
+    lineHeight: 15,
   },
   flyingDodjisContainer: {
     position: 'absolute',
