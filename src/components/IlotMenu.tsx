@@ -5,6 +5,11 @@ import Icon2Svg from '../assets/IlotMenuIcon2.svg';
 import Icon3Svg from '../assets/IlotMenuIcon3.svg';
 import Icon4Svg from '../assets/IlotMenuIcon4.svg';
 import Icon5Svg from '../assets/IlotMenuIcon5.svg';
+import HomeV2 from './HomeV2';
+import BoutiqueV2 from './BoutiqueV2';
+import LabV2 from './LabV2';
+import ProfilV2 from './ProfilV2';
+import CataV2 from './CataV2';
 
 interface IlotMenuProps {
   style?: ViewStyle;
@@ -31,25 +36,54 @@ export const IlotMenu: React.FC<IlotMenuProps> = ({ style, activeRoute }) => {
   // Composant pour une icône avec effet de verre optionnel
   const IconWithGlassEffect: React.FC<{ 
     IconComponent: React.FC<any>, 
-    isActive: boolean 
-  }> = ({ IconComponent, isActive }) => {
+    isActive: boolean,
+    isHomeIcon?: boolean,
+    isBoutiqueIcon?: boolean,
+    isLabIcon?: boolean,
+    isProfilIcon?: boolean,
+    isCatalogueIcon?: boolean
+  }> = ({ IconComponent, isActive, isHomeIcon = false, isBoutiqueIcon = false, isLabIcon = false, isProfilIcon = false, isCatalogueIcon = false }) => {
     if (isActive) {
       return (
         <View style={styles.iconContainer}>
-          <IconComponent 
-            width={24} 
-            height={24} 
-            color="#9BEC00" // Couleur principale du dégradé pour l'icône active
-            fill="#9BEC00"
-            style={styles.activeIcon}
-          />
+          {isHomeIcon ? (
+            <HomeV2 />
+          ) : isBoutiqueIcon ? (
+            <BoutiqueV2 />
+          ) : isLabIcon ? (
+            <LabV2 />
+          ) : isProfilIcon ? (
+            <ProfilV2 />
+          ) : isCatalogueIcon ? (
+            <CataV2 />
+          ) : (
+            <IconComponent 
+              width={24} 
+              height={24} 
+              color="#9BEC00" // Couleur principale du dégradé pour l'icône active
+              fill="#9BEC00"
+              style={styles.activeIcon}
+            />
+          )}
         </View>
       );
     }
     
     return (
       <View style={styles.iconContainer}>
-        <IconComponent width={24} height={24} />
+        {isHomeIcon ? (
+          <IconComponent width={24} height={24} />
+        ) : isBoutiqueIcon ? (
+          <IconComponent width={24} height={24} />
+        ) : isLabIcon ? (
+          <IconComponent width={24} height={24} />
+        ) : isProfilIcon ? (
+          <IconComponent width={24} height={24} />
+        ) : isCatalogueIcon ? (
+          <IconComponent width={24} height={24} />
+        ) : (
+          <IconComponent width={24} height={24} />
+        )}
       </View>
     );
   };
@@ -60,23 +94,28 @@ export const IlotMenu: React.FC<IlotMenuProps> = ({ style, activeRoute }) => {
       <View style={styles.content}>
         <IconWithGlassEffect 
           IconComponent={Icon1Svg} 
-          isActive={isIconActive(0)} 
+          isActive={isIconActive(0)}
+          isProfilIcon={true}
         />
         <IconWithGlassEffect 
           IconComponent={Icon2Svg} 
-          isActive={isIconActive(1)} 
+          isActive={isIconActive(1)}
+          isLabIcon={true}
         />
         <IconWithGlassEffect 
           IconComponent={Icon3Svg} 
-          isActive={isIconActive(2)} 
+          isActive={isIconActive(2)}
+          isHomeIcon={true}
         />
         <IconWithGlassEffect 
           IconComponent={Icon4Svg} 
-          isActive={isIconActive(3)} 
+          isActive={isIconActive(3)}
+          isBoutiqueIcon={true}
         />
         <IconWithGlassEffect 
           IconComponent={Icon5Svg} 
-          isActive={isIconActive(4)} 
+          isActive={isIconActive(4)}
+          isCatalogueIcon={true}
         />
       </View>
     </View>
