@@ -1,6 +1,17 @@
-import { collection, doc, getDoc, getDocs, query, where, setDoc, updateDoc, onSnapshot } from 'firebase/firestore';
-import { getDownloadURL, ref } from 'firebase/storage';
-import { db, storage } from '../config/firebase';
+import { db, storage } from './firebase';
+import { 
+  collection, 
+  query, 
+  where, 
+  getDocs, 
+  doc, 
+  getDoc, 
+  onSnapshot,
+  orderBy,
+  setDoc,
+  updateDoc
+} from 'firebase/firestore';
+import { ref, getDownloadURL } from 'firebase/storage';
 import { Section, Level, TreeData, Course } from '../types/home';
 
 interface FirestoreCourseData {

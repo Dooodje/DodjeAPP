@@ -94,6 +94,11 @@ const PositionButton: React.FC<PositionButtonProps> = ({
   // Taille basée sur le type (plus petit pour les annexes)
   const size = isAnnex ? 40 : 80;
 
+  // Extraire les données de vidéos du parcours (avec assertion de type pour les propriétés enrichies)
+  const enrichedParcours = parcoursData as any;
+  const videoCount = enrichedParcours?.videoCount || enrichedParcours?.totalVideos || 0;
+  const completedVideos = enrichedParcours?.completedVideos || 0;
+
   return (
     <View
       style={[
@@ -114,6 +119,8 @@ const PositionButton: React.FC<PositionButtonProps> = ({
         title={parcoursData?.titre || parcoursData?.title}
         onPress={handlePress}
         parcoursId={parcoursData?.id}
+        videoCount={videoCount}
+        completedVideos={completedVideos}
       />
     </View>
   );

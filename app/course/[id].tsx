@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useRef } from 'react';
+import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { View, Text, StyleSheet, ActivityIndicator, TouchableOpacity, Alert, Dimensions } from 'react-native';
 import { useLocalSearchParams, useRouter, router as globalRouter } from 'expo-router';
 import { courseService } from '../../src/services/course';
@@ -11,12 +11,17 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { Course, CourseContent } from '../../src/types/course';
 import { useAuth } from '../../src/hooks/useAuth';
 import { QuizStatusService } from '../../src/services/businessLogic/QuizStatusService';
-import { collection, getDocs, onSnapshot } from 'firebase/firestore';
+import { collection, getDocs, onSnapshot, query, where, documentId } from 'firebase/firestore';
 import { db } from '../../src/services/firebase';
 import { Rectangle11 } from '../../src/components/Rectangle11';
 import ParcoursLockedModal from '../../src/components/ui/ParcoursLockedModal';
+import { LogoLoadingSpinner } from '../../src/components/ui/LogoLoadingSpinner';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
+
+// Cache local pour les données de parcours
+const parcoursCache = new Map<string, { data: ParcoursData; timestamp: number }>();
+const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
 // Interface pour les données de parcours
 interface ParcoursData {
@@ -80,6 +85,7 @@ export default function CoursePage() {
   // Références pour stocker les fonctions de désabonnement
   const unsubscribeParcoursRef = useRef<(() => void) | null>(null);
   const unsubscribeVideoStatusRef = useRef<(() => void) | null>(null);
+  const isInitializedRef = useRef(false);
 
   // Callback pour recevoir les dimensions de l'image d'arrière-plan
   const handleImageDimensionsChange = useCallback((width: number, height: number) => {
@@ -89,16 +95,71 @@ export default function CoursePage() {
     }
   }, []);
 
-  // Fonction pour calculer et mettre à jour les statuts des vidéos
+  // Fonction optimisée pour récupérer les vidéos en batch
+  const fetchVideosInBatch = useCallback(async (videoIds: string[]) => {
+    if (!videoIds.length) return [];
+    
+    try {
+      console.log(`🚀 Récupération optimisée de ${videoIds.length} vidéos en batch`);
+      
+      // Diviser en chunks de 10 (limite Firestore pour les requêtes 'in')
+      const chunks = [];
+      for (let i = 0; i < videoIds.length; i += 10) {
+        chunks.push(videoIds.slice(i, i + 10));
+      }
+      
+      const allVideos: ParcoursVideo[] = [];
+      
+      // Récupérer chaque chunk en parallèle
+      const chunkPromises = chunks.map(async (chunk) => {
+        const videosQuery = query(
+          collection(db, 'videos'),
+          where(documentId(), 'in', chunk)
+        );
+        const snapshot = await getDocs(videosQuery);
+        return snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        } as ParcoursVideo));
+      });
+      
+      const chunkResults = await Promise.all(chunkPromises);
+      chunkResults.forEach(videos => allVideos.push(...videos));
+      
+      // Trier par ordre
+      allVideos.sort((a, b) => {
+        const orderA = a.order || a.ordre || 0;
+        const orderB = b.order || b.ordre || 0;
+        return orderA - orderB;
+      });
+      
+      console.log(`✅ ${allVideos.length} vidéos récupérées et triées en batch`);
+      return allVideos;
+    } catch (error) {
+      console.error('❌ Erreur lors de la récupération des vidéos en batch:', error);
+      return [];
+    }
+  }, []);
+
+  // Fonction optimisée pour calculer et mettre à jour les statuts des vidéos
   const updateVideoStatuses = useCallback(async (data: ParcoursData) => {
     if (!data.videos || data.videos.length === 0 || !user?.uid) return;
     
     try {
+      console.log(`🔄 Mise à jour des statuts pour ${data.videos.length} vidéos`);
       const statuses: VideoStatus = {};
       
-      // Récupérer les documents de la sous-collection video de l'utilisateur
-      const userVideosRef = collection(db, 'users', user.uid, 'video');
-      const userVideosSnapshot = await getDocs(userVideosRef);
+      // Récupérer seulement les vidéos de ce parcours
+      const videoIds = data.videos.map(v => v.id).filter(Boolean);
+      if (!videoIds.length) return;
+      
+      // Requête optimisée pour récupérer seulement les vidéos de ce parcours
+      const userVideosQuery = query(
+        collection(db, 'users', user.uid, 'video'),
+        where(documentId(), 'in', videoIds.slice(0, 10)) // Limite Firestore
+      );
+      
+      const userVideosSnapshot = await getDocs(userVideosQuery);
       const userVideoDocs = new Map(
         userVideosSnapshot.docs.map(doc => [doc.id, doc.data()])
       );
@@ -174,21 +235,30 @@ export default function CoursePage() {
     }
   }, [user?.uid]);
 
-  // Fonction pour configurer le listener des statuts des vidéos en temps réel
+  // Fonction optimisée pour configurer le listener des statuts des vidéos
   const setupVideoStatusListener = useCallback(() => {
-    if (!user?.uid) return;
+    if (!user?.uid || !parcoursData?.videos?.length || unsubscribeVideoStatusRef.current) return;
 
     console.log('Configuration du listener des statuts des vidéos en temps réel');
     
-    // Observer la sous-collection video de l'utilisateur
+    // Observer seulement les vidéos de ce parcours
+    const videoIds = parcoursData.videos.map(v => v.id).filter(Boolean);
+    if (!videoIds.length) return;
+    
+    // Utiliser une requête plus spécifique
     const userVideosRef = collection(db, 'users', user.uid, 'video');
     const unsubscribe = onSnapshot(
       userVideosRef,
       (snapshot) => {
         console.log('Mise à jour des statuts des vidéos reçue');
         
-        // Mettre à jour les statuts des vidéos avec les nouvelles données
-        if (parcoursData) {
+        // Filtrer seulement les changements pertinents pour ce parcours
+        const relevantChanges = snapshot.docs.filter(doc => 
+          videoIds.includes(doc.id)
+        );
+        
+        if (relevantChanges.length > 0) {
+          console.log(`${relevantChanges.length} changements pertinents détectés`);
           updateVideoStatuses(parcoursData);
         }
       },
@@ -200,67 +270,128 @@ export default function CoursePage() {
     unsubscribeVideoStatusRef.current = unsubscribe;
   }, [user?.uid, parcoursData, updateVideoStatuses]);
 
-  // Vérifier le statut du parcours
-  useEffect(() => {
-    const checkParcoursStatus = async () => {
-      if (!user?.uid || !id) return;
-
-      try {
-        const status = await ParcoursStatusService.getParcoursStatus(user.uid, id);
-        if (status) {
-          setParcoursStatus(status.status);
-          if (status.status === 'blocked') {
-            setIsModalVisible(true);
-          }
-        }
-      } catch (error) {
-        console.error('Erreur lors de la vérification du statut du parcours:', error);
-      }
-    };
-
-    checkParcoursStatus();
-  }, [user?.uid, id]);
-
-  // Configurer l'observation en temps réel du parcours et des statuts des vidéos
-  useEffect(() => {
-    // Vérifier que nous avons un ID
-    if (!id) {
-      setError("ID du parcours manquant");
-      setLoading(false);
-      return;
+  // Fonction pour vérifier le cache local
+  const getCachedParcours = useCallback((parcoursId: string): ParcoursData | null => {
+    const cached = parcoursCache.get(parcoursId);
+    if (cached && (Date.now() - cached.timestamp) < CACHE_DURATION) {
+      console.log('📦 Utilisation du cache local pour le parcours');
+      return cached.data;
     }
-    
-    console.log(`Configuration de l'observation en temps réel pour le parcours ID=${id}`);
-    setLoading(true);
-    setError(null);
-    
-    // Démarrer l'observation du parcours
-    const unsubscribeParcours = courseService.observeParcoursDetail(id as string, async (data) => {
-      console.log('Données du parcours mises à jour reçues via observeParcoursDetail');
+    return null;
+  }, []);
+
+  // Fonction pour mettre en cache les données du parcours
+  const setCachedParcours = useCallback((parcoursId: string, data: ParcoursData) => {
+    parcoursCache.set(parcoursId, {
+      data,
+      timestamp: Date.now()
+    });
+  }, []);
+
+  // Fonction optimisée pour charger les données du parcours
+  const loadParcoursData = useCallback(async (parcoursId: string) => {
+    try {
+      console.log(`🚀 Chargement optimisé du parcours ${parcoursId}`);
       
-      // Vérifier s'il y a une erreur
-      if (data.error) {
-        setError(data.error);
+      // Vérifier le cache d'abord
+      const cachedData = getCachedParcours(parcoursId);
+      if (cachedData) {
+        setParcoursData(cachedData);
+        await updateVideoStatuses(cachedData);
         setLoading(false);
         return;
       }
       
-      // Mettre à jour les données du parcours
+      // Si pas en cache, récupérer depuis Firestore
+      const data = await courseService.getCourseById(parcoursId);
+      if (!data) {
+        setError("Ce parcours n'existe pas ou a été supprimé.");
+        setLoading(false);
+        return;
+      }
+      
+      // Optimiser la récupération des vidéos
+      if (data.videoIds && Array.isArray(data.videoIds) && data.videoIds.length > 0) {
+        console.log(`Récupération optimisée de ${data.videoIds.length} vidéos`);
+        const videos = await fetchVideosInBatch(data.videoIds);
+        data.videos = videos;
+      }
+      
+      // Récupérer le design si nécessaire
+      if (!data.design && data.designId) {
+        try {
+          // Utiliser getCourseById pour récupérer le design depuis la collection designs
+          const designQuery = query(
+            collection(db, 'designs'),
+            where(documentId(), '==', data.designId)
+          );
+          const designSnapshot = await getDocs(designQuery);
+          if (!designSnapshot.empty) {
+            const designDoc = designSnapshot.docs[0];
+            data.design = {
+              id: designDoc.id,
+              ...designDoc.data()
+            };
+          }
+        } catch (error) {
+          console.warn('Erreur lors de la récupération du design:', error);
+        }
+      }
+      
+      // Mettre en cache et mettre à jour l'état
+      setCachedParcours(parcoursId, data);
       setParcoursData(data);
-      
-      // Mettre à jour les statuts des vidéos
       await updateVideoStatuses(data);
+      setLoading(false);
       
-      // Finir le chargement
+    } catch (error) {
+      console.error('Erreur lors du chargement du parcours:', error);
+      setError("Une erreur est survenue lors du chargement du parcours.");
+      setLoading(false);
+    }
+  }, [getCachedParcours, setCachedParcours, fetchVideosInBatch, updateVideoStatuses]);
+
+  // Vérifier le statut du parcours
+  const checkParcoursStatus = useCallback(async () => {
+    if (!user?.uid || !id) return;
+
+    try {
+      const status = await ParcoursStatusService.getParcoursStatus(user.uid, id as string);
+      if (status) {
+        setParcoursStatus(status.status);
+        if (status.status === 'blocked') {
+          setIsModalVisible(true);
+        }
+      } else {
+        setParcoursStatus('unblocked');
+      }
+    } catch (error) {
+      console.error('Erreur lors de la vérification du statut du parcours:', error);
+      setParcoursStatus('unblocked');
+    }
+  }, [user?.uid, id]);
+
+  // Effet principal optimisé pour le chargement initial
+  useEffect(() => {
+    if (!id || !user?.uid || isInitializedRef.current) return;
+    
+    console.log(`🚀 Navigation vers le parcours: ${id}`);
+    setLoading(true);
+    setError(null);
+    isInitializedRef.current = true;
+    
+    // Charger les données en parallèle
+    Promise.all([
+      loadParcoursData(id as string),
+      checkParcoursStatus()
+    ]).catch(error => {
+      console.error('Erreur lors du chargement initial:', error);
+      setError("Une erreur est survenue lors du chargement.");
       setLoading(false);
     });
     
-    // Stocker la fonction de désabonnement du parcours
-    unsubscribeParcoursRef.current = unsubscribeParcours;
-    
-    // Nettoyer lors du démontage du composant
+    // Nettoyer lors du démontage
     return () => {
-      console.log('Nettoyage des observations du parcours et des statuts des vidéos');
       if (unsubscribeParcoursRef.current) {
         unsubscribeParcoursRef.current();
         unsubscribeParcoursRef.current = null;
@@ -269,12 +400,13 @@ export default function CoursePage() {
         unsubscribeVideoStatusRef.current();
         unsubscribeVideoStatusRef.current = null;
       }
+      isInitializedRef.current = false;
     };
-  }, [id, updateVideoStatuses]);
+  }, [id, user?.uid, loadParcoursData, checkParcoursStatus]);
 
-  // Configurer le listener des statuts des vidéos quand l'utilisateur et les données du parcours sont disponibles
+  // Configurer le listener des statuts des vidéos quand les données sont prêtes
   useEffect(() => {
-    if (user?.uid && parcoursData) {
+    if (parcoursData && user?.uid && !loading) {
       setupVideoStatusListener();
     }
     
@@ -284,11 +416,22 @@ export default function CoursePage() {
         unsubscribeVideoStatusRef.current = null;
       }
     };
-  }, [user?.uid, parcoursData, setupVideoStatusListener]);
+  }, [parcoursData, user?.uid, loading, setupVideoStatusListener]);
+
+  // Mémoriser les vidéos triées pour éviter les re-calculs
+  const sortedVideos = useMemo(() => {
+    if (!parcoursData?.videos) return [];
+    
+    return [...parcoursData.videos].sort((a, b) => {
+      const orderA = a.order || a.ordre || 0;
+      const orderB = b.order || b.ordre || 0;
+      return orderA - orderB;
+    });
+  }, [parcoursData?.videos]);
 
   // Fonction pour réessayer en cas d'erreur
-  const handleRetry = () => {
-    // Réinitialiser les observations
+  const handleRetry = useCallback(() => {
+    // Nettoyer les listeners existants
     if (unsubscribeParcoursRef.current) {
       unsubscribeParcoursRef.current();
       unsubscribeParcoursRef.current = null;
@@ -298,26 +441,27 @@ export default function CoursePage() {
       unsubscribeVideoStatusRef.current = null;
     }
     
-    // Redémarrer l'observation du parcours
-    setLoading(true);
-    const unsubscribeParcours = courseService.observeParcoursDetail(id as string, async (data) => {
-      if (data.error) {
-        setError(data.error);
-      } else {
-        setParcoursData(data);
-        await updateVideoStatuses(data);
-        setError(null);
-        
-        // Redémarrer le listener des statuts des vidéos
-        if (user?.uid) {
-          setupVideoStatusListener();
-        }
-      }
-      setLoading(false);
-    });
+    // Vider le cache pour ce parcours
+    if (id) {
+      parcoursCache.delete(id as string);
+    }
     
-    unsubscribeParcoursRef.current = unsubscribeParcours;
-  };
+    // Redémarrer le chargement
+    isInitializedRef.current = false;
+    setLoading(true);
+    setError(null);
+    
+    if (id && user?.uid) {
+      Promise.all([
+        loadParcoursData(id as string),
+        checkParcoursStatus()
+      ]).catch(error => {
+        console.error('Erreur lors du rechargement:', error);
+        setError("Une erreur est survenue lors du rechargement.");
+        setLoading(false);
+      });
+    }
+  }, [id, user?.uid, loadParcoursData, checkParcoursStatus]);
 
   // Naviguer vers la page de la vidéo
   const handleVideoPress = (videoId: string) => {
@@ -476,7 +620,7 @@ export default function CoursePage() {
     <>
       {loading ? (
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#06D001" />
+          <LogoLoadingSpinner />
         </View>
       ) : error ? (
         <View style={styles.errorContainer}>

@@ -11,6 +11,8 @@ import { useAuth } from './useAuth';
 import { Section, Level } from '../types/home';
 import { useUserStats } from './queries/useHomeQueries';
 import { homeService } from '../services/home';
+import { VideoStatusService } from '../services/businessLogic/VideoStatusService';
+import { UserVideo } from '../types/video';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 const REFERENCE_WIDTH = 550;
@@ -282,6 +284,7 @@ export function useHomeOptimized() {
 
     const newDataCache = new Map<string, CachedData>();
     const newUnsubscribeFunctions = new Map<string, () => void>();
+    const videoUnsubscribeFunctions = new Map<string, () => void>();
 
     // Créer des listeners pour toutes les combinaisons
     ALL_SECTIONS.forEach(section => {
@@ -297,19 +300,73 @@ export function useHomeOptimized() {
             (data: CachedData) => {
               console.log(`✅ Cache mis à jour pour ${section} - ${level}`);
               
+              // Enrichir les données avec les informations de vidéos
+              const enrichedData = { ...data };
+              
+              if (enrichedData.parcours) {
+                // Observer les vidéos pour chaque parcours
+                Object.keys(enrichedData.parcours).forEach(parcoursKey => {
+                  const parcours = enrichedData.parcours![parcoursKey];
+                  if (parcours && parcours.id) {
+                    const videoKey = `${key}-${parcours.id}`;
+                    
+                    // Nettoyer l'ancien listener s'il existe
+                    if (videoUnsubscribeFunctions.has(videoKey)) {
+                      videoUnsubscribeFunctions.get(videoKey)!();
+                    }
+                    
+                    // Créer un nouveau listener pour les vidéos de ce parcours
+                    try {
+                      const videoUnsubscribe = VideoStatusService.observeUserVideosInParcours(
+                        user.uid,
+                        parcours.id,
+                        (videos: UserVideo[]) => {
+                          const completedVideos = videos.filter(v => v.completionStatus === 'completed').length;
+                          
+                          // Mettre à jour le cache avec les données de vidéos
+                          setDataCache(prevCache => {
+                            const newCache = new Map(prevCache);
+                            const currentData = newCache.get(key);
+                            if (currentData && currentData.parcours && currentData.parcours[parcoursKey]) {
+                              const updatedData = {
+                                ...currentData,
+                                parcours: {
+                                  ...currentData.parcours,
+                                  [parcoursKey]: {
+                                    ...currentData.parcours[parcoursKey],
+                                    completedVideos,
+                                    totalVideos: videos.length
+                                  }
+                                }
+                              };
+                              newCache.set(key, updatedData);
+                            }
+                            return newCache;
+                          });
+                        }
+                      );
+                      
+                      videoUnsubscribeFunctions.set(videoKey, videoUnsubscribe);
+                    } catch (videoError) {
+                      console.error(`Erreur lors de l'observation des vidéos pour ${parcours.id}:`, videoError);
+                    }
+                  }
+                });
+              }
+              
               // Mettre à jour le cache des données
               setDataCache(prevCache => {
                 const newCache = new Map(prevCache);
-                newCache.set(key, data);
+                newCache.set(key, enrichedData);
                 return newCache;
               });
 
               // Précharger l'image de fond si elle n'est pas déjà en cache
-              if (data.imageUrl) {
+              if (enrichedData.imageUrl) {
                 const currentImageEntry = globalImageCache.get(key);
-                if (!currentImageEntry || currentImageEntry.url !== data.imageUrl) {
+                if (!currentImageEntry || currentImageEntry.url !== enrichedData.imageUrl) {
                   console.log(`🖼️ Préchargement de l'image pour ${section} - ${level}`);
-                  preloadImageWithDimensions(data.imageUrl, key);
+                  preloadImageWithDimensions(enrichedData.imageUrl, key);
                 }
               }
 
@@ -344,6 +401,15 @@ export function useHomeOptimized() {
           unsubscribe();
         } catch (error) {
           console.error(`Erreur lors du nettoyage du listener ${key}:`, error);
+        }
+      });
+      
+      // Nettoyer aussi les listeners de vidéos
+      videoUnsubscribeFunctions.forEach((unsubscribe, key) => {
+        try {
+          unsubscribe();
+        } catch (error) {
+          console.error(`Erreur lors du nettoyage du listener vidéo ${key}:`, error);
         }
       });
     };

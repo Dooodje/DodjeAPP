@@ -1,6 +1,10 @@
-import { doc, getDoc, updateDoc, setDoc, collection, query, where, getDocs, onSnapshot } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, setDoc, collection, query, where, getDocs, onSnapshot, documentId } from 'firebase/firestore';
 import { db } from './firebase';
 import { Course, CourseContent, CourseProgress } from '../types/course';
+
+// Cache pour les données de parcours
+const parcoursCache = new Map<string, { data: ParcoursData; timestamp: number }>();
+const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
 // Interface pour les données de parcours
 interface ParcoursData {
@@ -8,6 +12,7 @@ interface ParcoursData {
   title?: string;
   titre?: string;
   description?: string;
+  videoIds?: string[];
   videos?: Array<{
     id: string;
     title?: string;
@@ -21,8 +26,9 @@ interface ParcoursData {
     id?: string;
     backgroundImageUrl?: string;
     imageUrl?: string;
-    positions?: Record<string, { x: number; y: number; order?: number; isAnnex: boolean }>;
+    positions?: Record<string, { x: number; y: number; order?: number; isAnnex: boolean; isQuiz?: boolean }>;
   };
+  designId?: string;
   thumbnail?: string;
   thumbnailUrl?: string;
   error?: string;
@@ -44,37 +50,123 @@ class CourseService {
     }
   }
 
+  // Méthode optimisée pour récupérer les vidéos en batch
+  private async fetchVideosInBatch(videoIds: string[]): Promise<Array<any>> {
+    if (!videoIds.length) return [];
+    
+    try {
+      console.log(`🚀 CourseService: Récupération optimisée de ${videoIds.length} vidéos en batch`);
+      
+      // Diviser en chunks de 10 (limite Firestore pour les requêtes 'in')
+      const chunks = [];
+      for (let i = 0; i < videoIds.length; i += 10) {
+        chunks.push(videoIds.slice(i, i + 10));
+      }
+      
+      const allVideos: Array<any> = [];
+      
+      // Récupérer chaque chunk en parallèle
+      const chunkPromises = chunks.map(async (chunk) => {
+        const videosQuery = query(
+          collection(db, 'videos'),
+          where(documentId(), 'in', chunk)
+        );
+        const snapshot = await getDocs(videosQuery);
+        return snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }));
+      });
+      
+      const chunkResults = await Promise.all(chunkPromises);
+      chunkResults.forEach(videos => allVideos.push(...videos));
+      
+      // Trier par ordre
+      allVideos.sort((a, b) => {
+        const orderA = a.order || a.ordre || 0;
+        const orderB = b.order || b.ordre || 0;
+        return orderA - orderB;
+      });
+      
+      console.log(`✅ CourseService: ${allVideos.length} vidéos récupérées et triées en batch`);
+      return allVideos;
+    } catch (error) {
+      console.error('❌ CourseService: Erreur lors de la récupération des vidéos en batch:', error);
+      return [];
+    }
+  }
+
   async getCourseById(courseId: string): Promise<ParcoursData | null> {
     try {
-      console.log(`🔍 Récupération du parcours ID=${courseId} dans la collection "parcours"`);
+      // Vérifier le cache d'abord
+      const cached = parcoursCache.get(courseId);
+      if (cached && (Date.now() - cached.timestamp) < CACHE_DURATION) {
+        console.log('📦 CourseService: Utilisation du cache pour le parcours', courseId);
+        return cached.data;
+      }
+
+      console.log(`🔍 CourseService: Récupération du parcours ID=${courseId} depuis Firestore`);
       const courseDoc = await getDoc(doc(db, 'parcours', courseId));
       
       if (!courseDoc.exists()) {
-        console.warn(`⚠️ Parcours ID=${courseId} non trouvé dans la collection "parcours"`);
+        console.warn(`⚠️ CourseService: Parcours ID=${courseId} non trouvé`);
         return null;
       }
 
-      // Récupérer les données brutes et les retourner telles quelles
+      // Récupérer les données brutes
       const rawData = courseDoc.data();
       
-      // Log simple pour voir le thumbnail
-      if (rawData.thumbnail) {
-        console.log(`📸 Thumbnail trouvé dans le document: ${rawData.thumbnail}`);
-      } else {
-        console.log(`⚠️ Pas de thumbnail dans le document`);
-      }
-      
-      // Créer l'objet ParcoursData sans modification
+      // Créer l'objet ParcoursData
       const courseData: ParcoursData = {
         id: courseDoc.id,
-        ...courseDoc.data() as any
+        ...rawData as any
       };
+
+      // Optimiser la récupération des vidéos si nécessaire
+      if (courseData.videoIds && Array.isArray(courseData.videoIds) && courseData.videoIds.length > 0) {
+        console.log(`🎥 CourseService: Récupération optimisée de ${courseData.videoIds.length} vidéos`);
+        const videos = await this.fetchVideosInBatch(courseData.videoIds);
+        courseData.videos = videos;
+      }
+
+      // Récupérer le design si nécessaire (de manière optimisée)
+      if (!courseData.design && courseData.designId) {
+        try {
+          console.log(`🎨 CourseService: Récupération du design ${courseData.designId}`);
+          const designDoc = await getDoc(doc(db, 'parcours_designs', courseData.designId));
+          if (designDoc.exists()) {
+            courseData.design = {
+              id: designDoc.id,
+              ...designDoc.data()
+            };
+          }
+        } catch (error) {
+          console.warn('⚠️ CourseService: Erreur lors de la récupération du design:', error);
+        }
+      }
+
+      // Mettre en cache
+      parcoursCache.set(courseId, {
+        data: courseData,
+        timestamp: Date.now()
+      });
       
-      console.log(`✅ Parcours ID=${courseId} récupéré avec succès`);
+      console.log(`✅ CourseService: Parcours ID=${courseId} récupéré et mis en cache`);
       return courseData;
     } catch (error) {
-      console.error(`❌ Erreur lors de la récupération du parcours ID=${courseId}:`, error);
+      console.error(`❌ CourseService: Erreur lors de la récupération du parcours ID=${courseId}:`, error);
       throw error;
+    }
+  }
+
+  // Méthode pour vider le cache (utile pour les tests ou le rafraîchissement forcé)
+  clearCache(courseId?: string) {
+    if (courseId) {
+      parcoursCache.delete(courseId);
+      console.log(`🗑️ CourseService: Cache vidé pour le parcours ${courseId}`);
+    } else {
+      parcoursCache.clear();
+      console.log('🗑️ CourseService: Cache entièrement vidé');
     }
   }
 
@@ -216,188 +308,6 @@ class CourseService {
     });
 
     return statuses;
-  }
-
-  // Observer les détails d'un parcours en temps réel
-  observeParcoursDetail(parcoursId: string, callback: (data: ParcoursData) => void) {
-    console.log(`Démarrage de l'observation du parcours ID=${parcoursId}`);
-    
-    try {
-      // Référence au document du parcours
-      const parcoursRef = doc(db, 'parcours', parcoursId);
-      
-      console.log(`Observation configurée pour la collection 'parcours' avec l'ID: ${parcoursId}`);
-      
-      // Observer le document
-      const unsubscribe = onSnapshot(
-        parcoursRef,
-        async (docSnapshot) => {
-          if (docSnapshot.exists()) {
-            // Récupérer les données brutes
-            const rawData = docSnapshot.data();
-            console.log('Données brutes du parcours:', rawData);
-            
-            // Transformer les données dans le format attendu
-            const parcoursData: ParcoursData = {
-              id: docSnapshot.id,
-              ...rawData as any
-            };
-            
-            console.log('Données du parcours: titre =', parcoursData.titre || parcoursData.title);
-            
-            // Traiter le cas où les IDs des vidéos sont dans videoIds plutôt que dans videos
-            if ((!parcoursData.videos || !Array.isArray(parcoursData.videos) || parcoursData.videos.length === 0) && 
-                parcoursData.videoIds && Array.isArray(parcoursData.videoIds)) {
-              console.log(`Parcours utilise videoIds au lieu de videos. videoIds:`, parcoursData.videoIds);
-              
-              try {
-                // Préparer un tableau pour stocker les vidéos récupérées
-                const videosArray = [];
-                
-                // Récupérer les détails de chaque vidéo
-                for (const videoId of parcoursData.videoIds) {
-                  try {
-                    const videoDoc = await getDoc(doc(db, 'videos', videoId));
-                    if (videoDoc.exists()) {
-                      const videoData = videoDoc.data();
-                      videosArray.push({
-                        id: videoDoc.id,
-                        title: videoData.title || videoData.titre || 'Vidéo sans titre',
-                        titre: videoData.titre || videoData.title || 'Vidéo sans titre',
-                        duration: videoData.duration || videoData.duree || 0,
-                        duree: videoData.duree || videoData.duration || 0,
-                        order: videoData.order || videoData.ordre || 0,
-                        ordre: videoData.ordre || videoData.order || 0,
-                        ...videoData
-                      });
-                    } else {
-                      console.warn(`La vidéo avec ID=${videoId} n'existe pas`);
-                    }
-                  } catch (error) {
-                    console.error(`Erreur lors de la récupération de la vidéo ID=${videoId}:`, error);
-                  }
-                }
-                
-                // Trier les vidéos par ordre
-                videosArray.sort((a, b) => {
-                  const orderA = a.order || a.ordre || 0;
-                  const orderB = b.order || b.ordre || 0;
-                  return orderA - orderB;
-                });
-                
-                console.log(`${videosArray.length} vidéos récupérées et triées:`, 
-                  videosArray.map(v => `${v.id}: ${v.titre || v.title} (ordre: ${v.ordre || v.order})`));
-                
-                // Mettre à jour le parcours avec le tableau de vidéos
-                parcoursData.videos = videosArray;
-              } catch (error) {
-                console.error('Erreur lors de la récupération des vidéos:', error);
-                parcoursData.videos = [];
-              }
-            } else if (!parcoursData.videos || !Array.isArray(parcoursData.videos)) {
-              console.warn('Le parcours ne contient pas de vidéos ou le champ videos n\'est pas un tableau');
-              parcoursData.videos = [];
-            }
-            
-            // Vérifier le design
-            if (!parcoursData.design || typeof parcoursData.design !== 'object') {
-              console.log('Récupération du design associé au parcours');
-              
-              // Si un designId est spécifié, récupérer le design correspondant
-              if (parcoursData.designId) {
-                try {
-                  const designDoc = await getDoc(doc(db, 'parcours_designs', parcoursData.designId));
-                  if (designDoc.exists()) {
-                    console.log(`Design trouvé pour designId=${parcoursData.designId}`);
-                    parcoursData.design = {
-                      id: designDoc.id,
-                      ...designDoc.data()
-                    };
-                  } else {
-                    console.warn(`Design avec ID=${parcoursData.designId} non trouvé`);
-                    parcoursData.design = {
-                      id: parcoursId + '_design',
-                      backgroundImageUrl: '',
-                      positions: {}
-                    };
-                  }
-                } catch (error) {
-                  console.error(`Erreur lors de la récupération du design ID=${parcoursData.designId}:`, error);
-                  parcoursData.design = {
-                    id: parcoursId + '_design',
-                    backgroundImageUrl: '',
-                    positions: {}
-                  };
-                }
-              } else {
-                console.warn('Aucun designId spécifié pour le parcours');
-                parcoursData.design = {
-                  id: parcoursId + '_design',
-                  backgroundImageUrl: '',
-                  positions: {}
-                };
-              }
-            }
-            
-            console.log('Parcours complètement préparé:', {
-              id: parcoursData.id,
-              titre: parcoursData.titre || parcoursData.title,
-              videos: parcoursData.videos ? `${parcoursData.videos.length} vidéos` : 'Aucune vidéo',
-              design: parcoursData.design ? `Design ID: ${parcoursData.design.id}` : 'Pas de design'
-            });
-            
-            callback(parcoursData);
-          } else {
-            console.error(`Parcours ID=${parcoursId} non trouvé`);
-            const emptyParcours: ParcoursData = { 
-              error: "Ce parcours n'existe pas ou a été supprimé.",
-              id: parcoursId,
-              videos: [],
-              design: {
-                id: parcoursId + '_design',
-                backgroundImageUrl: '',
-                positions: {}
-              }
-            };
-            callback(emptyParcours);
-          }
-        },
-        (error) => {
-          console.error(`Erreur lors de l'observation du parcours ID=${parcoursId}:`, error);
-          const errorParcours: ParcoursData = { 
-            error: "Une erreur est survenue lors du chargement du parcours.",
-            id: parcoursId,
-            videos: [],
-            design: {
-              id: parcoursId + '_design',
-              backgroundImageUrl: '',
-              positions: {}
-            }
-          };
-          callback(errorParcours);
-        }
-      );
-      
-      return unsubscribe;
-    } catch (error) {
-      console.error(`Erreur lors de la configuration de l'observation du parcours ID=${parcoursId}:`, error);
-      const fallbackParcours: ParcoursData = { 
-        error: "Une erreur est survenue lors de la configuration du parcours.",
-        id: parcoursId,
-        videos: [],
-        design: {
-          id: parcoursId + '_design',
-          backgroundImageUrl: '',
-          positions: {}
-        }
-      };
-      callback(fallbackParcours);
-      
-      // Retourner une fonction vide pour éviter les erreurs
-      return () => {
-        console.log(`Fonction de désabonnement vide appelée pour ID=${parcoursId}`);
-      };
-    }
   }
 
   // Débloquer une vidéo avec des Dodji

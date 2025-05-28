@@ -13,6 +13,7 @@ import Svg, { Path, Circle } from 'react-native-svg';
 import { useQueryClient } from '@tanstack/react-query';
 import ParcoursLockedModal from '../../src/components/ui/ParcoursLockedModal';
 import { useStreak, StreakModal } from '../../src/streak';
+import { LogoLoadingSpinner } from '../../src/components/ui/LogoLoadingSpinner';
 
 const LEVELS: Level[] = ['Débutant', 'Avancé', 'Expert'];
 const { width } = Dimensions.get('window');
@@ -262,18 +263,7 @@ export default function HomeScreen() {
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#06D001" />
-        <Text style={styles.loadingText}>
-          {isPreloading 
-            ? `Chargement de toutes les sous-pages... (${preloadedCount}/6)`
-            : 'Chargement de votre parcours...'
-          }
-        </Text>
-        {isPreloading && (
-          <Text style={styles.subLoadingText}>
-            Préparation de Bourse et Crypto pour tous les niveaux
-          </Text>
-        )}
+        <LogoLoadingSpinner />
       </View>
     );
   }

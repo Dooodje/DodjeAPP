@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { useAppInitialization } from '../hooks/useAppInitialization';
 import { LogoDodje } from './LogoDodje';
+import { LogoLoadingSpinner } from './ui/LogoLoadingSpinner';
 
 const { width, height } = Dimensions.get('window');
 
@@ -134,11 +135,9 @@ export const AppInitializationScreen: React.FC<AppInitializationScreenProps> = (
 
           {/* Spinner de chargement */}
           {isInitializing && !error && (
-            <ActivityIndicator
-              size="large"
-              color={getProgressColor()}
-              style={styles.spinner}
-            />
+            <View style={styles.spinner}>
+              <LogoLoadingSpinner />
+            </View>
           )}
 
           {/* Message de succès */}

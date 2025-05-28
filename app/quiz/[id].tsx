@@ -12,6 +12,7 @@ import type { QuizProgress } from '../../src/types/quiz';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../../src/services/firebase';
 import { ProgressionService } from '../../src/services/businessLogic/ProgressionService';
+import { LogoLoadingSpinner } from '../../src/components/ui/LogoLoadingSpinner';
 
 console.log('Quiz page loaded - full implementation!');
 
@@ -720,7 +721,7 @@ export default function QuizPage() {
         
         {loading ? (
           <View style={styles.loaderContainer}>
-            <ActivityIndicator size="large" color="#06D001" />
+            <LogoLoadingSpinner />
             <Text style={styles.loaderText}>Chargement du quiz...</Text>
           </View>
         ) : (

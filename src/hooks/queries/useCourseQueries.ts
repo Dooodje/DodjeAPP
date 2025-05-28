@@ -37,14 +37,13 @@ export const COURSE_QUERY_KEYS = {
 };
 
 /**
- * Hook pour récupérer les détails d'un parcours
+ * Hook optimisé pour récupérer les détails d'un parcours avec cache intelligent
  */
 export function useCourseDetail(courseId: string) {
-  const queryClient = useQueryClient();
-
   return useQuery<CourseData, Error, CourseData>({
     queryKey: COURSE_QUERY_KEYS.detail(courseId),
     queryFn: async () => {
+      console.log(`🔍 useCourseDetail: Récupération du parcours ${courseId}`);
       const courseData = await courseService.getCourseById(courseId);
       
       if (!courseData) {
@@ -52,7 +51,7 @@ export function useCourseDetail(courseId: string) {
       }
       
       // Assurer une structure de données cohérente
-      return {
+      const structuredData: CourseData = {
         id: courseData.id,
         title: courseData.title || courseData.titre || '',
         titre: courseData.titre || courseData.title || '',
@@ -64,40 +63,37 @@ export function useCourseDetail(courseId: string) {
           positions: courseData.design?.positions || {}
         }
       };
+      
+      console.log(`✅ useCourseDetail: Parcours ${courseId} structuré avec ${structuredData.videos.length} vidéos`);
+      return structuredData;
     },
-    // Mettre en cache pendant 10 minutes
-    staleTime: 10 * 60 * 1000,
+    // Cache plus agressif pour améliorer les performances
+    staleTime: 15 * 60 * 1000, // 15 minutes
+    gcTime: 30 * 60 * 1000, // 30 minutes
+    // Retry moins agressif pour éviter les appels répétés
+    retry: 1,
+    retryDelay: 1000,
+    // Désactiver le refetch automatique pour économiser les ressources
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
   });
 }
 
 /**
- * Hook pour configurer l'observateur Firestore pour les mises à jour en temps réel d'un parcours
+ * Hook pour forcer le rafraîchissement d'un parcours (utile après des modifications)
  */
-export function useCourseRealTimeUpdates(courseId: string) {
+export function useRefreshCourse() {
   const queryClient = useQueryClient();
   
-  React.useEffect(() => {
-    // Configurer un observateur Firestore pour les mises à jour en temps réel
-    const unsubscribe = courseService.observeParcoursDetail(courseId, (updatedData) => {
-      // Récupérer les données actuelles du cache
-      const currentData = queryClient.getQueryData<CourseData>(COURSE_QUERY_KEYS.detail(courseId));
-      
-      if (currentData) {
-        // Mettre à jour le cache avec les nouvelles données
-        queryClient.setQueryData(COURSE_QUERY_KEYS.detail(courseId), {
-          ...currentData,
-          ...updatedData
-        });
-      }
+  return (courseId: string) => {
+    console.log(`🔄 Rafraîchissement forcé du parcours ${courseId}`);
+    // Vider le cache du service
+    courseService.clearCache(courseId);
+    // Invalider et refetch la requête
+    queryClient.invalidateQueries({
+      queryKey: COURSE_QUERY_KEYS.detail(courseId)
     });
-    
-    // Nettoyer l'observateur quand le composant est démonté
-    return () => {
-      if (typeof unsubscribe === 'function') {
-        unsubscribe();
-      }
-    };
-  }, [courseId, queryClient]);
+  };
 }
 
 /**

@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useMemo, memo } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ViewStyle } from 'react-native';
 import Animated, { useSharedValue, useAnimatedStyle, withRepeat, withTiming, Easing } from 'react-native-reanimated';
 // import { AnneauVector } from './vectors/AnneauVectors';
@@ -9,8 +9,6 @@ import { PastilleParcoursDefault } from '../PastilleParcoursDefault';
 import { PastilleParcoursVariant2 } from '../PastilleParcoursVariant2';
 import { PastilleParcoursVariant3 } from '../PastilleParcoursVariant3';
 import PastilleAnnexe from '../PastilleAnnexe';
-import { useParcoursVideos } from '@/hooks/useParcoursVideos';
-import { useParcours } from '@/hooks/useParcours';
 import { Vector } from '../Vector';
 
 export type CoursePositionType = 'standard' | 'important' | 'special' | 'annexe';
@@ -25,9 +23,12 @@ interface CoursePositionProps {
   isActive?: boolean;
   style?: ViewStyle;
   parcoursId?: string;
+  // Nouvelles props pour éviter les listeners supplémentaires
+  videoCount?: number;
+  completedVideos?: number;
 }
 
-export const CoursePosition: React.FC<CoursePositionProps> = ({
+const CoursePositionComponent: React.FC<CoursePositionProps> = ({
   title,
   type = 'standard',
   status = 'blocked',
@@ -35,61 +36,15 @@ export const CoursePosition: React.FC<CoursePositionProps> = ({
   size = 60,
   isActive = false,
   style,
-  parcoursId
+  parcoursId,
+  videoCount = 0,
+  completedVideos = 0
 }) => {
-  // Récupérer les données des vidéos et du parcours
-  const { totalVideos, completedVideos, loading: videosLoading } = useParcoursVideos(parcoursId || '');
-  const { parcoursData, loading: parcoursLoading } = useParcours(parcoursId || '');
-
   // Animation pour l'effet de rebond
   const bounceScale = useSharedValue(1);
 
-  // Démarrer l'animation de rebond pour les parcours "unblocked"
-  useEffect(() => {
-    if (status === 'unblocked') {
-      bounceScale.value = withRepeat(
-        withTiming(1.1, {
-          duration: 800,
-          easing: Easing.bezier(0.25, 0.46, 0.45, 0.94),
-        }),
-        -1, // Répéter indéfiniment
-        true // Reverse (aller-retour)
-      );
-    } else {
-      bounceScale.value = withTiming(1, { duration: 200 });
-    }
-  }, [status, bounceScale]);
-
-  // Style animé pour l'effet de rebond
-  const bounceAnimatedStyle = useAnimatedStyle(() => {
-    return {
-      transform: [{ scale: bounceScale.value }],
-    };
-  });
-
-  // Déterminer si les données du parcours sont disponibles et valides
-  const hasParcoursData = !!parcoursId && !parcoursLoading && parcoursData;
-  const hasValidVideosData = !!parcoursId && !videosLoading;
-
-  // Obtenir le nombre total de vidéos
-  const videoCount = hasParcoursData ? (parcoursData?.videoCount || 0) : 0;
-
-  // Nombre de vidéos complétées (seulement si les données sont valides)
-  const validCompletedVideos = hasValidVideosData ? completedVideos : 0;
-
-  console.log('🎯 CoursePosition - Données:', {
-    parcoursId,
-    type,
-    status,
-    videoCount,
-    completedVideos: validCompletedVideos,
-    hasParcoursData,
-    hasValidVideosData,
-    loading: { videos: videosLoading, parcours: parcoursLoading }
-  });
-
-  // Détermine la couleur de l'anneau en fonction du type et de l'état actif
-  const getRingColor = (): string => {
+  // Mémoriser les calculs de couleur pour éviter les recalculs
+  const ringColor = useMemo((): string => {
     if (status === 'completed') {
       return '#06D001'; // Vert vif pour les parcours terminés
     }
@@ -109,38 +64,65 @@ export const CoursePosition: React.FC<CoursePositionProps> = ({
       default:
         return '#F3FF90'; // Jaune doré (par défaut)
     }
-  };
+  }, [status, type]);
 
-  // Calcule les tailles proportionnelles
-  const anneauSize = size * 1.2;
-  // Maintenir le ratio width/height du SVG (101/82)
-  const ringWidth = anneauSize;
-  const ringHeight = anneauSize * (82/101);
-  const pastilleSize = size * 0.8;
+  // Mémoriser les calculs de taille
+  const dimensions = useMemo(() => {
+    const anneauSize = size * 1.2;
+    // Maintenir le ratio width/height du SVG (101/82)
+    const ringWidth = anneauSize;
+    const ringHeight = anneauSize * (82/101);
+    const pastilleSize = size * 0.8;
+    
+    return { anneauSize, ringWidth, ringHeight, pastilleSize };
+  }, [size]);
 
-  // Sélectionne le composant de pastille approprié en fonction du statut
-  const renderPastille = () => {
+  // Mémoriser la couleur du titre
+  const titleColor = useMemo((): string => {
+    return status === 'completed' ? '#06D001' : '#FFFFFF';
+  }, [status]);
+
+  // Optimiser l'animation - ne démarrer que si nécessaire
+  useEffect(() => {
+    if (status === 'unblocked') {
+      bounceScale.value = withRepeat(
+        withTiming(1.1, {
+          duration: 800,
+          easing: Easing.bezier(0.25, 0.46, 0.45, 0.94),
+        }),
+        -1, // Répéter indéfiniment
+        true // Reverse (aller-retour)
+      );
+    } else {
+      bounceScale.value = withTiming(1, { duration: 200 });
+    }
+  }, [status, bounceScale]);
+
+  // Style animé pour l'effet de rebond - mémorisé
+  const bounceAnimatedStyle = useAnimatedStyle(() => {
+    return {
+      transform: [{ scale: bounceScale.value }],
+    };
+  }, []);
+
+  // Mémoriser le composant de pastille pour éviter les re-renders
+  const pastilleComponent = useMemo(() => {
     if (type === 'annexe') {
-      return <PastilleAnnexe width={pastilleSize} height={pastilleSize} />;
+      return <PastilleAnnexe width={dimensions.pastilleSize} height={dimensions.pastilleSize} />;
     }
 
     switch (status) {
       case 'completed':
-        return <PastilleParcoursVariant2 style={{ width: pastilleSize, height: pastilleSize }} />;
+        return <PastilleParcoursVariant2 style={{ width: dimensions.pastilleSize, height: dimensions.pastilleSize }} />;
       case 'unblocked':
-        return <PastilleParcoursDefault style={{ width: pastilleSize, height: pastilleSize }} />;
+        return <PastilleParcoursDefault style={{ width: dimensions.pastilleSize, height: dimensions.pastilleSize }} />;
       case 'in_progress':
-        return <PastilleParcoursDefault style={{ width: pastilleSize, height: pastilleSize }} />;
+        return <PastilleParcoursDefault style={{ width: dimensions.pastilleSize, height: dimensions.pastilleSize }} />;
       case 'blocked':
       default:
-        return <PastilleParcoursVariant3 style={{ width: pastilleSize, height: pastilleSize }} />;
+        return <PastilleParcoursVariant3 style={{ width: dimensions.pastilleSize, height: dimensions.pastilleSize }} />;
     }
-  };
-  
-  // Détermine la couleur du titre en fonction du statut
-  const getTitleColor = (): string => {
-    return status === 'completed' ? '#06D001' : '#FFFFFF';
-  };
+  }, [type, status, dimensions.pastilleSize]);
 
   return (
     <View style={[styles.container, style]}>
@@ -152,11 +134,11 @@ export const CoursePosition: React.FC<CoursePositionProps> = ({
         {/* Anneau segmenté avec animation de rebond pour les parcours unblocked */}
         <Animated.View style={status === 'unblocked' ? bounceAnimatedStyle : undefined}>
           <SegmentedRing 
-            width={ringWidth}
-            height={ringHeight}
+            width={dimensions.ringWidth}
+            height={dimensions.ringHeight}
             totalSegments={videoCount}
-            completedSegments={validCompletedVideos}
-            ringColor={getRingColor()}
+            completedSegments={completedVideos}
+            ringColor={ringColor}
             completedColor="#06D001"
             ringWidth={6}
           />
@@ -164,7 +146,7 @@ export const CoursePosition: React.FC<CoursePositionProps> = ({
         
         {/* Pastille centrale */}
         <View style={styles.pastilleContainer}>
-          {renderPastille()}
+          {pastilleComponent}
           {status === 'blocked' && (
             <View style={styles.vectorContainer}>
               <Vector width={size * 0.55} height={size * 0.55} color="#F3FF90" />
@@ -175,13 +157,28 @@ export const CoursePosition: React.FC<CoursePositionProps> = ({
       
       {/* Titre en dessous du bouton */}
       {title && (
-        <Text style={[styles.title, { color: getTitleColor() }]} numberOfLines={2}>
+        <Text style={[styles.title, { color: titleColor }]} numberOfLines={2}>
           {title}
         </Text>
       )}
     </View>
   );
 };
+
+// Mémoriser le composant pour éviter les re-renders inutiles
+export const CoursePosition = memo(CoursePositionComponent, (prevProps, nextProps) => {
+  // Comparaison personnalisée pour optimiser les re-renders
+  return (
+    prevProps.title === nextProps.title &&
+    prevProps.type === nextProps.type &&
+    prevProps.status === nextProps.status &&
+    prevProps.size === nextProps.size &&
+    prevProps.isActive === nextProps.isActive &&
+    prevProps.parcoursId === nextProps.parcoursId &&
+    prevProps.videoCount === nextProps.videoCount &&
+    prevProps.completedVideos === nextProps.completedVideos
+  );
+});
 
 const styles = StyleSheet.create({
   container: {

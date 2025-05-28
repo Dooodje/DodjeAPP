@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { View, Image, StyleSheet, Dimensions, ScrollView, LayoutChangeEvent, ActivityIndicator, Text } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { LogoLoadingSpinner } from '../ui/LogoLoadingSpinner';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 // Mode de développement pour afficher la grille de référence
@@ -257,8 +258,7 @@ const CourseBackground: React.FC<CourseBackgroundProps> = ({
       {/* Loader pendant le chargement */}
       {(loading || !imageLoaded) && (
         <View style={styles.loaderContainer}>
-          <ActivityIndicator size="large" color="#06D001" />
-          <Text style={styles.loaderText}>Chargement du parcours...</Text>
+          <LogoLoadingSpinner />
         </View>
       )}
     </View>
@@ -293,11 +293,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: 'rgba(10, 4, 0, 0.7)',
-  },
-  loaderText: {
-    color: 'white',
-    marginTop: 10,
-    fontSize: 16,
   },
   gridContainer: {
     position: 'absolute',
