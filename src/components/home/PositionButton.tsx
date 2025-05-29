@@ -15,6 +15,7 @@ interface PositionButtonProps {
   imageHeight?: number; // Hauteur de l'image de fond
   containerWidth?: number; // Largeur du conteneur
   containerHeight?: number; // Hauteur du conteneur
+  hideVector?: boolean; // Pour masquer le cadenas pendant l'animation
 }
 
 const PositionButton: React.FC<PositionButtonProps> = ({
@@ -29,6 +30,7 @@ const PositionButton: React.FC<PositionButtonProps> = ({
   imageHeight = 0,
   containerWidth = 0,
   containerHeight = 0,
+  hideVector = false,
 }) => {
   // Calculer les positions absolues en fonction des dimensions de l'image
   const position = useMemo(() => {
@@ -121,6 +123,7 @@ const PositionButton: React.FC<PositionButtonProps> = ({
         parcoursId={parcoursData?.id}
         videoCount={videoCount}
         completedVideos={completedVideos}
+        hideVector={hideVector}
       />
     </View>
   );

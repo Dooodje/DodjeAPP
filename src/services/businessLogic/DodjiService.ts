@@ -54,6 +54,11 @@ export class DodjiService {
 
     static async hasReceivedReward(userId: string, rewardId: string): Promise<boolean> {
         try {
+            if (!userId || !rewardId) {
+                console.warn('hasReceivedReward: userId ou rewardId manquant');
+                return false;
+            }
+
             const rewardsRef = doc(db, this.USERS_COLLECTION, userId, this.DODJI_COLLECTION, 'rewards');
             const rewardsDoc = await getDoc(rewardsRef);
 
@@ -62,6 +67,10 @@ export class DodjiService {
             }
 
             const data = rewardsDoc.data() as DodjiDocument;
+            if (!data || !data.rewards) {
+                return false;
+            }
+
             return data.rewards[rewardId] === true;
         } catch (error) {
             console.error('Error checking reward status:', error);

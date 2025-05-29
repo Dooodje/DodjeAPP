@@ -1,10 +1,11 @@
-import React, { useEffect, useCallback, useState } from 'react';
+import React, { useEffect, useCallback, useState, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Dimensions, Alert } from 'react-native';
 import { useAuth } from '../../src/hooks/useAuth';
 import { useHomeOptimized } from '../../src/hooks/useHomeOptimized';
 import { Level, Section } from '../../src/types/home';
-import { router, useRouter } from 'expo-router';
+import { router, useRouter, useFocusEffect } from 'expo-router';
 import TreeBackground from '../../src/components/home/TreeBackground';
+import type { TreeBackgroundRef } from '../../src/components/home/TreeBackground';
 import { GlobalHeader } from '../../src/components/ui/GlobalHeader';
 import CustomModal from '../../src/components/ui/CustomModal';
 import { GestureHandlerRootView, Gesture, GestureDetector } from 'react-native-gesture-handler';
@@ -14,6 +15,8 @@ import { useQueryClient } from '@tanstack/react-query';
 import ParcoursLockedModal from '../../src/components/ui/ParcoursLockedModal';
 import { useStreak, StreakModal } from '../../src/streak';
 import { LogoLoadingSpinner } from '../../src/components/ui/LogoLoadingSpinner';
+import { AnimationDeblocageParcours } from '../../src/components/AnimationDeblocageParcours';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const LEVELS: Level[] = ['Débutant', 'Avancé', 'Expert'];
 const { width } = Dimensions.get('window');
@@ -260,6 +263,145 @@ export default function HomeScreen() {
     }
   };
 
+  // États pour l'animation de déblocage
+  const [unlockAnimation, setUnlockAnimation] = useState<{
+    isVisible: boolean;
+    position: { x: number; y: number };
+    parcoursOrder: number;
+  } | null>(null);
+
+  // État pour empêcher le changement de design prématuré
+  const [pendingUnlockParcoursOrder, setPendingUnlockParcoursOrder] = useState<number | null>(null);
+
+  // Référence au TreeBackground pour contrôler le scroll
+  const treeBackgroundRef = useRef<TreeBackgroundRef>(null);
+
+  // Vérifier s'il y a une animation de déblocage à lancer
+  useFocusEffect(
+    useCallback(() => {
+      const checkForUnlockAnimation = async () => {
+        try {
+          console.log('🔍 Vérification animation de déblocage...');
+          
+          const pendingAnimation = await AsyncStorage.getItem('pendingUnlockAnimation');
+          console.log('📦 Données AsyncStorage:', pendingAnimation);
+          
+          if (pendingAnimation) {
+            const unlockInfo = JSON.parse(pendingAnimation);
+            console.log('📋 Info déblocage:', unlockInfo);
+            
+            // Vérifier que l'animation n'est pas trop ancienne (max 10 secondes)
+            if (Date.now() - unlockInfo.timestamp < 10000) {
+              console.log('🔓 Animation de déblocage détectée pour le parcours:', unlockInfo.parcoursOrder);
+              
+              // Marquer ce parcours comme en attente de déblocage visuel
+              setPendingUnlockParcoursOrder(unlockInfo.parcoursOrder);
+              
+              // Attendre que homeDesign soit disponible avant de lancer l'animation
+              if (homeDesign?.positions && homeDesign?.parcours) {
+                const parcoursId = unlockInfo.parcoursOrder.toString();
+                const parcours = homeDesign.parcours[parcoursId];
+                console.log('🎯 Parcours trouvé:', parcours);
+                
+                // Trouver la position en cherchant dans toutes les positions celle qui a l'ordre correspondant
+                let targetPosition = null;
+                let targetPositionId = null;
+                
+                console.log('🔍 Recherche de la position pour l\'ordre:', unlockInfo.parcoursOrder);
+                console.log('🗺️ Positions disponibles:', Object.entries(homeDesign.positions).map(([id, pos]) => ({ 
+                  id, 
+                  order: pos.order, 
+                  x: pos.x, 
+                  y: pos.y 
+                })));
+                
+                for (const [positionId, position] of Object.entries(homeDesign.positions)) {
+                  console.log(`🔍 Vérification position ${positionId}: ordre=${position.order}, recherché=${unlockInfo.parcoursOrder}`);
+                  // Vérifier avec conversion de type au cas où
+                  if (position.order === unlockInfo.parcoursOrder || 
+                      position.order === Number(unlockInfo.parcoursOrder) ||
+                      Number(position.order) === Number(unlockInfo.parcoursOrder)) {
+                    targetPosition = position;
+                    targetPositionId = positionId;
+                    console.log(`✅ Position trouvée! ID: ${positionId}, ordre: ${position.order}`);
+                    break;
+                  }
+                }
+                
+                console.log('📍 Position trouvée:', targetPosition, 'ID:', targetPositionId);
+                
+                if (targetPosition) {
+                  console.log('🎯 Parcours et position trouvés, démarrage du scroll...');
+                  
+                  // D'abord scroller vers le parcours pour le centrer
+                  if (treeBackgroundRef.current) {
+                    try {
+                      const screenPosition = await treeBackgroundRef.current.scrollToPosition(unlockInfo.parcoursOrder);
+                      
+                      if (screenPosition) {
+                        console.log('📱 Position écran après scroll:', screenPosition);
+                        
+                        setUnlockAnimation({
+                          isVisible: true,
+                          position: screenPosition,
+                          parcoursOrder: unlockInfo.parcoursOrder
+                        });
+                      } else {
+                        console.log('❌ Échec du scroll vers le parcours');
+                      }
+                    } catch (error) {
+                      console.error('❌ Erreur lors du scroll:', error);
+                    }
+                  } else {
+                    console.log('❌ Référence TreeBackground non disponible');
+                  }
+                } else {
+                  console.log('❌ Position non trouvée pour le parcours ordre:', unlockInfo.parcoursOrder);
+                  console.log('🔍 Positions disponibles:', Object.entries(homeDesign.positions).map(([id, pos]) => ({ id, order: pos.order })));
+                }
+              } else {
+                console.log('❌ homeDesign non disponible, on attend...');
+                // Si homeDesign n'est pas encore disponible, on va réessayer
+                setTimeout(() => checkForUnlockAnimation(), 1000);
+                return; // Ne pas nettoyer AsyncStorage encore
+              }
+            } else {
+              console.log('⏰ Animation trop ancienne, ignorée');
+            }
+            
+            // Nettoyer AsyncStorage
+            await AsyncStorage.removeItem('pendingUnlockAnimation');
+          } else {
+            console.log('📭 Aucune animation en attente');
+          }
+        } catch (error) {
+          console.error('Erreur lors de la vérification de l\'animation de déblocage:', error);
+        }
+      };
+      
+      // Vérifier immédiatement si homeDesign est déjà disponible
+      if (homeDesign) {
+        checkForUnlockAnimation();
+      } else {
+        // Sinon attendre un peu que les données se chargent
+        setTimeout(checkForUnlockAnimation, 500);
+      }
+    }, [homeDesign, width])
+  );
+
+  // Gérer la fin de l'animation de déblocage
+  const handleUnlockAnimationComplete = () => {
+    console.log('🔓 Animation de déblocage terminée');
+    setUnlockAnimation(null);
+    
+    // Maintenant on peut permettre le changement de design
+    setPendingUnlockParcoursOrder(null);
+    
+    // Rafraîchir seulement les données nécessaires sans rechargement complet
+    console.log('🔄 Rafraîchissement léger des données après animation');
+    // fetchTreeData(); // Commenté pour éviter le rechargement
+  };
+
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
@@ -332,6 +474,8 @@ export default function HomeScreen() {
               currentSection={currentSection}
               currentLevel={currentLevel}
               allImagesData={allImagesData}
+              pendingUnlockParcoursOrder={pendingUnlockParcoursOrder}
+              ref={treeBackgroundRef}
             />
           ) : (
             <View style={styles.emptyContainer}>
@@ -367,6 +511,15 @@ export default function HomeScreen() {
       
       {/* Indicateurs de position */}
       <PositionIndicators total={LEVELS.length} current={currentLevelIndex} />
+      
+      {/* Animation de déblocage de parcours */}
+      {unlockAnimation && (
+        <AnimationDeblocageParcours
+          isVisible={unlockAnimation.isVisible}
+          position={unlockAnimation.position}
+          onAnimationComplete={handleUnlockAnimationComplete}
+        />
+      )}
     </GestureHandlerRootView>
   );
 }

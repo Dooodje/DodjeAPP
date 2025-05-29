@@ -1,4 +1,4 @@
-import React, { useMemo, useState, useEffect, useRef } from 'react';
+import React, { useMemo, useState, useEffect, useRef, useImperativeHandle, forwardRef } from 'react';
 import { View, Image, StyleSheet, Dimensions, ScrollView, LayoutChangeEvent, Platform } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { PositionData, Section, Level } from '../../types/home';
@@ -9,7 +9,7 @@ const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 // Hauteur approximative du header (incluant la barre d'état)
 const HEADER_HEIGHT = 120;
 // Largeur de référence de l'image (iPhone 15 Pro Max)
-const REFERENCE_WIDTH = 550;
+const REFERENCE_WIDTH = 552;
 
 // Toutes les combinaisons possibles pour pré-monter les images
 const ALL_SECTIONS: Section[] = ['Bourse', 'Crypto'];
@@ -40,9 +40,15 @@ interface TreeBackgroundProps {
     };
     isLoaded: boolean;
   }>;
+  // Prop pour empêcher le changement de design prématuré
+  pendingUnlockParcoursOrder?: number | null;
 }
 
-const TreeBackground: React.FC<TreeBackgroundProps> = ({ 
+export interface TreeBackgroundRef {
+  scrollToPosition: (order: number) => Promise<{ x: number; y: number } | null>;
+}
+
+const TreeBackground = forwardRef<TreeBackgroundRef, TreeBackgroundProps>(({ 
   imageUrl, 
   positions, 
   onPositionPress,
@@ -51,8 +57,9 @@ const TreeBackground: React.FC<TreeBackgroundProps> = ({
   isImageLoaded = false,
   currentSection,
   currentLevel,
-  allImagesData
-}) => {
+  allImagesData,
+  pendingUnlockParcoursOrder
+}, ref) => {
   const [calculatedDimensions, setCalculatedDimensions] = useState({ width: 0, height: 0 });
   const [scrollViewHeight, setScrollViewHeight] = useState(screenHeight);
   const [scrollViewWidth, setScrollViewWidth] = useState(screenWidth);
@@ -145,6 +152,58 @@ const TreeBackground: React.FC<TreeBackgroundProps> = ({
       marginHorizontal: horizontalMargin,
     }
   ];
+
+  const scrollToPosition = async (order: number): Promise<{ x: number; y: number } | null> => {
+    return new Promise((resolve) => {
+      if (!scrollViewRef.current) {
+        resolve(null);
+        return;
+      }
+
+      const position = positionsArray.find(p => p.order === order);
+      if (!position) {
+        resolve(null);
+        return;
+      }
+
+      // Calculer la position absolue du parcours sur l'image
+      const absoluteX = (position.x * calculatedDimensions.width) / 100;
+      const absoluteY = (position.y * calculatedDimensions.height) / 100;
+
+      // Calculer la position de scroll pour centrer le parcours à l'écran
+      const scrollX = Math.max(0, absoluteX - (scrollViewWidth / 2));
+      const scrollY = Math.max(0, absoluteY - (scrollViewHeight / 2));
+
+      console.log('🎯 Scroll vers parcours ordre:', order);
+      console.log('📍 Position relative:', { x: position.x, y: position.y });
+      console.log('📍 Position absolue sur image:', { x: absoluteX, y: absoluteY });
+      console.log('📱 Position de scroll:', { x: scrollX, y: scrollY });
+
+      // Scroller vers la position
+      scrollViewRef.current.scrollTo({ 
+        x: scrollX, 
+        y: scrollY, 
+        animated: true 
+      });
+
+      // Attendre que le scroll soit terminé avant de retourner la position écran
+      setTimeout(() => {
+        // Calculer la position réelle du parcours à l'écran après le scroll
+        // Position du parcours = position absolue - position de scroll + marge horizontale
+        const screenX = absoluteX - scrollX + horizontalMargin;
+        const screenY = absoluteY - scrollY - 15; // Ajustement pour centrer sur le cadenas
+        
+        console.log('📱 Position réelle du parcours à l\'écran:', { x: screenX, y: screenY });
+        console.log('🔧 Marge horizontale appliquée:', horizontalMargin);
+        console.log('🎯 Ajustement Y appliqué: -15px');
+        resolve({ x: screenX, y: screenY });
+      }, 500); // Attendre 500ms pour que l'animation de scroll soit terminée
+    });
+  };
+
+  useImperativeHandle(ref, () => ({
+    scrollToPosition
+  }));
 
   return (
     <ScrollView
@@ -244,6 +303,18 @@ const TreeBackground: React.FC<TreeBackgroundProps> = ({
       {positionsArray.map((position) => {
         const parcoursData = parcours && position.order !== undefined ? parcours[position.order.toString()] : null;
         
+        // Si ce parcours est en cours de déblocage, garder l'ancien statut (blocked)
+        let modifiedParcoursData = parcoursData;
+        if (pendingUnlockParcoursOrder !== null && 
+            position.order === pendingUnlockParcoursOrder && 
+            parcoursData) {
+          modifiedParcoursData = {
+            ...parcoursData,
+            status: 'blocked' // Forcer le statut bloqué pendant l'animation
+          };
+          console.log(`🔒 Parcours ${position.order} maintenu en statut bloqué pendant l'animation`);
+        }
+        
         return (
           <PositionButton
             key={position.id}
@@ -253,17 +324,18 @@ const TreeBackground: React.FC<TreeBackgroundProps> = ({
             order={position.order}
             isAnnex={position.isAnnex}
             onPress={onPositionPress}
-            parcoursData={parcoursData}
+            parcoursData={modifiedParcoursData}
             imageWidth={calculatedDimensions.width}
             imageHeight={calculatedDimensions.height}
             containerWidth={scrollViewWidth}
             containerHeight={scrollViewHeight}
+            hideVector={pendingUnlockParcoursOrder !== null && position.order === pendingUnlockParcoursOrder}
           />
         );
       })}
     </ScrollView>
   );
-};
+});
 
 const styles = StyleSheet.create({
   container: {

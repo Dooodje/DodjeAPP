@@ -26,6 +26,8 @@ interface CoursePositionProps {
   // Nouvelles props pour éviter les listeners supplémentaires
   videoCount?: number;
   completedVideos?: number;
+  // Prop pour masquer le cadenas pendant l'animation
+  hideVector?: boolean;
 }
 
 const CoursePositionComponent: React.FC<CoursePositionProps> = ({
@@ -38,7 +40,8 @@ const CoursePositionComponent: React.FC<CoursePositionProps> = ({
   style,
   parcoursId,
   videoCount = 0,
-  completedVideos = 0
+  completedVideos = 0,
+  hideVector = false
 }) => {
   // Animation pour l'effet de rebond
   const bounceScale = useSharedValue(1);
@@ -147,7 +150,7 @@ const CoursePositionComponent: React.FC<CoursePositionProps> = ({
         {/* Pastille centrale */}
         <View style={styles.pastilleContainer}>
           {pastilleComponent}
-          {status === 'blocked' && (
+          {status === 'blocked' && !hideVector && (
             <View style={styles.vectorContainer}>
               <Vector width={size * 0.55} height={size * 0.55} color="#F3FF90" />
             </View>
@@ -176,7 +179,8 @@ export const CoursePosition = memo(CoursePositionComponent, (prevProps, nextProp
     prevProps.isActive === nextProps.isActive &&
     prevProps.parcoursId === nextProps.parcoursId &&
     prevProps.videoCount === nextProps.videoCount &&
-    prevProps.completedVideos === nextProps.completedVideos
+    prevProps.completedVideos === nextProps.completedVideos &&
+    prevProps.hideVector === nextProps.hideVector
   );
 });
 

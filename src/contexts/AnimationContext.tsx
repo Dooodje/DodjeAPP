@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useRef } from 'react';
-import { View, Animated, Dimensions, Vibration } from 'react-native';
+import { View, Animated, Dimensions, Vibration, Text } from 'react-native';
 import { Dodji } from '../components/SymboleBlanc';
 
 const { width, height } = Dimensions.get('window');
@@ -10,6 +10,15 @@ interface FlyingDodji {
   translateY: Animated.Value;
   scale: Animated.Value;
   opacity: Animated.Value;
+}
+
+interface RewardText {
+  id: string;
+  x: number;
+  y: number;
+  count: number;
+  opacity: Animated.Value;
+  translateY: Animated.Value;
 }
 
 interface AnimationContextType {
@@ -28,11 +37,40 @@ export const useAnimation = () => {
 
 export const AnimationProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [flyingDodjis, setFlyingDodjis] = useState<FlyingDodji[]>([]);
+  const [rewardTexts, setRewardTexts] = useState<RewardText[]>([]);
   
   const startFlyingDodjisAnimation = (startX = width / 2, startY = height / 2, count = 5) => {
     console.log('🎭 AnimationProvider: Démarrage animation globale');
     console.log('🎭 AnimationProvider: Position de départ:', { startX, startY });
     console.log('🎭 AnimationProvider: Nombre de Dodjis gagnés:', count);
+    
+    // Créer le texte de récompense au point de départ
+    const rewardText: RewardText = {
+      id: `reward-${Date.now()}`,
+      x: startX,
+      y: startY,
+      count: count,
+      opacity: new Animated.Value(1),
+      translateY: new Animated.Value(0),
+    };
+    
+    setRewardTexts([rewardText]);
+    
+    // Animer le texte de récompense (fade out + montée)
+    Animated.parallel([
+      Animated.timing(rewardText.opacity, {
+        toValue: 0,
+        duration: 2000,
+        useNativeDriver: true,
+      }),
+      Animated.timing(rewardText.translateY, {
+        toValue: -50,
+        duration: 2000,
+        useNativeDriver: true,
+      }),
+    ]).start(() => {
+      setRewardTexts([]);
+    });
     
     // Calculer le nombre de Dodjis à animer (proportionnel mais limité)
     // Pour les petites récompenses (1-10) : 1:1
@@ -70,9 +108,9 @@ export const AnimationProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     
     // Animer chaque Dodji
     const animations = newDodjis.map((dodji, index) => {
-      // Trajectoire vers le coin supérieur droit (header)
-      const targetX = width * 0.3 + (Math.random() - 0.5) * 100;
-      const targetY = -height * 0.3 + (Math.random() - 0.5) * 50;
+      // Trajectoire vers la position de la cagnotte popup (plus haut sur l'écran)
+      const targetX = (Math.random() - 0.5) * 100; // Centré horizontalement avec un peu de variation
+      const targetY = -height * 0.35 + (Math.random() - 0.5) * 50; // Plus haut que le header, vers la cagnotte popup
       
       console.log(`🎭 AnimationProvider: Dodji ${index} - target:`, { targetX, targetY });
       
@@ -126,7 +164,7 @@ export const AnimationProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       {children}
       
       {/* Overlay global pour les animations */}
-      {flyingDodjis.length > 0 && (
+      {(flyingDodjis.length > 0 || rewardTexts.length > 0) && (
         <View
           style={{
             position: 'absolute',
@@ -136,12 +174,13 @@ export const AnimationProvider: React.FC<{ children: React.ReactNode }> = ({ chi
             bottom: 0,
             width: width,
             height: height,
-            zIndex: 99999,
+            zIndex: 999999, // Z-index très élevé pour être au-dessus de tout
             pointerEvents: 'none',
             justifyContent: 'center',
             alignItems: 'center',
           }}
         >
+          {/* Dodjis volants */}
           {flyingDodjis.map((dodji) => (
             <Animated.View
               key={dodji.id}
@@ -160,6 +199,38 @@ export const AnimationProvider: React.FC<{ children: React.ReactNode }> = ({ chi
               }}
             >
               <Dodji width={30} height={45} />
+            </Animated.View>
+          ))}
+          
+          {/* Textes de récompense */}
+          {rewardTexts.map((rewardText) => (
+            <Animated.View
+              key={rewardText.id}
+              style={{
+                position: 'absolute',
+                left: rewardText.x - 50, // Centrer le texte
+                top: rewardText.y - 30, // Positionner au-dessus du point de départ
+                width: 100,
+                alignItems: 'center',
+                transform: [
+                  { translateY: rewardText.translateY },
+                ],
+                opacity: rewardText.opacity,
+              }}
+            >
+              <Text
+                style={{
+                  color: '#9BEC00',
+                  fontSize: 18,
+                  fontFamily: 'Arboria-Bold',
+                  textAlign: 'center',
+                  textShadowColor: 'rgba(0, 0, 0, 0.8)',
+                  textShadowOffset: { width: 1, height: 1 },
+                  textShadowRadius: 3,
+                }}
+              >
+                +{rewardText.count} Dodji
+              </Text>
             </Animated.View>
           ))}
         </View>

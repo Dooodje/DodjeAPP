@@ -1,10 +1,12 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Alert, ScrollView, Dimensions } from 'react-native';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useAuth } from '../../src/hooks/useAuth';
 import { useQuizReward } from '../../src/hooks/useQuizReward';
+import { useUserDodji } from '../../src/hooks/useUserDodji';
+import { useAnimation } from '../../src/contexts/AnimationContext';
 import { quizService } from '../../src/services/quiz';
 import { dodjiService } from '../../src/services/dodji';
 import { Quiz, Question, Answer } from '../../src/types/quiz';
@@ -13,6 +15,17 @@ import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../../src/services/firebase';
 import { ProgressionService } from '../../src/services/businessLogic/ProgressionService';
 import { LogoLoadingSpinner } from '../../src/components/ui/LogoLoadingSpinner';
+import { CagnottePopup } from '../../src/components/ui/CagnottePopup';
+import MascotteSalutSvg from '../../src/assets/MascotteSalut.svg';
+import { Dodji } from '../../src/components/SymboleBlanc';
+import MascotteConfus from '../../src/components/MascotteConfus';
+import MascotteHappy from '../../src/components/MascotteHappy';
+import MascotteEnervee from '../../src/components/MascotteEnervee';
+import MascotteSurpris from '../../src/components/MascotteSurpris';
+import MascotteTristeSvg from '../../src/assets/MascotteTriste.svg';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+
+const { width, height } = Dimensions.get('window');
 
 console.log('Quiz page loaded - full implementation!');
 
@@ -57,29 +70,72 @@ const ExplanationPopup = ({
   onClose: () => void;
   isCorrect: boolean;
 }) => {
+  const [isMinimized, setIsMinimized] = useState(false);
+  
   if (!isVisible) return null;
   
   return (
     <View style={styles.explanationOverlay}>
-      <View style={styles.explanationPopup}>
+      <View style={[
+        styles.explanationPopup,
+        isMinimized && styles.explanationPopupMinimized
+      ]}>
+        {/* Barre de contrôle */}
+        <View style={styles.explanationControlBar}>
+          <View style={styles.explanationControlHandle} />
+          <TouchableOpacity 
+            style={styles.explanationToggleButton}
+            onPress={() => setIsMinimized(!isMinimized)}
+          >
+            <MaterialIcons 
+              name={isMinimized ? "expand-less" : "expand-more"} 
+              size={24} 
+              color="#FFFFFF" 
+            />
+          </TouchableOpacity>
+        </View>
+        
         <View style={styles.explanationContent}>
           <View style={[
             styles.explanationHeader,
             isCorrect ? styles.correctHeader : styles.incorrectHeader
           ]}>
-            <MaterialIcons 
-              name={isCorrect ? "check-circle" : "close"} 
-              size={20} 
-              color={isCorrect ? "#06D001" : "#FF3B30"} 
-            />
-            <Text style={[
-              styles.explanationHeaderText,
-              isCorrect ? styles.correctHeaderText : styles.incorrectHeaderText
-            ]}>
-              {isCorrect ? "Bonne réponse" : "Mauvaise réponse"}
-            </Text>
+            <View style={styles.explanationHeaderLeft}>
+              <MaterialIcons 
+                name={isCorrect ? "check-circle" : "close"} 
+                size={20} 
+                color={isCorrect ? "#06D001" : "#FF3B30"} 
+              />
+              <Text style={[
+                styles.explanationHeaderText,
+                isCorrect ? styles.correctHeaderText : styles.incorrectHeaderText
+              ]}>
+                {isCorrect ? "Bonne réponse" : "Mauvaise réponse"}
+              </Text>
+            </View>
+            {/* MascotteHappy à droite pour les bonnes réponses */}
+            {isCorrect && (
+              <View style={styles.mascotteHappyRight}>
+                <MascotteHappy style={styles.mascotteHappyRightStyle} />
+              </View>
+            )}
+            {/* MascotteConfus à droite pour les mauvaises réponses */}
+            {!isCorrect && (
+              <View style={styles.mascotteConfusRight}>
+                <MascotteConfus style={styles.mascotteConfusRightStyle} />
+              </View>
+            )}
           </View>
-          <Text style={styles.explanationPopupText}>{explanation}</Text>
+          
+          {!isMinimized && (
+            <ScrollView 
+              style={styles.explanationTextContainer}
+              showsVerticalScrollIndicator={false}
+              bounces={false}
+            >
+              <Text style={styles.explanationPopupText}>{explanation}</Text>
+            </ScrollView>
+          )}
         </View>
       </View>
     </View>
@@ -141,6 +197,8 @@ export default function QuizPage() {
   const router = useRouter();
   const { user } = useAuth();
   const { checkIfClaimed } = useQuizReward(id);
+  const { dodjiAmount, refreshDodjiAmount, updateDodjiAmount } = useUserDodji();
+  const { startFlyingDodjisAnimation } = useAnimation();
   
   // États
   const [loading, setLoading] = useState(true);
@@ -153,6 +211,11 @@ export default function QuizPage() {
   const [hasEarnedReward, setHasEarnedReward] = useState(false);
   const [showRewardMessage, setShowRewardMessage] = useState(false);
   const [quizStatus, setQuizStatus] = useState<'blocked' | 'unblocked' | 'completed'>('blocked');
+  const [isFirstTimeSuccess, setIsFirstTimeSuccess] = useState(false);
+  const [rewardClaimed, setRewardClaimed] = useState(false);
+  const [showCagnottePopup, setShowCagnottePopup] = useState(false);
+  const [initialDodjiAmount, setInitialDodjiAmount] = useState(0);
+  const [rewardAnimationCompleted, setRewardAnimationCompleted] = useState(false);
   
   // Chargement des données du quiz
   useEffect(() => {
@@ -418,6 +481,14 @@ export default function QuizPage() {
       const rewardAmount = quiz.tokenReward || quiz.dodjiReward || 0;
       
       try {
+        // Vérifier si c'est la première fois que le quiz est réussi
+        if (isPassed && rewardAmount > 0) {
+          const isAlreadyClaimed = await checkIfClaimed();
+          if (!isAlreadyClaimed) {
+            setIsFirstTimeSuccess(true);
+          }
+        }
+        
         // Créer l'objet de résultat du quiz
         const quizResult = {
           score: 0, // Ce champ sera recalculé dans ProgressionService
@@ -441,27 +512,8 @@ export default function QuizPage() {
         );
         console.log("Progression du quiz enregistrée avec succès");
         
-        // Attribuer la récompense seulement si le quiz est réussi
-        if (isPassed && rewardAmount > 0) {
-          try {
-            // Vérifier si la récompense a déjà été attribuée
-            const isAlreadyClaimed = await checkIfClaimed();
-            
-            if (!isAlreadyClaimed) {
-              await dodjiService.rewardQuizCompletion(user.uid, quiz.id, rewardAmount);
-              console.log(`Récompense de ${rewardAmount} Dodji attribuée pour le quiz ${quiz.id}`);
-              setHasEarnedReward(true);
-              
-              setShowRewardMessage(true);
-              setTimeout(() => setShowRewardMessage(false), 3000);
-            } else {
-              console.log('Récompense déjà attribuée pour ce quiz');
-              setHasEarnedReward(false);
-            }
-          } catch (rewardError) {
-            console.error("Erreur lors de l'attribution de récompense:", rewardError);
-          }
-        }
+        // Ne pas attribuer automatiquement la récompense
+        
       } catch (error) {
         console.error("Erreur lors de l'enregistrement des résultats:", error);
         Alert.alert("Attention", "Une erreur s'est produite lors de l'enregistrement de vos résultats.");
@@ -469,6 +521,43 @@ export default function QuizPage() {
     } catch (error) {
       console.error("Erreur générale dans finishQuiz:", error);
       Alert.alert("Erreur", "Une erreur s'est produite. Veuillez réessayer.");
+    }
+  };
+  
+  // Récupérer la récompense
+  const claimReward = async () => {
+    if (!quiz || !user || rewardClaimed) return;
+    
+    try {
+      const rewardAmount = quiz.tokenReward || quiz.dodjiReward || 0;
+      
+      if (rewardAmount > 0) {
+        // Sauvegarder le montant initial pour l'animation
+        const currentAmount = await refreshDodjiAmount();
+        setInitialDodjiAmount(currentAmount || dodjiAmount);
+        
+        // Attribuer la récompense
+        await dodjiService.rewardQuizCompletion(user.uid, quiz.id, rewardAmount);
+        console.log(`Récompense de ${rewardAmount} Dodji attribuée pour le quiz ${quiz.id}`);
+        
+        // Calculer la position du bouton pour l'animation
+        const buttonX = width / 2; // Centre de l'écran
+        const buttonY = height * 0.8; // Position approximative du bouton
+        
+        // Démarrer l'animation des Dodjis volants
+        startFlyingDodjisAnimation(buttonX, buttonY, rewardAmount);
+        
+        // Afficher la cagnotte popup
+        setShowCagnottePopup(true);
+        
+        setRewardClaimed(true);
+        setHasEarnedReward(true);
+        
+        // Le message de récompense sera géré par la cagnotte popup
+      }
+    } catch (error) {
+      console.error("Erreur lors de l'attribution de récompense:", error);
+      Alert.alert("Erreur", "Une erreur s'est produite lors de l'attribution de la récompense.");
     }
   };
   
@@ -484,6 +573,74 @@ export default function QuizPage() {
     setCurrentQuestionIndex(0);
     setShowAnswer(false);
     setCurrentState(QuizState.INTRO);
+  };
+  
+  // Gérer la fin de l'animation de la cagnotte
+  const handleCagnotteAnimationComplete = async () => {
+    setShowCagnottePopup(false);
+    setRewardAnimationCompleted(true); // Marquer que l'animation est terminée
+    
+    // Rafraîchir le montant de Dodjis pour synchroniser avec le header
+    const newAmount = await refreshDodjiAmount();
+    if (newAmount !== undefined) {
+      updateDodjiAmount(newAmount);
+    }
+    
+    setShowRewardMessage(true);
+    // Masquer le message après 3 secondes
+    setTimeout(() => setShowRewardMessage(false), 3000);
+  };
+  
+  // Naviguer vers le prochain parcours
+  const navigateToNextParcours = async () => {
+    try {
+      console.log('🚀 Déblocage du prochain parcours...');
+      
+      // Calculer l'ordre du prochain parcours
+      let nextParcoursOrder = null;
+      
+      if (quiz && parcoursId) {
+        // Récupérer les informations du parcours actuel pour déterminer le prochain
+        const parcoursRef = doc(db, 'parcours', parcoursId);
+        const parcoursDoc = await getDoc(parcoursRef);
+        
+        if (parcoursDoc.exists()) {
+          const parcoursData = parcoursDoc.data();
+          const currentOrder = parcoursData.ordre || 0;
+          nextParcoursOrder = currentOrder + 1;
+          
+          console.log(`Parcours actuel ordre: ${currentOrder}, prochain ordre: ${nextParcoursOrder}`);
+        }
+      }
+      
+      // Préparer les données pour l'animation seulement si on a un prochain parcours
+      if (nextParcoursOrder) {
+        const unlockData = {
+          parcoursOrder: nextParcoursOrder,
+          timestamp: Date.now()
+        };
+        
+        console.log('📦 Données de déblocage:', unlockData);
+        
+        // Sauvegarder dans AsyncStorage pour React Native
+        await AsyncStorage.setItem('pendingUnlockAnimation', JSON.stringify(unlockData));
+      }
+      
+      // Fermer le quiz d'abord
+      router.dismiss();
+      
+      // Puis fermer automatiquement la page parcours après 50ms
+      setTimeout(() => {
+        router.back();
+      }, 50);
+    } catch (error) {
+      console.error('Erreur lors de la sauvegarde des données d\'animation:', error);
+      // Fallback: fermer le quiz et la page parcours
+      router.dismiss();
+      setTimeout(() => {
+        router.back();
+      }, 50);
+    }
   };
   
   // Render l'écran d'introduction
@@ -505,22 +662,30 @@ export default function QuizPage() {
           <Text style={styles.quizDescription}>{quiz.description}</Text>
           
           <View style={styles.infoContainer}>
-            <View style={styles.infoItem}>
-              <MaterialIcons name="help" size={20} color="#FFFFFF" />
+            {/* Case 1 : Questions */}
+            <View style={styles.infoBox}>
+              <MaterialIcons name="quiz" size={20} color="#7C6354" />
               <Text style={styles.infoText}>{quiz.questions?.length || 0} questions</Text>
             </View>
             
-            <View style={styles.infoItem}>
-              <MaterialIcons name="stars" size={20} color="#FFFFFF" />
+            {/* Case 2 : Seuil de réussite */}
+            <View style={styles.infoBox}>
+              <MaterialIcons name="emoji-events" size={20} color="#06D001" />
               <Text style={styles.infoText}>Seuil de réussite : 70%</Text>
             </View>
             
-            <View style={styles.infoItem}>
-              <MaterialIcons name="monetization-on" size={20} color="#06D001" />
+            {/* Case 3 : Dodji à gagner */}
+            <View style={styles.infoBox}>
+              <Dodji width={20} height={20} />
               <Text style={styles.infoText}>{quiz.tokenReward || quiz.dodjiReward || 0} Dodji à gagner</Text>
             </View>
           </View>
         </ScrollView>
+
+        {/* Mascotte en bas à gauche */}
+        <View style={styles.mascotteContainer}>
+          <MascotteSalutSvg width={160} height={175} />
+        </View>
 
         <View style={styles.introActionContainer}>
           <TouchableOpacity style={styles.startButton} onPress={startQuiz}>
@@ -645,21 +810,38 @@ export default function QuizPage() {
             styles.resultStatusContainer,
             isPassed ? styles.resultStatusSuccess : styles.resultStatusFail
           ]}>
-            <MaterialIcons 
-              name={isPassed ? "check-circle" : "cancel"} 
-              size={40} 
-              color={isPassed ? "#06D001" : "#FF3B30"} 
-            />
-            <Text style={[
-              styles.resultStatusText,
-              isPassed ? styles.resultStatusTextSuccess : styles.resultStatusTextFail
+            <View style={[
+              styles.resultStatusLeft,
+              { flex: 1 }
             ]}>
-              {isPassed ? "Quiz réussi !" : "Quiz échoué"}
-            </Text>
+              <MaterialIcons 
+                name={isPassed ? "check-circle" : "cancel"} 
+                size={32} 
+                color={isPassed ? "#06D001" : "#FF3B30"} 
+              />
+              <Text style={[
+                styles.resultStatusText,
+                isPassed ? styles.resultStatusTextSuccess : styles.resultStatusTextFail
+              ]}>
+                {isPassed ? "Quiz réussi !" : "Quiz échoué"}
+              </Text>
+            </View>
+            {/* MascotteSurpris à droite pour les quiz réussis */}
+            {isPassed && (
+              <View style={styles.mascotteSurprisResult}>
+                <MascotteSurpris style={styles.mascotteSurprisResultStyle} />
+              </View>
+            )}
+            {/* MascotteEnervee à droite pour les quiz échoués */}
+            {!isPassed && (
+              <View style={styles.mascotteEnerveeResult}>
+                <MascotteEnervee style={styles.mascotteEnerveeResultStyle} />
+              </View>
+            )}
           </View>
 
           <View style={styles.scoreContainer}>
-            <Text style={styles.scoreLabel}>Votre score</Text>
+            <Text style={styles.scoreLabel}>Ton score</Text>
             <Text style={styles.scoreValue}>
               {score}/{totalPoints}
             </Text>
@@ -671,38 +853,64 @@ export default function QuizPage() {
           <View style={styles.resultInfoContainer}>
             <Text style={styles.resultMessage}>
               {isPassed 
-                ? `Félicitations ! Vous avez obtenu un score supérieur à ${passingScore}%${hasEarnedReward ? ` et gagné ${rewardAmount} Dodji !` : ' !'}`
-                : `Vous devez obtenir au moins ${passingScore}% pour réussir le quiz. N'hésitez pas à revoir le contenu du cours et à réessayer.`
+                ? `T'as pas juste réussi un quiz, t'as posé une brique solide dans ta maison financière.\nOn continue ensemble ? La forêt est grande et pleine de pépites${hasEarnedReward && rewardClaimed && !rewardAnimationCompleted ? ` et tu as gagné ${rewardAmount} Dodji !` : ' !'}`
+                : `Chaque grand chêne a connu des tempêtes.\nAllez, secoue-toi les branches et on y retourne !`
               }
             </Text>
 
-            {isPassed && hasEarnedReward && (
+            {isPassed && hasEarnedReward && rewardClaimed && (
               <View style={styles.rewardInfoContainer}>
-                <MaterialIcons name="emoji-events" size={24} color="#06D001" />
                 <Text style={styles.rewardInfoText}>
-                  +{rewardAmount} Dodji
+                  +{rewardAmount}
                 </Text>
+                <Dodji width={20} height={20} />
               </View>
             )}
           </View>
         </ScrollView>
 
         <View style={styles.resultActionsContainer}>
-          <TouchableOpacity 
-            style={styles.retryButton} 
-            onPress={retryQuiz}
-          >
-            <MaterialIcons name="replay" size={20} color="#FFFFFF" />
-            <Text style={styles.retryButtonText}>Réessayer</Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity 
-            style={styles.quitButton} 
-            onPress={handleBackPress}
-          >
-            <Text style={styles.quitButtonText}>Quitter</Text>
-            <MaterialIcons name="arrow-forward" size={20} color="#000000" />
-          </TouchableOpacity>
+          {/* Boutons d'action */}
+          <View style={styles.buttonContainer}>
+            {rewardAnimationCompleted ? (
+              // Bouton pour débloquer le prochain parcours après l'animation
+              <TouchableOpacity
+                style={[styles.button, styles.nextParcoursButton]}
+                onPress={navigateToNextParcours}
+              >
+                <Text style={styles.nextParcoursButtonText}>
+                  Débloquer le prochain parcours
+                </Text>
+              </TouchableOpacity>
+            ) : isFirstTimeSuccess && !rewardClaimed ? (
+              // Bouton pour récupérer la récompense lors de la première réussite
+              <TouchableOpacity
+                style={styles.claimRewardButton}
+                onPress={claimReward}
+              >
+                <MaterialIcons name="emoji-events" size={24} color="#FFFFFF" />
+                <Text style={styles.claimRewardButtonText}>Récupérer ma récompense</Text>
+              </TouchableOpacity>
+            ) : (
+              // Boutons normaux en pleine largeur
+              <>
+                <TouchableOpacity
+                  style={[styles.button, styles.retryButton]}
+                  onPress={retryQuiz}
+                >
+                  <MaterialIcons name="refresh" size={20} color="#FFFFFF" />
+                  <Text style={styles.retryButtonText}>Ressayer</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.button, styles.quitButton]}
+                  onPress={() => router.dismiss()}
+                >
+                  <MaterialIcons name="close" size={20} color="#FFFFFF" />
+                  <Text style={styles.quitButtonText}>Quitter</Text>
+                </TouchableOpacity>
+              </>
+            )}
+          </View>
         </View>
       </View>
     );
@@ -732,6 +940,15 @@ export default function QuizPage() {
           </>
         )}
       </SafeAreaView>
+      
+      {/* Cagnotte Popup */}
+      <CagnottePopup
+        visible={showCagnottePopup}
+        initialAmount={initialDodjiAmount}
+        finalAmount={initialDodjiAmount + (quiz?.tokenReward || quiz?.dodjiReward || 0)}
+        rewardAmount={quiz?.tokenReward || quiz?.dodjiReward || 0}
+        onAnimationComplete={handleCagnotteAnimationComplete}
+      />
     </>
   );
 }
@@ -757,6 +974,12 @@ const styles = StyleSheet.create({
   },
   closeButton: {
     padding: 8,
+    position: 'absolute',
+    right: 20,
+    top: '50%',
+    transform: [{ translateY: -12 }],
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderRadius: 20,
   },
   loaderContainer: {
     flex: 1,
@@ -776,9 +999,10 @@ const styles = StyleSheet.create({
   introHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    justifyContent: 'center',
     paddingHorizontal: 20,
     paddingVertical: 16,
+    position: 'relative',
   },
   introTitle: {
     fontSize: 50,
@@ -811,10 +1035,16 @@ const styles = StyleSheet.create({
     padding: 20,
     gap: 16,
   },
-  infoItem: {
+  infoBox: {
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderRadius: 15,
+    padding: 20,
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     gap: 12,
+    marginBottom: 16,
+    minHeight: 60,
   },
   infoText: {
     color: '#FFFFFF',
@@ -876,7 +1106,7 @@ const styles = StyleSheet.create({
     paddingBottom: 100,
   },
   questionText: {
-    fontSize: 40,
+    fontSize: 28,
     fontFamily: 'Arboria-Bold',
     color: '#FFFFFF',
     marginBottom: 12,
@@ -960,9 +1190,10 @@ const styles = StyleSheet.create({
   actionContainer: {
     paddingHorizontal: 20,
     position: 'absolute',
-    bottom: 100,
+    bottom: 60,
     left: 0,
     right: 0,
+    zIndex: 10,
   },
   validateButton: {
     paddingVertical: 16,
@@ -1012,6 +1243,7 @@ const styles = StyleSheet.create({
   resultStatusContainer: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
     gap: 12,
     padding: 20,
     borderRadius: 15,
@@ -1071,61 +1303,70 @@ const styles = StyleSheet.create({
     lineHeight: 28,
     fontFamily: 'Arboria-Medium',
     marginBottom: 16,
+    textAlign: 'center',
   },
   rewardInfoContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 4,
     backgroundColor: 'rgba(6, 208, 1, 0.1)',
     padding: 12,
     borderRadius: 12,
     alignSelf: 'flex-start',
   },
   rewardInfoText: {
-    color: '#06D001',
+    color: '#F1E61C',
     fontSize: 18,
     fontFamily: 'Arboria-Bold',
   },
   resultActionsContainer: {
     padding: 20,
-    paddingBottom: 34,
+    paddingBottom: 71,
     gap: 12,
   },
-  retryButton: {
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+  buttonContainer: {
+    flexDirection: 'column',
+    gap: 12,
+  },
+  button: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     padding: 16,
     borderRadius: 50,
     gap: 8,
+  },
+  quitButton: {
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  quitButtonText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontFamily: 'Arboria-Bold',
+  },
+  retryButton: {
+    backgroundColor: '#9BEC00',
   },
   retryButtonText: {
     color: '#FFFFFF',
     fontSize: 15,
     fontFamily: 'Arboria-Bold',
   },
-  quitButton: {
-    backgroundColor: '#FFFFFF',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 16,
-    borderRadius: 50,
-    gap: 8,
+  nextParcoursButton: {
+    backgroundColor: '#9BEC00',
   },
-  quitButtonText: {
-    color: '#000000',
+  nextParcoursButtonText: {
+    color: '#FFFFFF',
     fontSize: 15,
     fontFamily: 'Arboria-Bold',
   },
   explanationOverlay: {
     position: 'absolute',
-    bottom: 160,
+    bottom: 140,
     left: 0,
     right: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'flex-end',
+    zIndex: 5,
   },
   explanationPopup: {
     backgroundColor: '#0A0400',
@@ -1133,20 +1374,28 @@ const styles = StyleSheet.create({
     paddingVertical: 20,
     paddingHorizontal: 20,
     margin: 20,
-    minHeight: 100,
-    maxHeight: '50%',
+    maxHeight: '80%',
+    minHeight: 150,
+    alignSelf: 'stretch',
+  },
+  explanationPopupMinimized: {
+    maxHeight: 120,
+    minHeight: 120,
   },
   explanationContent: {
+    flex: 1,
     gap: 12,
   },
   explanationHeader: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
     gap: 8,
-    paddingVertical: 8,
+    paddingVertical: 16,
     paddingHorizontal: 12,
     borderRadius: 12,
     marginBottom: 16,
+    minHeight: 60,
   },
   correctHeader: {
     backgroundColor: 'rgba(6, 208, 1, 0.1)',
@@ -1159,7 +1408,7 @@ const styles = StyleSheet.create({
     borderLeftColor: '#FF3B30',
   },
   explanationHeaderText: {
-    fontSize: 15,
+    fontSize: 18,
     fontFamily: 'Arboria-Medium',
   },
   correctHeaderText: {
@@ -1173,6 +1422,8 @@ const styles = StyleSheet.create({
     fontSize: 22,
     lineHeight: 28,
     fontFamily: 'Arboria-Medium',
+    textAlign: 'left',
+    paddingBottom: 10,
   },
   explanationCloseButton: {
     backgroundColor: '#FFFFFF',
@@ -1186,6 +1437,111 @@ const styles = StyleSheet.create({
   },
   explanationCloseButtonText: {
     color: '#000000',
+    fontSize: 15,
+    fontFamily: 'Arboria-Bold',
+  },
+  mascotteContainer: {
+    position: 'absolute',
+    bottom: 60,
+    right: -62,
+    width: 160,
+    height: 175,
+    zIndex: 1,
+    transform: [{ rotate: '-40deg' }],
+    overflow: 'hidden',
+  },
+  mascotte: {
+    width: 160,
+    height: 175,
+  },
+  mascotteConfusRight: {
+    width: 40,
+    height: 50,
+    overflow: 'hidden',
+    marginRight: 15,
+  },
+  mascotteConfusRightStyle: {
+    width: 40,
+    height: 50,
+    transform: [{ scale: 0.06 }],
+  },
+  mascotteHappyRight: {
+    width: 40,
+    height: 50,
+    overflow: 'hidden',
+    marginRight: 15,
+  },
+  mascotteHappyRightStyle: {
+    width: 40,
+    height: 50,
+    transform: [{ scale: 0.05 }],
+  },
+  explanationHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  explanationTextContainer: {
+    flex: 1,
+    paddingHorizontal: 5,
+  },
+  explanationControlBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 10,
+  },
+  explanationControlHandle: {
+    width: 40,
+    height: 4,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    borderRadius: 2,
+  },
+  explanationToggleButton: {
+    padding: 8,
+    borderRadius: 50,
+    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+  },
+  mascotteEnerveeResult: {
+    width: 60,
+    height: 75,
+    overflow: 'hidden',
+    marginRight: 25,
+  },
+  mascotteEnerveeResultStyle: {
+    width: 60,
+    height: 75,
+    transform: [{ scale: 0.08 }],
+  },
+  mascotteSurprisResult: {
+    width: 60,
+    height: 75,
+    overflow: 'hidden',
+    marginRight: 25,
+  },
+  mascotteSurprisResultStyle: {
+    width: 60,
+    height: 75,
+    transform: [{ scale: 0.08 }],
+  },
+  resultStatusLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+  },
+  claimRewardButton: {
+    backgroundColor: '#9BEC00',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 16,
+    borderRadius: 50,
+    gap: 8,
+  },
+  claimRewardButtonText: {
+    color: '#FFFFFF',
     fontSize: 15,
     fontFamily: 'Arboria-Bold',
   },

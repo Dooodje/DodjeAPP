@@ -9,7 +9,7 @@ interface UseQuizRewardReturn {
     error: string | null;
 }
 
-export const useQuizReward = (quizId: string): UseQuizRewardReturn => {
+export const useQuizReward = (quizId: string | undefined): UseQuizRewardReturn => {
     const { user } = useAuth();
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -17,6 +17,10 @@ export const useQuizReward = (quizId: string): UseQuizRewardReturn => {
     const claimReward = useCallback(async () => {
         if (!user?.uid) {
             throw new Error('Utilisateur non connecté');
+        }
+
+        if (!quizId) {
+            throw new Error('ID du quiz manquant');
         }
 
         try {
@@ -42,7 +46,7 @@ export const useQuizReward = (quizId: string): UseQuizRewardReturn => {
     }, [user?.uid, quizId]);
 
     const checkIfClaimed = useCallback(async () => {
-        if (!user?.uid) {
+        if (!user?.uid || !quizId) {
             return false;
         }
 
@@ -50,6 +54,7 @@ export const useQuizReward = (quizId: string): UseQuizRewardReturn => {
             setError(null);
             return await DodjiRewardService.isRewardClaimed(user.uid, quizId);
         } catch (err) {
+            console.error('Error checking reward status:', err);
             const errorMessage = err instanceof Error ? err.message : 'Une erreur est survenue';
             setError(errorMessage);
             return false;

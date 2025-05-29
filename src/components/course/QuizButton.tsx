@@ -8,7 +8,7 @@ import { Vector } from '../Vector';
 import { useAuth } from '../../hooks/useAuth';
 import { QuizStatusService } from '../../services/businessLogic/QuizStatusService';
 import QuizLockedModal from '../ui/QuizLockedModal';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, onSnapshot } from 'firebase/firestore';
 import { db } from '../../config/firebase';
 
 // Constantes pour les dimensions
@@ -40,25 +40,49 @@ const QuizButton: React.FC<QuizButtonProps> = ({
   const [tokenReward, setTokenReward] = useState<number>(0);
 
   useEffect(() => {
-    const loadQuizData = async () => {
-      if (!user?.uid) return;
-      try {
-        // Charger le statut du quiz
-        const status = await QuizStatusService.getQuizStatus(user.uid, id);
-        setQuizStatus(status?.status || 'blocked');
+    if (!user?.uid) return;
 
-        // Charger les données du quiz depuis Firestore
+    console.log(`🔍 QuizButton - Configuration du listener pour le statut du quiz ${id}`);
+
+    // Charger les données du quiz depuis Firestore (une seule fois)
+    const loadQuizData = async () => {
+      try {
         const quizDoc = await getDoc(doc(db, 'quizzes', id));
         if (quizDoc.exists()) {
           setTokenReward(quizDoc.data().tokenReward || 0);
         }
       } catch (error) {
         console.error('Erreur lors du chargement des données du quiz:', error);
-        setQuizStatus('blocked');
       }
     };
 
     loadQuizData();
+
+    // Configurer le listener en temps réel pour le statut du quiz
+    const quizStatusRef = doc(db, 'users', user.uid, 'quiz', id);
+    
+    const unsubscribe = onSnapshot(
+      quizStatusRef,
+      (docSnapshot) => {
+        if (docSnapshot.exists()) {
+          const status = docSnapshot.data().status;
+          setQuizStatus(status || 'blocked');
+          console.log(`✅ QuizButton - Statut du quiz ${id} mis à jour:`, status);
+        } else {
+          setQuizStatus('blocked');
+          console.log(`ℹ️ QuizButton - Aucun statut trouvé pour le quiz ${id}, statut par défaut: blocked`);
+        }
+      },
+      (error) => {
+        console.error(`❌ QuizButton - Erreur lors de l'observation du statut du quiz ${id}:`, error);
+        setQuizStatus('blocked');
+      }
+    );
+
+    return () => {
+      console.log(`🧹 QuizButton - Nettoyage du listener du statut du quiz ${id}`);
+      unsubscribe();
+    };
   }, [user?.uid, id]);
 
   // Calculer la position absolue en pixels

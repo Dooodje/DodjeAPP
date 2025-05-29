@@ -11,7 +11,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { Course, CourseContent } from '../../src/types/course';
 import { useAuth } from '../../src/hooks/useAuth';
 import { QuizStatusService } from '../../src/services/businessLogic/QuizStatusService';
-import { collection, getDocs, onSnapshot, query, where, documentId } from 'firebase/firestore';
+import { collection, getDocs, onSnapshot, query, where, documentId, doc } from 'firebase/firestore';
 import { db } from '../../src/services/firebase';
 import { Rectangle11 } from '../../src/components/Rectangle11';
 import ParcoursLockedModal from '../../src/components/ui/ParcoursLockedModal';
@@ -78,6 +78,7 @@ export default function CoursePage() {
   const [parcoursData, setParcoursData] = useState<ParcoursData | null>(null);
   const [lastViewedVideoId, setLastViewedVideoId] = useState<string | undefined>(undefined);
   const [videoStatus, setVideoStatus] = useState<VideoStatus>({});
+  const [quizStatus, setQuizStatus] = useState<'blocked' | 'unblocked' | 'completed'>('blocked');
   const [imageDimensions, setImageDimensions] = useState({ width: screenWidth, height: screenHeight });
   const [parcoursStatus, setParcoursStatus] = useState<'blocked' | 'unblocked' | 'in_progress' | 'completed' | null>(null);
   const [isModalVisible, setIsModalVisible] = useState(false);
@@ -85,6 +86,7 @@ export default function CoursePage() {
   // Références pour stocker les fonctions de désabonnement
   const unsubscribeParcoursRef = useRef<(() => void) | null>(null);
   const unsubscribeVideoStatusRef = useRef<(() => void) | null>(null);
+  const unsubscribeQuizStatusRef = useRef<(() => void) | null>(null);
   const isInitializedRef = useRef(false);
 
   // Callback pour recevoir les dimensions de l'image d'arrière-plan
@@ -270,6 +272,35 @@ export default function CoursePage() {
     unsubscribeVideoStatusRef.current = unsubscribe;
   }, [user?.uid, parcoursData, updateVideoStatuses]);
 
+  // Fonction pour configurer le listener du statut du quiz en temps réel
+  const setupQuizStatusListener = useCallback(() => {
+    if (!user?.uid || !parcoursData?.quizId || unsubscribeQuizStatusRef.current) return;
+
+    console.log(`🔍 Configuration du listener pour le statut du quiz ${parcoursData.quizId}`);
+    
+    const quizStatusRef = doc(db, 'users', user.uid, 'quiz', parcoursData.quizId);
+    
+    const unsubscribe = onSnapshot(
+      quizStatusRef,
+      (docSnapshot) => {
+        if (docSnapshot.exists()) {
+          const status = docSnapshot.data().status;
+          setQuizStatus(status || 'blocked');
+          console.log(`✅ Statut du quiz ${parcoursData.quizId} mis à jour:`, status);
+        } else {
+          setQuizStatus('blocked');
+          console.log(`ℹ️ Aucun statut trouvé pour le quiz ${parcoursData.quizId}, statut par défaut: blocked`);
+        }
+      },
+      (error) => {
+        console.error(`❌ Erreur lors de l'observation du statut du quiz ${parcoursData.quizId}:`, error);
+        setQuizStatus('blocked');
+      }
+    );
+
+    unsubscribeQuizStatusRef.current = unsubscribe;
+  }, [user?.uid, parcoursData?.quizId]);
+
   // Fonction pour vérifier le cache local
   const getCachedParcours = useCallback((parcoursId: string): ParcoursData | null => {
     const cached = parcoursCache.get(parcoursId);
@@ -400,6 +431,10 @@ export default function CoursePage() {
         unsubscribeVideoStatusRef.current();
         unsubscribeVideoStatusRef.current = null;
       }
+      if (unsubscribeQuizStatusRef.current) {
+        unsubscribeQuizStatusRef.current();
+        unsubscribeQuizStatusRef.current = null;
+      }
       isInitializedRef.current = false;
     };
   }, [id, user?.uid, loadParcoursData, checkParcoursStatus]);
@@ -408,6 +443,7 @@ export default function CoursePage() {
   useEffect(() => {
     if (parcoursData && user?.uid && !loading) {
       setupVideoStatusListener();
+      setupQuizStatusListener();
     }
     
     return () => {
@@ -415,8 +451,12 @@ export default function CoursePage() {
         unsubscribeVideoStatusRef.current();
         unsubscribeVideoStatusRef.current = null;
       }
+      if (unsubscribeQuizStatusRef.current) {
+        unsubscribeQuizStatusRef.current();
+        unsubscribeQuizStatusRef.current = null;
+      }
     };
-  }, [parcoursData, user?.uid, loading, setupVideoStatusListener]);
+  }, [parcoursData, user?.uid, loading, setupVideoStatusListener, setupQuizStatusListener]);
 
   // Mémoriser les vidéos triées pour éviter les re-calculs
   const sortedVideos = useMemo(() => {
@@ -439,6 +479,10 @@ export default function CoursePage() {
     if (unsubscribeVideoStatusRef.current) {
       unsubscribeVideoStatusRef.current();
       unsubscribeVideoStatusRef.current = null;
+    }
+    if (unsubscribeQuizStatusRef.current) {
+      unsubscribeQuizStatusRef.current();
+      unsubscribeQuizStatusRef.current = null;
     }
     
     // Vider le cache pour ce parcours
@@ -576,27 +620,17 @@ export default function CoursePage() {
       return;
     }
 
-    try {
-      // Vérifier le statut du quiz
-      const quizStatus = await QuizStatusService.getQuizStatus(user.uid, quizId);
-      
-      if (!quizStatus || quizStatus.status === 'blocked') {
-        Alert.alert(
-          "Quiz verrouillé",
-          "Vous devez d'abord terminer toutes les vidéos du parcours pour accéder à ce quiz."
-        );
-        return;
-      }
-
-      console.log(`Navigation vers le quiz ID=${quizId}`);
-      router.push(`/quiz/${quizId}?parcoursId=${id}` as any);
-    } catch (error) {
-      console.error('Erreur lors de la vérification du statut du quiz:', error);
+    // Utiliser l'état quizStatus en temps réel au lieu d'un appel API
+    if (quizStatus === 'blocked') {
       Alert.alert(
-        "Erreur",
-        "Une erreur est survenue lors de l'accès au quiz. Veuillez réessayer."
+        "Quiz verrouillé",
+        "Vous devez d'abord terminer toutes les vidéos du parcours pour accéder à ce quiz."
       );
+      return;
     }
+
+    console.log(`Navigation vers le quiz ID=${quizId}`);
+    router.push(`/quiz/${quizId}?parcoursId=${id}` as any);
   };
 
   // Gérer les retours en arrière
@@ -918,4 +952,4 @@ const styles = StyleSheet.create({
     zIndex: 50, // Entre l'image de fond (z-index: 0) et le header (z-index: 100)
     pointerEvents: 'none', // Pour ne pas bloquer le scrolling
   },
-}); 
+});

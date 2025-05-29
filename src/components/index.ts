@@ -6,7 +6,7 @@ export * from './Menu';
 export * from './MenuButton';
 export * from './RightArrow';
 export * from './Icon';
-export * from './QuizOff';
+export * from './QuizOff'; 
 export { default as ProfilV2 } from './ProfilV2';
 export { default as HomeV2 } from './HomeV2';
 export { default as CataV2 } from './CataV2';
