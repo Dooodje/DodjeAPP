@@ -246,12 +246,14 @@ export const StreakModal: React.FC<StreakModalProps> = ({ modalData, onClose, on
                 <Text style={styles.streakMainLabel}>Daily streak !</Text>
               </View>
               
-              {/* Message de félicitations */}
-              <View style={styles.congratulationsContainer}>
-                <Text style={styles.congratulationsText}>
-                  Bravo jeune gland !{'\n'}Tes racines s'ancrent de plus en plus.{'\n'}Voilà ta récompense.
-                </Text>
-              </View>
+              {/* Message de félicitations - SEULEMENT quand il y a une récompense */}
+              {modalData.dodjiEarned > 0 && (
+                <View style={styles.congratulationsContainer}>
+                  <Text style={styles.congratulationsText}>
+                    Bravo jeune gland !{'\n'}Tes racines s'ancrent de plus en plus.
+                  </Text>
+                </View>
+              )}
             </View>
 
             {/* Indicateurs d'objectifs circulaires - TOUJOURS AFFICHÉS */}

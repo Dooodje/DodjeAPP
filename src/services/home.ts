@@ -76,105 +76,99 @@ function normalizeString(str: string): string {
 
 export const homeService = {
   /**
-   * Récupère les données de l'arbre d'apprentissage pour une section et un niveau spécifiques
-   * Version ultra simplifiée sans indexOf/filter/includes
+   * Récupère les données de l'arbre de parcours pour une section et un niveau donnés
    */
   getTreeData: async (section: Section, level: Level, userId: string): Promise<TreeData> => {
     try {
-      console.log(`Recherche des cours pour section=${section}, level=${level}`);
+      console.log(`Récupération des données de l'arbre pour section=${section}, level=${level}, userId=${userId}`);
       
-      // Retourner directement un TreeData vide mais valide
-      // Cette approche évite toute méthode de tableau qui utiliserait indexOf en interne
-      return {
-        section,
-        level,
-        treeImageUrl: '',
-        courses: [
-          // Créer manuellement un cours test
-          {
-            id: 'test-course-1',
-            title: 'Cours de test',
-            description: 'Un cours créé manuellement pour éviter les erreurs indexOf',
+      // Récupérer les parcours correspondant à cette section et ce niveau
+      const coursesQuery = query(
+        collection(db, 'parcours'),
+        where('domaine', '==', section),
+        where('niveau', '==', level)
+      );
+      
+      const coursesSnapshot = await getDocs(coursesQuery);
+      const courses: Course[] = [];
+      
+      if (!coursesSnapshot.empty) {
+        // Récupérer les statuts des parcours pour cet utilisateur
+        const courseIds = coursesSnapshot.docs.map(doc => doc.id);
+        const courseStatuses = await getUserCoursesStatus(userId, courseIds);
+        
+        coursesSnapshot.forEach(doc => {
+          const courseData = doc.data() as FirestoreCourseData;
+          const courseStatus = courseStatuses[doc.id];
+          
+          // Récupérer l'URL de l'image si nécessaire
+          let imageUrl = '';
+          if (courseData.imageUrl) {
+            imageUrl = courseData.imageUrl;
+          } else if (courseData.imagePath) {
+            // Si on a un chemin d'image, on devra le convertir en URL
+            imageUrl = courseData.imagePath;
+          }
+          
+          const course: Course = {
+            id: doc.id,
+            title: courseData.titre || 'Titre non défini',
+            description: courseData.description || '',
             level: level,
             section: section,
-            position: { x: 0.5, y: 0.5 },
-            status: 'deblocked',
-            progress: 0,
-            dodjiCost: 100,
-            imageUrl: '',
+            position: courseData.positions?.[0] || { x: 0.5, y: 0.5 },
+            status: courseStatus.status,
+            progress: courseStatus.progress,
+            dodjiCost: courseData.dodjiCost || 0,
+            imageUrl: imageUrl,
             lockIcon: 'lock',
             checkIcon: 'check',
             ringIcon: 'circle-outline',
-            ordre: 1,
-            videoIds: [],
-            quizId: null,
-            isAnnex: false
-          }
-        ]
-      };
+            ordre: courseData.ordre || courseData.order || 0,
+            videoIds: courseData.videoIds || [],
+            quizId: courseData.quizId || null,
+            isAnnex: courseData.isAnnex || false
+          };
+          
+          courses.push(course);
+        });
+      }
       
-    } catch (error) {
-      console.error('Erreur lors de la récupération des données:', error);
-      // Retourner un objet minimal en cas d'erreur
+      // Trier les parcours par ordre
+      courses.sort((a, b) => a.ordre - b.ordre);
+      
       return {
         section,
         level,
-        treeImageUrl: '',
-        courses: []
+        treeImageUrl: '', // À implémenter si nécessaire
+        courses
       };
+    } catch (error) {
+      console.error('Erreur lors de la récupération des données de l\'arbre:', error);
+      throw error;
     }
   },
-  
+
   /**
-   * Récupère les statistiques de l'utilisateur (streak, dodji)
+   * Récupère les statistiques d'un utilisateur
    */
-  getUserStats: async (userId: string) => {
+  getUserStats: async (userId: string): Promise<{ streak: any; dodji: any }> => {
     try {
-      const userDocRef = doc(db, 'users', userId);
-      const userDoc = await getDoc(userDocRef);
-      
-      if (!userDoc.exists()) {
+      const userDoc = await getDoc(doc(db, 'users', userId));
+      if (userDoc.exists()) {
+        const userData = userDoc.data();
         return {
-          streak: 0,
-          dodji: 0
+          streak: userData.streak || 0,
+          dodji: userData.dodji || 0
         };
       }
-      
-      const userData = userDoc.data();
-      
-      return {
-        streak: userData.streak || 0,
-        dodji: userData.dodji || 0
-      };
+      return { streak: 0, dodji: 0 };
     } catch (error) {
       console.error('Erreur lors de la récupération des statistiques utilisateur:', error);
-      return {
-        streak: 0,
-        dodji: 0
-      };
+      return { streak: 0, dodji: 0 };
     }
   },
-  
-  /**
-   * Récupère le dernier parcours visionné par l'utilisateur
-   */
-  getLastViewedCourse: async (userId: string) => {
-    try {
-      const userDocRef = doc(db, 'users', userId);
-      const userDoc = await getDoc(userDocRef);
-      
-      if (!userDoc.exists()) {
-        return null;
-      }
-      
-      const userData = userDoc.data();
-      return userData.lastViewedCourse || null;
-    } catch (error) {
-      console.error('Erreur lors de la récupération du dernier parcours visionné:', error);
-      return null;
-    }
-  },
-  
+
   /**
    * Met à jour le statut d'un parcours pour un utilisateur
    */
@@ -182,12 +176,17 @@ export const homeService = {
     try {
       const userCourseRef = doc(db, 'users', userId, 'courses', courseId);
       await setDoc(userCourseRef, { status }, { merge: true });
+      
+      // Si le parcours est complété, débloquer le suivant
+      if (status === 'completed') {
+        await unlockNextCourse(userId, courseId);
+      }
     } catch (error) {
       console.error('Erreur lors de la mise à jour du statut du parcours:', error);
       // Ne pas propager l'erreur pour éviter les plantages
     }
   },
-  
+
   /**
    * Met à jour la progression d'un parcours pour un utilisateur
    */
@@ -284,6 +283,48 @@ export const homeService = {
         imageUrl: '',
         positions: {}
       };
+    }
+  },
+
+  /**
+   * Récupère les parcours statiques (sans statuts utilisateur) pour une section et un niveau
+   */
+  getStaticParcours: async (section: Section, level: Level): Promise<Record<string, any>> => {
+    try {
+      console.log(`🔍 Récupération des parcours statiques pour section=${section}, level=${level}`);
+      
+      // Récupérer les parcours correspondant à cette section et ce niveau
+      const parcoursQuery = query(
+        collection(db, 'parcours'),
+        where('domaine', '==', section),
+        where('niveau', '==', level)
+      );
+      
+      const parcoursSnapshot = await getDocs(parcoursQuery);
+      const parcours: Record<string, any> = {};
+      
+      // Traiter les parcours sans les statuts utilisateur
+      if (!parcoursSnapshot.empty) {
+        parcoursSnapshot.forEach(doc => {
+          const parcoursData = doc.data();
+          const ordre = parcoursData.ordre || 0;
+          
+          // Sauvegarder les données du parcours avec l'ordre comme clé
+          // Statut par défaut 'blocked' car pas d'utilisateur connecté
+          parcours[ordre.toString()] = {
+            id: doc.id,
+            ...parcoursData,
+            status: 'blocked' // Statut par défaut pour les données statiques
+          };
+        });
+      }
+      
+      console.log(`✅ ${Object.keys(parcours).length} parcours statiques récupérés pour ${section} - ${level}`);
+      return parcours;
+    } catch (error) {
+      console.error('Erreur lors de la récupération des parcours statiques:', error);
+      // Retourner un objet vide en cas d'erreur
+      return {};
     }
   },
 
@@ -433,54 +474,6 @@ export const homeService = {
   },
 
   /**
-   * Observer les statistiques d'un utilisateur en temps réel
-   */
-  observeUserStats: (userId: string, callback: (stats: { streak: number; dodji: number }) => void) => {
-    try {
-      console.log(`🔄 Observation des statistiques pour l'utilisateur ${userId}`);
-      
-      const userDocRef = doc(db, 'users', userId);
-      
-      return onSnapshot(userDocRef, (snapshot) => {
-        try {
-          if (!snapshot.exists()) {
-            callback({
-              streak: 0,
-              dodji: 0
-            });
-            return;
-          }
-          
-          const userData = snapshot.data();
-          const stats = {
-            streak: userData.streak || 0,
-            dodji: userData.dodji || 0
-          };
-          
-          console.log(`✅ Statistiques mises à jour pour l'utilisateur ${userId}:`, stats);
-          callback(stats);
-        } catch (error) {
-          console.error('Erreur lors du traitement des statistiques utilisateur:', error);
-          callback({
-            streak: 0,
-            dodji: 0
-          });
-        }
-      }, (error) => {
-        console.error('Erreur lors de l\'observation des statistiques utilisateur:', error);
-        callback({
-          streak: 0,
-          dodji: 0
-        });
-      });
-    } catch (error) {
-      console.error('Erreur lors de la configuration de l\'observation des statistiques utilisateur:', error);
-      // Retourner une fonction de nettoyage vide en cas d'erreur
-      return () => {};
-    }
-  },
-
-  /**
    * Observer les données complètes de la page d'accueil avec parcours en temps réel
    */
   observeHomeDesignWithParcours: (section: Section, level: Level, userId?: string, callback?: (data: { imageUrl: string; positions: Record<string, { x: number; y: number; order?: number; isAnnex: boolean }>; parcours?: Record<string, any> }) => void) => {
@@ -560,6 +553,44 @@ export const homeService = {
           console.error('Erreur lors du nettoyage d\'urgence:', cleanupError);
         }
       });
+      return () => {};
+    }
+  },
+
+  /**
+   * Observer les statistiques utilisateur en temps réel
+   */
+  observeUserStats: (userId: string, callback: (stats: { streak: number; dodji: number }) => void) => {
+    try {
+      console.log(`🔄 Configuration du listener pour les statistiques de l'utilisateur ${userId}`);
+      
+      const userRef = doc(db, 'users', userId);
+      
+      return onSnapshot(userRef, (snapshot) => {
+        try {
+          if (snapshot.exists()) {
+            const userData = snapshot.data();
+            const stats = {
+              streak: userData.streak || 0,
+              dodji: userData.dodji || 0
+            };
+            console.log(`✅ Statistiques utilisateur mises à jour:`, stats);
+            callback(stats);
+          } else {
+            console.log(`⚠️ Document utilisateur ${userId} n'existe pas`);
+            callback({ streak: 0, dodji: 0 });
+          }
+        } catch (error) {
+          console.error('Erreur lors du traitement des statistiques utilisateur:', error);
+          callback({ streak: 0, dodji: 0 });
+        }
+      }, (error) => {
+        console.error('Erreur lors de l\'observation des statistiques utilisateur:', error);
+        callback({ streak: 0, dodji: 0 });
+      });
+    } catch (error) {
+      console.error('Erreur lors de la configuration de l\'observation des statistiques utilisateur:', error);
+      // Retourner une fonction de nettoyage vide en cas d'erreur
       return () => {};
     }
   }

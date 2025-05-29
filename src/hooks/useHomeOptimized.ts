@@ -13,6 +13,14 @@ import { useUserStats } from './queries/useHomeQueries';
 import { homeService } from '../services/home';
 import { VideoStatusService } from '../services/businessLogic/VideoStatusService';
 import { UserVideo } from '../types/video';
+import { 
+  globalStaticDataCache, 
+  globalImageCache as preloadGlobalImageCache,
+  pendingUserDataKeys,
+  isDataPreloaded,
+  getPreloadedData,
+  getPreloadedImageInfo
+} from './usePreloadCache';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 const REFERENCE_WIDTH = 550;
@@ -26,6 +34,8 @@ interface CachedData {
   imageUrl: string;
   positions: Record<string, { x: number; y: number; order?: number; isAnnex: boolean }>;
   parcours?: Record<string, any>;
+  isStaticOnly?: boolean;
+  needsUserData?: boolean;
 }
 
 // Type pour le cache d'images avec dimensions
@@ -42,12 +52,13 @@ interface ImageCacheEntry {
   };
 }
 
-// Cache global d'images pour éviter les rechargements
-const globalImageCache = new Map<string, ImageCacheEntry>();
+// Cache global d'images pour éviter les rechargements (utilise le cache partagé)
+// const globalImageCache = preloadGlobalImageCache;
 
 /**
  * Version optimisée du hook useHome utilisant un cache local pour éviter les rechargements
  * lors de la navigation entre sections et niveaux
+ * Utilise maintenant les données préchargées par usePreloadCache et complète seulement ce qui manque
  */
 export function useHomeOptimized() {
   const dispatch = useDispatch();
@@ -60,14 +71,14 @@ export function useHomeOptimized() {
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [modalData, setModalData] = useState<any>(null);
 
-  // Cache local pour toutes les combinaisons de données
+  // Cache local pour toutes les combinaisons de données (enrichi avec les données utilisateur)
   const [dataCache, setDataCache] = useState<Map<string, CachedData>>(new Map());
   const [unsubscribeFunctions, setUnsubscribeFunctions] = useState<Map<string, () => void>>(new Map());
   const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [loadedCount, setLoadedCount] = useState(0);
 
-  // Cache pour les images de fond (utilise le cache global)
-  const [imageCache, setImageCache] = useState<Map<string, ImageCacheEntry>>(globalImageCache);
+  // Cache pour les images de fond (utilise le cache global partagé)
+  const [imageCache, setImageCache] = useState<Map<string, ImageCacheEntry>>(preloadGlobalImageCache);
   const [imagesLoadedCount, setImagesLoadedCount] = useState(0);
   const [isImagesLoading, setIsImagesLoading] = useState(true);
 
@@ -100,17 +111,17 @@ export function useHomeOptimized() {
     return { finalWidth, finalHeight };
   }, []);
 
-  // Fonction pour précharger une image avec dimensions
+  // Fonction pour précharger une image avec dimensions (mise à jour pour utiliser le cache partagé)
   const preloadImageWithDimensions = useCallback((url: string, key: string) => {
     if (!url || url.trim() === '') {
       console.log(`⚠️ URL d'image vide pour ${key}`);
       return;
     }
 
-    // Vérifier si l'image est déjà en cache global
-    const existingEntry = globalImageCache.get(key);
+    // Vérifier si l'image est déjà en cache global partagé
+    const existingEntry = preloadGlobalImageCache.get(key);
     if (existingEntry && existingEntry.isLoaded) {
-      console.log(`📦 Image déjà en cache: ${key}`);
+      console.log(`📦 Image déjà en cache partagé: ${key}`);
       setImagesLoadedCount(prevCount => {
         const newCount = prevCount + 1;
         if (newCount >= ALL_SECTIONS.length * ALL_LEVELS.length) {
@@ -122,15 +133,15 @@ export function useHomeOptimized() {
       return;
     }
 
-    // Marquer comme en cours de chargement
+    // Si l'image n'est pas en cache, la précharger
     const loadingEntry: ImageCacheEntry = {
       url,
       isLoaded: false,
       isLoading: true
     };
     
-    globalImageCache.set(key, loadingEntry);
-    setImageCache(new Map(globalImageCache));
+    preloadGlobalImageCache.set(key, loadingEntry);
+    setImageCache(new Map(preloadGlobalImageCache));
 
     // Obtenir les dimensions de l'image
     Image.getSize(
@@ -155,8 +166,8 @@ export function useHomeOptimized() {
               }
             };
             
-            globalImageCache.set(key, successEntry);
-            setImageCache(new Map(globalImageCache));
+            preloadGlobalImageCache.set(key, successEntry);
+            setImageCache(new Map(preloadGlobalImageCache));
 
             setImagesLoadedCount(prevCount => {
               const newCount = prevCount + 1;
@@ -177,8 +188,8 @@ export function useHomeOptimized() {
               error: 'Erreur de chargement'
             };
             
-            globalImageCache.set(key, errorEntry);
-            setImageCache(new Map(globalImageCache));
+            preloadGlobalImageCache.set(key, errorEntry);
+            setImageCache(new Map(preloadGlobalImageCache));
 
             setImagesLoadedCount(prevCount => {
               const newCount = prevCount + 1;
@@ -200,8 +211,8 @@ export function useHomeOptimized() {
           error: 'Erreur de dimensions'
         };
         
-        globalImageCache.set(key, errorEntry);
-        setImageCache(new Map(globalImageCache));
+        preloadGlobalImageCache.set(key, errorEntry);
+        setImageCache(new Map(preloadGlobalImageCache));
 
         setImagesLoadedCount(prevCount => {
           const newCount = prevCount + 1;
@@ -242,7 +253,7 @@ export function useHomeOptimized() {
 
   // Fonction pour obtenir toutes les données d'images pour le pré-montage
   const getAllImagesData = useCallback(() => {
-    const allImagesMap = new Map<string, {
+    const allImages = new Map<string, {
       url: string;
       dimensions?: {
         width: number;
@@ -253,145 +264,313 @@ export function useHomeOptimized() {
       isLoaded: boolean;
     }>();
 
-    ALL_SECTIONS.forEach(section => {
-      ALL_LEVELS.forEach(level => {
-        const key = getCacheKey(section, level);
-        const imageEntry = imageCache.get(key);
-        const dataEntry = dataCache.get(key);
+    // Parcourir toutes les combinaisons section/niveau
+    for (const section of ALL_SECTIONS) {
+      for (const level of ALL_LEVELS) {
+        const key = `${section}-${level}`;
+        const imageEntry = preloadGlobalImageCache.get(key);
         
-        if (imageEntry?.url && dataEntry) {
-          allImagesMap.set(key, {
+        // Retourner les images si elles sont disponibles et chargées, même sans dataEntry
+        if (imageEntry?.url && imageEntry?.isLoaded) {
+          allImages.set(key, {
             url: imageEntry.url,
             dimensions: imageEntry.dimensions,
-            isLoaded: imageEntry.isLoaded
+            isLoaded: imageEntry.isLoaded,
           });
         }
-      });
-    });
+      }
+    }
 
-    return allImagesMap;
-  }, [imageCache, dataCache, getCacheKey]);
+    return allImages;
+  }, []);
 
-  // Initialiser le cache avec toutes les combinaisons au montage
+  // Initialiser le cache en utilisant les données préchargées et en complétant ce qui manque
   useEffect(() => {
-    if (!user?.uid) return;
-
-    console.log('🚀 Initialisation du cache pour toutes les sous-pages...');
+    console.log('🚀 Initialisation du cache optimisé avec données préchargées...');
     setIsInitialLoading(true);
     setIsImagesLoading(true);
     setLoadedCount(0);
-    setImagesLoadedCount(0);
-
-    const newDataCache = new Map<string, CachedData>();
-    const newUnsubscribeFunctions = new Map<string, () => void>();
-    const videoUnsubscribeFunctions = new Map<string, () => void>();
-
-    // Créer des listeners pour toutes les combinaisons
+    
+    // Analyser l'état du cache préchargé
+    let preloadedDataCount = 0;
+    let preloadedImagesCount = 0;
+    let missingDataKeys: string[] = [];
+    
     ALL_SECTIONS.forEach(section => {
       ALL_LEVELS.forEach(level => {
         const key = getCacheKey(section, level);
         
-        try {
-          // Configurer le listener pour cette combinaison
-          const unsubscribe = homeService.observeHomeDesignWithParcours(
-            section,
-            level,
-            user.uid,
-            (data: CachedData) => {
-              console.log(`✅ Cache mis à jour pour ${section} - ${level}`);
-              
-              // Enrichir les données avec les informations de vidéos
-              const enrichedData = { ...data };
-              
-              if (enrichedData.parcours) {
-                // Observer les vidéos pour chaque parcours
-                Object.keys(enrichedData.parcours).forEach(parcoursKey => {
-                  const parcours = enrichedData.parcours![parcoursKey];
-                  if (parcours && parcours.id) {
-                    const videoKey = `${key}-${parcours.id}`;
-                    
-                    // Nettoyer l'ancien listener s'il existe
-                    if (videoUnsubscribeFunctions.has(videoKey)) {
-                      videoUnsubscribeFunctions.get(videoKey)!();
-                    }
-                    
-                    // Créer un nouveau listener pour les vidéos de ce parcours
-                    try {
-                      const videoUnsubscribe = VideoStatusService.observeUserVideosInParcours(
-                        user.uid,
-                        parcours.id,
-                        (videos: UserVideo[]) => {
-                          const completedVideos = videos.filter(v => v.completionStatus === 'completed').length;
-                          
-                          // Mettre à jour le cache avec les données de vidéos
-                          setDataCache(prevCache => {
-                            const newCache = new Map(prevCache);
-                            const currentData = newCache.get(key);
-                            if (currentData && currentData.parcours && currentData.parcours[parcoursKey]) {
-                              const updatedData = {
-                                ...currentData,
-                                parcours: {
-                                  ...currentData.parcours,
-                                  [parcoursKey]: {
-                                    ...currentData.parcours[parcoursKey],
-                                    completedVideos,
-                                    totalVideos: videos.length
-                                  }
-                                }
-                              };
-                              newCache.set(key, updatedData);
-                            }
-                            return newCache;
-                          });
-                        }
-                      );
-                      
-                      videoUnsubscribeFunctions.set(videoKey, videoUnsubscribe);
-                    } catch (videoError) {
-                      console.error(`Erreur lors de l'observation des vidéos pour ${parcours.id}:`, videoError);
-                    }
-                  }
-                });
-              }
-              
-              // Mettre à jour le cache des données
-              setDataCache(prevCache => {
-                const newCache = new Map(prevCache);
-                newCache.set(key, enrichedData);
-                return newCache;
-              });
-
-              // Précharger l'image de fond si elle n'est pas déjà en cache
-              if (enrichedData.imageUrl) {
-                const currentImageEntry = globalImageCache.get(key);
-                if (!currentImageEntry || currentImageEntry.url !== enrichedData.imageUrl) {
-                  console.log(`🖼️ Préchargement de l'image pour ${section} - ${level}`);
-                  preloadImageWithDimensions(enrichedData.imageUrl, key);
-                }
-              }
-
-              // Incrémenter le compteur de chargement des données
-              setLoadedCount(prevCount => {
-                const newCount = prevCount + 1;
-                if (newCount >= ALL_SECTIONS.length * ALL_LEVELS.length) {
-                  setIsInitialLoading(false);
-                  console.log('🎉 Cache des données initialisé pour toutes les sous-pages');
-                }
-                return newCount;
-              });
-            }
-          );
-
-          // Stocker la fonction de désabonnement
-          newUnsubscribeFunctions.set(key, unsubscribe);
-        } catch (error) {
-          console.error(`❌ Erreur lors de l'initialisation du cache pour ${section} - ${level}:`, error);
+        // Vérifier les données préchargées
+        const preloadedData = globalStaticDataCache.get(key);
+        if (preloadedData) {
+          preloadedDataCount++;
+          console.log(`📦 Données déjà préchargées pour ${section} - ${level} (statique: ${preloadedData.isStaticOnly})`);
+        } else {
+          missingDataKeys.push(key);
+          console.log(`❌ Données manquantes pour ${section} - ${level}`);
+        }
+        
+        // Vérifier les images préchargées
+        const preloadedImage = preloadGlobalImageCache.get(key);
+        if (preloadedImage && preloadedImage.isLoaded) {
+          preloadedImagesCount++;
+          console.log(`🖼️ Image déjà préchargée pour ${section} - ${level}`);
         }
       });
     });
+    
+    console.log(`📊 État du préchargement: ${preloadedDataCount}/${ALL_SECTIONS.length * ALL_LEVELS.length} données, ${preloadedImagesCount}/${ALL_SECTIONS.length * ALL_LEVELS.length} images`);
+    console.log(`🔄 Données en attente de completion utilisateur: ${pendingUserDataKeys.size}`);
+    console.log(`❌ Données complètement manquantes: ${missingDataKeys.length}`);
+    
+    // Copier toutes les données préchargées dans le cache local
+    const newDataCache = new Map<string, CachedData>();
+    ALL_SECTIONS.forEach(section => {
+      ALL_LEVELS.forEach(level => {
+        const key = getCacheKey(section, level);
+        const preloadedData = globalStaticDataCache.get(key);
+        if (preloadedData) {
+          newDataCache.set(key, preloadedData);
+        }
+      });
+    });
+    
+    setDataCache(newDataCache);
+    setLoadedCount(preloadedDataCount);
+    
+    // Mettre à jour le cache d'images
+    setImageCache(new Map(preloadGlobalImageCache));
+    setImagesLoadedCount(preloadedImagesCount);
+    
+    if (preloadedImagesCount >= ALL_SECTIONS.length * ALL_LEVELS.length) {
+      setIsImagesLoading(false);
+      console.log('🎉 Toutes les images étaient déjà préchargées');
+    }
+
+    // Si toutes les données sont préchargées, on peut déjà afficher l'interface
+    if (preloadedDataCount >= ALL_SECTIONS.length * ALL_LEVELS.length) {
+      console.log('🎉 Toutes les données statiques sont disponibles, interface prête');
+      setIsInitialLoading(false);
+    }
+
+    // Si pas d'utilisateur connecté, on s'arrête ici avec les données statiques
+    if (!user?.uid) {
+      console.log('👤 Pas d\'utilisateur connecté, utilisation des données statiques uniquement');
+      return;
+    }
+
+    // Créer des listeners seulement pour ce qui manque vraiment (avec utilisateur connecté)
+    const newUnsubscribeFunctions = new Map<string, () => void>();
+    const videoUnsubscribeFunctions = new Map<string, () => void>();
+    let listenersCreated = 0;
+
+    // 1. Créer des listeners pour les données complètement manquantes
+    missingDataKeys.forEach(key => {
+      const [section, level] = key.split('-') as [Section, Level];
+      console.log(`⚡ Création d'un listener pour ${section} - ${level} (données complètement manquantes)`);
+      
+      try {
+        const unsubscribe = homeService.observeHomeDesignWithParcours(
+          section,
+          level,
+          user.uid,
+          (data: CachedData) => {
+            console.log(`✅ Données complètes chargées pour ${section} - ${level} (était manquant)`);
+            
+            // Enrichir les données avec les informations de vidéos
+            const enrichedData = { ...data, isStaticOnly: false, needsUserData: false };
+            
+            if (enrichedData.parcours) {
+              // Observer les vidéos pour chaque parcours
+              Object.keys(enrichedData.parcours).forEach(parcoursKey => {
+                const parcours = enrichedData.parcours![parcoursKey];
+                if (parcours && parcours.id) {
+                  const videoKey = `${key}-${parcours.id}`;
+                  
+                  if (videoUnsubscribeFunctions.has(videoKey)) {
+                    videoUnsubscribeFunctions.get(videoKey)!();
+                  }
+                  
+                  try {
+                    const videoUnsubscribe = VideoStatusService.observeUserVideosInParcours(
+                      user.uid,
+                      parcours.id,
+                      (videos: UserVideo[]) => {
+                        const completedVideos = videos.filter(v => v.completionStatus === 'completed').length;
+                        
+                        setDataCache(prevCache => {
+                          const newCache = new Map(prevCache);
+                          const currentData = newCache.get(key);
+                          if (currentData && currentData.parcours && currentData.parcours[parcoursKey]) {
+                            const updatedData = {
+                              ...currentData,
+                              parcours: {
+                                ...currentData.parcours,
+                                [parcoursKey]: {
+                                  ...currentData.parcours[parcoursKey],
+                                  completedVideos,
+                                  totalVideos: videos.length
+                                }
+                              }
+                            };
+                            newCache.set(key, updatedData);
+                          }
+                          return newCache;
+                        });
+                      }
+                    );
+                    
+                    videoUnsubscribeFunctions.set(videoKey, videoUnsubscribe);
+                  } catch (videoError) {
+                    console.error(`Erreur lors de l'observation des vidéos pour ${parcours.id}:`, videoError);
+                  }
+                }
+              });
+            }
+            
+            setDataCache(prevCache => {
+              const newCache = new Map(prevCache);
+              newCache.set(key, enrichedData);
+              return newCache;
+            });
+
+            if (enrichedData.imageUrl) {
+              const currentImageEntry = preloadGlobalImageCache.get(key);
+              if (!currentImageEntry || currentImageEntry.url !== enrichedData.imageUrl) {
+                console.log(`🖼️ Préchargement de l'image pour ${section} - ${level} (était manquante)`);
+                preloadImageWithDimensions(enrichedData.imageUrl, key);
+              }
+            }
+
+            setLoadedCount(prevCount => {
+              const newCount = prevCount + 1;
+              if (newCount >= ALL_SECTIONS.length * ALL_LEVELS.length) {
+                setIsInitialLoading(false);
+                console.log('🎉 Cache des données initialisé (avec données manquantes chargées)');
+              }
+              return newCount;
+            });
+          }
+        );
+
+        newUnsubscribeFunctions.set(key, unsubscribe);
+        listenersCreated++;
+      } catch (error) {
+        console.error(`❌ Erreur lors de l'initialisation du cache pour ${key}:`, error);
+      }
+    });
+
+    // 2. Créer des listeners pour les données préchargées qui ont besoin de données utilisateur
+    let userDataListenersCreated = 0;
+    if (user?.uid) {
+      ALL_SECTIONS.forEach(section => {
+        ALL_LEVELS.forEach(level => {
+          const key = getCacheKey(section, level);
+          const preloadedData = globalStaticDataCache.get(key);
+          
+          // Si les données sont préchargées mais ont besoin de données utilisateur
+          if (preloadedData && preloadedData.needsUserData) {
+            console.log(`👤 Création d'un listener pour compléter ${section} - ${level} avec données utilisateur`);
+            
+            try {
+              const unsubscribe = homeService.observeHomeDesignWithParcours(
+                section,
+                level,
+                user.uid,
+                (data: CachedData) => {
+                  console.log(`✅ Données utilisateur chargées pour ${section} - ${level} (completion des données préchargées)`);
+                  
+                  // Enrichir les données avec les informations de vidéos
+                  const enrichedData = { 
+                    ...data, 
+                    isStaticOnly: false, 
+                    needsUserData: false 
+                  };
+                  
+                  if (enrichedData.parcours) {
+                    // Observer les vidéos pour chaque parcours
+                    Object.keys(enrichedData.parcours).forEach(parcoursKey => {
+                      const parcours = enrichedData.parcours![parcoursKey];
+                      if (parcours && parcours.id) {
+                        const videoKey = `${key}-${parcours.id}`;
+                        
+                        if (videoUnsubscribeFunctions.has(videoKey)) {
+                          videoUnsubscribeFunctions.get(videoKey)!();
+                        }
+                        
+                        try {
+                          const videoUnsubscribe = VideoStatusService.observeUserVideosInParcours(
+                            user.uid,
+                            parcours.id,
+                            (videos: UserVideo[]) => {
+                              const completedVideos = videos.filter(v => v.completionStatus === 'completed').length;
+                              
+                              setDataCache(prevCache => {
+                                const newCache = new Map(prevCache);
+                                const currentData = newCache.get(key);
+                                if (currentData && currentData.parcours && currentData.parcours[parcoursKey]) {
+                                  const updatedData = {
+                                    ...currentData,
+                                    parcours: {
+                                      ...currentData.parcours,
+                                      [parcoursKey]: {
+                                        ...currentData.parcours[parcoursKey],
+                                        completedVideos,
+                                        totalVideos: videos.length
+                                      }
+                                    }
+                                  };
+                                  newCache.set(key, updatedData);
+                                  
+                                  // Mettre à jour aussi le cache global
+                                  globalStaticDataCache.set(key, updatedData);
+                                }
+                                return newCache;
+                              });
+                            }
+                          );
+                          
+                          videoUnsubscribeFunctions.set(videoKey, videoUnsubscribe);
+                        } catch (videoError) {
+                          console.error(`Erreur lors de l'observation des vidéos pour ${parcours.id}:`, videoError);
+                        }
+                      }
+                    });
+                  }
+                  
+                  // Mettre à jour le cache local
+                  setDataCache(prevCache => {
+                    const newCache = new Map(prevCache);
+                    newCache.set(key, enrichedData);
+                    return newCache;
+                  });
+                  
+                  // Mettre à jour aussi le cache global pour les autres composants
+                  globalStaticDataCache.set(key, enrichedData);
+                  
+                  // Retirer cette clé des données en attente
+                  pendingUserDataKeys.delete(key);
+                  
+                  console.log(`🎯 useHomeOptimized: ${pendingUserDataKeys.size} combinaisons restantes à compléter`);
+                }
+              );
+
+              newUnsubscribeFunctions.set(`user-${key}`, unsubscribe);
+              userDataListenersCreated++;
+            } catch (error) {
+              console.error(`❌ Erreur lors de l'initialisation des données utilisateur pour ${key}:`, error);
+            }
+          }
+        });
+      });
+    }
 
     // Stocker les fonctions de désabonnement
     setUnsubscribeFunctions(newUnsubscribeFunctions);
+
+    console.log(`📊 Résumé: ${listenersCreated} listeners créés pour les données manquantes`);
+    console.log(`👤 ${userDataListenersCreated} listeners créés pour compléter les données utilisateur`);
+    console.log(`⏳ En attente de completion: ${pendingUserDataKeys.size} combinaisons`);
 
     // Fonction de nettoyage
     return () => {
@@ -404,7 +583,6 @@ export function useHomeOptimized() {
         }
       });
       
-      // Nettoyer aussi les listeners de vidéos
       videoUnsubscribeFunctions.forEach((unsubscribe, key) => {
         try {
           unsubscribe();
@@ -413,7 +591,7 @@ export function useHomeOptimized() {
         }
       });
     };
-  }, [user?.uid, getCacheKey, preloadImageWithDimensions]);
+  }, [user?.uid, getCacheKey, preloadImageWithDimensions]); // Dépendance sur user.uid pour relancer quand l'utilisateur change
 
   // Calculer l'état de chargement global (données + images)
   const isLoading = userStatsLoading || isInitialLoading || isImagesLoading;
@@ -486,15 +664,21 @@ export function useHomeOptimized() {
         imageDimensions: imageEntry?.dimensions ? `${imageEntry.dimensions.finalWidth}x${imageEntry.dimensions.finalHeight}` : 'Non calculées',
         positionsCount: Object.keys(currentData.positions || {}).length,
         parcoursCount: Object.keys(currentData.parcours || {}).length,
-        source: 'Cache local'
+        isStaticOnly: currentData.isStaticOnly ? 'Données statiques' : 'Données complètes',
+        source: 'Cache local optimisé'
       });
     }
   }, [currentSection, currentLevel, currentData, imageCache, getCacheKey]);
 
   // Log du statut du cache
   useEffect(() => {
-    console.log(`📊 Cache: ${dataCache.size}/${ALL_SECTIONS.length * ALL_LEVELS.length} données chargées`);
+    const preloadedDataCount = globalStaticDataCache.size;
+    const preloadedImagesCount = Array.from(preloadGlobalImageCache.values()).filter(img => img.isLoaded).length;
+    
+    console.log(`📊 Cache optimisé: ${dataCache.size}/${ALL_SECTIONS.length * ALL_LEVELS.length} données chargées`);
     console.log(`🖼️ Images: ${imagesLoadedCount}/${ALL_SECTIONS.length * ALL_LEVELS.length} images préchargées`);
+    console.log(`📦 Préchargement: ${preloadedDataCount} données statiques, ${preloadedImagesCount} images préchargées`);
+    console.log(`⏳ En attente de completion: ${pendingUserDataKeys.size} combinaisons`);
   }, [dataCache.size, imagesLoadedCount]);
 
   return {

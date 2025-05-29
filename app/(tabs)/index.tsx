@@ -1,10 +1,10 @@
-import React, { useEffect, useCallback, useState, useRef } from 'react';
+import React, { useEffect, useCallback, useState, useRef, useMemo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Dimensions, Alert } from 'react-native';
 import { useAuth } from '../../src/hooks/useAuth';
 import { useHomeOptimized } from '../../src/hooks/useHomeOptimized';
 import { Level, Section } from '../../src/types/home';
 import { router, useRouter, useFocusEffect } from 'expo-router';
-import TreeBackground from '../../src/components/home/TreeBackground';
+import { TreeBackground } from '../../src/components/home/TreeBackground';
 import type { TreeBackgroundRef } from '../../src/components/home/TreeBackground';
 import { GlobalHeader } from '../../src/components/ui/GlobalHeader';
 import CustomModal from '../../src/components/ui/CustomModal';
@@ -17,9 +17,10 @@ import { useStreak, StreakModal } from '../../src/streak';
 import { LogoLoadingSpinner } from '../../src/components/ui/LogoLoadingSpinner';
 import { AnimationDeblocageParcours } from '../../src/components/AnimationDeblocageParcours';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useLoading } from '../../src/contexts/LoadingContext';
 
 const LEVELS: Level[] = ['Débutant', 'Avancé', 'Expert'];
-const { width } = Dimensions.get('window');
+const { width, height } = Dimensions.get('screen');
 
 interface NavigationArrowProps {
   direction: 'left' | 'right';
@@ -27,9 +28,9 @@ interface NavigationArrowProps {
   onPress: () => void;
 }
 
-// Composant de flèche personnalisé
-const NavigationArrow: React.FC<NavigationArrowProps> = ({ direction, disabled, onPress }) => {
-  // Ne pas rendre la flèche du tout si elle est désactivée
+// Memoized NavigationArrow component for better performance
+const NavigationArrow = React.memo<NavigationArrowProps>(({ direction, disabled, onPress }) => {
+  // Early return for disabled state
   if (disabled) return null;
   
   return (
@@ -64,49 +65,53 @@ const NavigationArrow: React.FC<NavigationArrowProps> = ({ direction, disabled, 
       </Svg>
     </TouchableOpacity>
   );
-};
+});
 
 interface PositionIndicatorsProps {
   total: number;
   current: number;
 }
 
-// Composant d'indicateurs de position
-const PositionIndicators: React.FC<PositionIndicatorsProps> = ({ total, current }) => {
+// Memoized PositionIndicators component
+const PositionIndicators = React.memo<PositionIndicatorsProps>(({ total, current }) => {
+  const indicators = useMemo(() => 
+    Array.from({ length: total }).map((_, index) => (
+      <View 
+        key={index}
+        style={[
+          styles.indicator,
+          current === index && styles.activeIndicator
+        ]}
+      >
+        {current === index ? (
+          <Svg height={16} width={16} viewBox="0 0 16 16">
+            <Circle 
+              cx="8" 
+              cy="8" 
+              r="7" 
+              fill="#F3FF90"
+            />
+          </Svg>
+        ) : (
+          <Svg height={12} width={12} viewBox="0 0 12 12">
+            <Circle 
+              cx="6" 
+              cy="6" 
+              r="5" 
+              fill="rgba(255, 255, 255, 0.3)"
+            />
+          </Svg>
+        )}
+      </View>
+    )), [total, current]
+  );
+
   return (
     <View style={styles.indicatorsContainer}>
-      {Array.from({ length: total }).map((_, index) => (
-        <View 
-          key={index}
-          style={[
-            styles.indicator,
-            current === index && styles.activeIndicator
-          ]}
-        >
-          {current === index ? (
-            <Svg height={16} width={16} viewBox="0 0 16 16">
-              <Circle 
-                cx="8" 
-                cy="8" 
-                r="7" 
-                fill="#F3FF90"
-              />
-            </Svg>
-          ) : (
-            <Svg height={12} width={12} viewBox="0 0 12 12">
-              <Circle 
-                cx="6" 
-                cy="6" 
-                r="5" 
-                fill="rgba(255, 255, 255, 0.3)"
-              />
-            </Svg>
-          )}
-        </View>
-      ))}
+      {indicators}
     </View>
   );
-};
+});
 
 /**
  * Page d'accueil principale de l'application
@@ -117,7 +122,10 @@ export default function HomeScreen() {
   const router = useRouter();
   const queryClient = useQueryClient();
   
-  // Utiliser le hook optimisé au lieu du hook standard
+  // Utiliser le contexte de chargement global
+  const { isInitialLoading, setIsInitialLoading } = useLoading();
+  
+  // Utiliser le hook optimisé
   const { 
     currentSection, 
     currentLevel, 
@@ -142,24 +150,12 @@ export default function HomeScreen() {
   // Hook pour gérer les streaks de connexion
   const { modalData: streakModalData, closeModal: closeStreakModal, claimReward } = useStreak();
 
-  // Log pour diagnostiquer la modal
-  React.useEffect(() => {
-    console.log('🏠 HomeScreen: Données de la modal streak:', streakModalData);
-  }, [streakModalData]);
-
   // Animation pour le swipe
   const translateX = useSharedValue(0);
   const context = useSharedValue({ x: 0 });
 
-  // Obtenir l'index du niveau actuel
-  const currentLevelIndex = LEVELS.indexOf(currentLevel);
-
-  // Précharger les données du niveau suivant et précédent
-  useEffect(() => {
-    // Toutes les données sont déjà préchargées au montage du composant
-    // Plus besoin de précharger individuellement
-    console.log(`📊 Niveau actuel: ${currentLevel}, données déjà disponibles`);
-  }, [currentLevel, currentSection, currentLevelIndex]);
+  // Memoized current level index
+  const currentLevelIndex = useMemo(() => LEVELS.indexOf(currentLevel), [currentLevel]);
 
   // Gérer le changement de niveau avec animation
   const handleLevelChange = useCallback((direction: 'next' | 'prev') => {
@@ -174,8 +170,7 @@ export default function HomeScreen() {
       return;
     }
 
-    // Les données sont déjà préchargées, donc changement instantané
-    console.log(`🔄 Changement vers ${LEVELS[newIndex]} - données déjà préchargées`);
+    // Changement instantané grâce au cache optimisé
     changeLevel(LEVELS[newIndex]);
     translateX.value = withSpring(0);
   }, [currentLevel, changeLevel, translateX]);
@@ -214,20 +209,31 @@ export default function HomeScreen() {
     };
   });
 
-  // Charger les données au premier rendu avec moins d'appels
+  // Charger les données au premier rendu et gérer le chargement initial
   useEffect(() => {
-    fetchTreeData();
-  }, [fetchTreeData]);
+    const initializeApp = async () => {
+      // Activer le chargement global
+      setIsInitialLoading(true);
+      
+      // Lancer le chargement des données en arrière-plan
+      fetchTreeData();
+      
+      // Attendre 2 secondes pour la page de chargement
+      setTimeout(() => {
+        setIsInitialLoading(false);
+      }, 2000);
+    };
+
+    initializeApp();
+  }, [fetchTreeData, setIsInitialLoading]);
 
   // Fonction pour gérer le changement de section (Bourse/Crypto)
-  const handleSectionChange = (section: Section) => {
-    // Les données sont déjà préchargées, donc pas besoin de précharger à nouveau
-    console.log(`🔄 Changement vers ${section} - données déjà préchargées`);
+  const handleSectionChange = useCallback((section: Section) => {
     changeSection(section);
-  };
+  }, [changeSection]);
 
   // Naviguer vers la page d'un parcours
-  const navigateToCourse = (courseId: string) => {
+  const navigateToCourse = useCallback((courseId: string) => {
     const parcoursStatus = homeDesign?.parcours?.[courseId]?.status;
     if (parcoursStatus === 'blocked') {
       Alert.alert(
@@ -246,11 +252,10 @@ export default function HomeScreen() {
       return;
     }
     router.push(`/course/${courseId}`);
-  };
+  }, [homeDesign?.parcours, router]);
 
-  // Wrapper pour fetchTreeData qui ne prend pas de paramètres pour éviter l'erreur du linter
+  // Wrapper pour fetchTreeData qui ne prend pas de paramètres
   const handleRetry = useCallback(() => {
-    // Invalider le cache pour forcer un rechargement frais
     queryClient.invalidateQueries({ queryKey: ['homeDesign'] });
     fetchTreeData();
   }, [fetchTreeData, queryClient]);
@@ -258,28 +263,16 @@ export default function HomeScreen() {
   const [selectedParcoursId, setSelectedParcoursId] = useState<string | null>(null);
   const [selectedParcoursOrder, setSelectedParcoursOrder] = useState<number | null>(null);
 
-  const handleParcoursUnlock = async (parcoursOrder: number) => {
-    console.log('🔓 handleParcoursUnlock appelé avec ordre:', parcoursOrder);
-    console.log('🏠 homeDesign disponible:', !!homeDesign);
-    console.log('🌳 treeBackgroundRef disponible:', !!treeBackgroundRef.current);
-    
-    // Marquer immédiatement ce parcours comme en cours de déblocage pour éviter le flash visuel
-    // MAIS ne pas faire disparaître le cadenas encore
-    console.log('🔒 Marquage du parcours comme en cours de déblocage pour éviter le flash');
+  const handleParcoursUnlock = useCallback(async (parcoursOrder: number) => {
+    // Marquer immédiatement ce parcours comme en cours de déblocage
     setPendingUnlockParcoursOrder(parcoursOrder);
     
     // Trouver la position du parcours débloqué
     if (homeDesign?.positions && treeBackgroundRef.current) {
-      console.log('✅ Conditions remplies, tentative de scroll...');
       try {
-        // Scroller vers le parcours pour le centrer
         const screenPosition = await treeBackgroundRef.current.scrollToPosition(parcoursOrder);
         
         if (screenPosition) {
-          console.log('📱 Position écran pour animation:', screenPosition);
-          
-          // Faire disparaître le cadenas ET lancer l'animation en même temps
-          console.log('🎬 Lancement de l\'animation et disparition du cadenas...');
           setHideLockParcoursOrder(parcoursOrder);
           setUnlockAnimation({
             isVisible: true,
@@ -287,23 +280,16 @@ export default function HomeScreen() {
             parcoursOrder: parcoursOrder
           });
         } else {
-          console.log('❌ Échec du scroll - position non trouvée');
-          // Si le scroll échoue, annuler le marquage
           setPendingUnlockParcoursOrder(null);
         }
       } catch (error) {
-        console.error('❌ Erreur lors du scroll pour animation:', error);
-        // Si le scroll échoue, annuler le marquage
+        console.error('Erreur lors du scroll pour animation:', error);
         setPendingUnlockParcoursOrder(null);
       }
     } else {
-      console.log('❌ Conditions non remplies:');
-      console.log('  - homeDesign.positions:', !!homeDesign?.positions);
-      console.log('  - treeBackgroundRef.current:', !!treeBackgroundRef.current);
-      // Si les conditions ne sont pas remplies, annuler le marquage
       setPendingUnlockParcoursOrder(null);
     }
-  };
+  }, [homeDesign?.positions]);
 
   // États pour l'animation de déblocage
   const [unlockAnimation, setUnlockAnimation] = useState<{
@@ -326,51 +312,35 @@ export default function HomeScreen() {
     useCallback(() => {
       const checkPendingUnlockAnimation = async () => {
         try {
-          console.log('🔍 Vérification des animations de déblocage en attente...');
           const pendingData = await AsyncStorage.getItem('pendingUnlockAnimation');
           
           if (pendingData) {
-            console.log('📦 Données de déblocage trouvées:', pendingData);
             const unlockData = JSON.parse(pendingData);
             const { parcoursOrder, timestamp } = unlockData;
             
             // Vérifier que les données ne sont pas trop anciennes (max 30 secondes)
             const now = Date.now();
             const timeDiff = now - timestamp;
-            console.log(`⏰ Différence de temps: ${timeDiff}ms`);
             
             if (timeDiff > 30000) {
-              console.log('⚠️ Données de déblocage trop anciennes, suppression...');
               await AsyncStorage.removeItem('pendingUnlockAnimation');
               return;
             }
             
             // Nettoyer AsyncStorage immédiatement
             await AsyncStorage.removeItem('pendingUnlockAnimation');
-            console.log('🧹 AsyncStorage nettoyé');
             
-            // Marquer immédiatement le parcours comme en cours de déblocage pour éviter le flash visuel
-            // Ceci doit être fait AVANT toute vérification pour garantir que le cadenas reste visible
-            console.log('🔒 Marquage immédiat du parcours comme en cours de déblocage depuis AsyncStorage');
+            // Marquer immédiatement le parcours comme en cours de déblocage
             setPendingUnlockParcoursOrder(parcoursOrder);
             
             // Fonction pour lancer l'animation une fois que les conditions sont remplies
             const launchAnimation = async () => {
               if (homeDesign?.positions && treeBackgroundRef.current) {
-                console.log('✅ Conditions remplies pour animation depuis AsyncStorage');
-                
                 try {
-                  // Scroller vers le parcours pour le centrer
                   const screenPosition = await treeBackgroundRef.current.scrollToPosition(parcoursOrder);
                   
                   if (screenPosition) {
-                    console.log('📱 Position écran pour animation depuis AsyncStorage:', screenPosition);
-                    
-                    // Attendre 300ms avant de lancer l'animation (cadenas visible pendant ce temps)
-                    console.log('⏳ Attente de 300ms avant de lancer l\'animation...');
                     setTimeout(() => {
-                      console.log('🎬 Lancement de l\'animation depuis AsyncStorage après délai...');
-                      // Faire disparaître le cadenas ET lancer l'animation en même temps
                       setHideLockParcoursOrder(parcoursOrder);
                       setUnlockAnimation({
                         isVisible: true,
@@ -379,53 +349,37 @@ export default function HomeScreen() {
                       });
                     }, 300);
                   } else {
-                    console.log('❌ Échec du scroll depuis AsyncStorage - position non trouvée');
-                    // Si le scroll échoue, annuler le marquage
                     setPendingUnlockParcoursOrder(null);
                   }
                 } catch (error) {
-                  console.error('❌ Erreur lors du scroll pour animation depuis AsyncStorage:', error);
-                  // Si le scroll échoue, annuler le marquage
+                  console.error('Erreur lors du scroll pour animation depuis AsyncStorage:', error);
                   setPendingUnlockParcoursOrder(null);
                 }
               } else {
-                console.log('❌ Conditions non remplies pour AsyncStorage, nouvelle tentative dans 50ms...');
-                // Réessayer après un court délai si les conditions ne sont pas encore remplies
                 setTimeout(launchAnimation, 50);
               }
             };
             
-            // Lancer l'animation (avec retry automatique si nécessaire)
             launchAnimation();
-          } else {
-            console.log('📭 Aucune animation de déblocage en attente');
           }
         } catch (error) {
-          console.error('❌ Erreur lors de la vérification des animations en attente:', error);
+          console.error('Erreur lors de la vérification des animations en attente:', error);
         }
       };
 
-      // Vérification immédiate puis avec un petit délai de sécurité
       checkPendingUnlockAnimation();
-      const timeoutId = setTimeout(checkPendingUnlockAnimation, 100);
-      
-      return () => clearTimeout(timeoutId);
-    }, [homeDesign])
+    }, [homeDesign?.positions])
   );
 
   // Gérer la fin de l'animation de déblocage
-  const handleUnlockAnimationComplete = () => {
-    console.log('🔓 Animation de déblocage terminée');
+  const handleUnlockAnimationComplete = useCallback(() => {
     setUnlockAnimation(null);
-    
-    // Maintenant on peut permettre le changement de design et réafficher le cadenas si nécessaire
     setPendingUnlockParcoursOrder(null);
     setHideLockParcoursOrder(null);
     
     // Rafraîchir les données pour mettre à jour le statut du parcours
-    console.log('🔄 Rafraîchissement des données après animation de déblocage');
     fetchTreeData();
-  };
+  }, [fetchTreeData]);
 
   if (loading) {
     return (
@@ -479,7 +433,7 @@ export default function HomeScreen() {
             <TreeBackground
               imageUrl={homeDesign.imageUrl}
               positions={homeDesign.positions}
-              onPositionPress={(positionId, order) => {
+              onPositionPress={(positionId: string, order?: number) => {
                 if (order !== undefined && homeDesign.parcours) {
                   const orderStr = order.toString();
                   if (homeDesign.parcours[orderStr]) {

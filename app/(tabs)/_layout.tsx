@@ -5,6 +5,8 @@ import { useAuth } from '../../src/hooks/useAuth';
 import { View, StyleSheet, Dimensions, TouchableOpacity } from 'react-native';
 import { IlotMenu } from '../../src/components/IlotMenu';
 import { BottomTabBarProps } from '@react-navigation/bottom-tabs';
+import { LoadingProvider } from '../../src/contexts/LoadingContext';
+import { GlobalLoadingOverlay } from '../../src/components/ui/GlobalLoadingOverlay';
 
 const { width } = Dimensions.get('window');
 
@@ -70,21 +72,24 @@ export default function TabLayout() {
   };
 
   return (
-    <Tabs
-      screenOptions={{
-        headerShown: false,
-        tabBarStyle: { 
-          display: 'none', // Masquer complètement la barre d'onglets native
-        },
-      }}
-      tabBar={props => <CustomTabBar {...props} />}
-    >
-      <Tabs.Screen name="profile" />
-      <Tabs.Screen name="dodjeplus" />
-      <Tabs.Screen name="index" />
-      <Tabs.Screen name="boutique" />
-      <Tabs.Screen name="catalogue" />
-    </Tabs>
+    <LoadingProvider>
+      <Tabs
+        screenOptions={{
+          headerShown: false,
+          tabBarStyle: { 
+            display: 'none', // Masquer complètement la barre d'onglets native
+          },
+        }}
+        tabBar={props => <CustomTabBar {...props} />}
+      >
+        <Tabs.Screen name="profile" />
+        <Tabs.Screen name="dodjeplus" />
+        <Tabs.Screen name="index" />
+        <Tabs.Screen name="boutique" />
+        <Tabs.Screen name="catalogue" />
+      </Tabs>
+      <GlobalLoadingOverlay />
+    </LoadingProvider>
   );
 }
 

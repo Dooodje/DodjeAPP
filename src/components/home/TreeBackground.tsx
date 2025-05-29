@@ -27,9 +27,10 @@ interface TreeBackgroundProps {
     finalHeight: number;
   };
   isImageLoaded?: boolean;
-  // Nouvelles props pour le système de pré-montage
+  // Props pour identifier la section/niveau actuel
   currentSection: Section;
   currentLevel: Level;
+  // Map de toutes les images préchargées
   allImagesData?: Map<string, {
     url: string;
     dimensions?: {
@@ -40,9 +41,8 @@ interface TreeBackgroundProps {
     };
     isLoaded: boolean;
   }>;
-  // Prop pour empêcher le changement de design prématuré
+  // Props pour l'animation de déblocage
   pendingUnlockParcoursOrder?: number | null;
-  // Prop pour contrôler quand le cadenas doit disparaître
   hideLockParcoursOrder?: number | null;
 }
 
@@ -50,85 +50,46 @@ export interface TreeBackgroundRef {
   scrollToPosition: (order: number) => Promise<{ x: number; y: number } | null>;
 }
 
-const TreeBackground = forwardRef<TreeBackgroundRef, TreeBackgroundProps>(({ 
-  imageUrl, 
-  positions, 
+export const TreeBackground = forwardRef<TreeBackgroundRef, TreeBackgroundProps>(({
+  imageUrl,
+  positions,
   onPositionPress,
-  parcours = {},
+  parcours,
   imageDimensions,
-  isImageLoaded = false,
+  isImageLoaded,
   currentSection,
   currentLevel,
   allImagesData,
   pendingUnlockParcoursOrder,
   hideLockParcoursOrder
 }, ref) => {
-  const [calculatedDimensions, setCalculatedDimensions] = useState({ width: 0, height: 0 });
-  const [scrollViewHeight, setScrollViewHeight] = useState(screenHeight);
-  const [scrollViewWidth, setScrollViewWidth] = useState(screenWidth);
-  const [imageLoadError, setImageLoadError] = useState(false);
+  const [scrollViewDimensions, setScrollViewDimensions] = useState({ width: 0, height: 0 });
   const scrollViewRef = useRef<ScrollView>(null);
   
-  const onScrollViewLayout = (event: LayoutChangeEvent) => {
-    const { width, height } = event.nativeEvent.layout;
-    setScrollViewHeight(height);
-    setScrollViewWidth(width);
-  };
-  
-  // Utiliser les dimensions pré-calculées si disponibles, sinon calculer
-  useEffect(() => {
-    if (imageDimensions && imageDimensions.finalWidth && imageDimensions.finalHeight) {
-      // Utiliser les dimensions pré-calculées du cache
-      console.log(`🚀 Utilisation des dimensions en cache: ${imageDimensions.finalWidth}x${imageDimensions.finalHeight}`);
-      setCalculatedDimensions({
+  // Calculer les dimensions optimisées (comme l'ancienne version)
+  const calculatedDimensions = useMemo(() => {
+    if (imageDimensions) {
+      return {
         width: imageDimensions.finalWidth,
         height: imageDimensions.finalHeight
-      });
-      setImageLoadError(false);
-    } else if (imageUrl && imageUrl.trim() !== '') {
-      // Fallback: calculer les dimensions si pas en cache
-      console.log('⚠️ Dimensions non disponibles en cache, calcul en cours...');
-      Image.getSize(
-        imageUrl, 
-        (width, height) => {
-          let finalWidth, finalHeight;
-          
-          if (screenWidth > REFERENCE_WIDTH) {
-            // Pour les écrans plus larges que la référence
-            finalWidth = REFERENCE_WIDTH;
-            finalHeight = (height * REFERENCE_WIDTH) / width;
-          } else {
-            // Pour les écrans plus petits que la référence
-            finalWidth = screenWidth;
-            finalHeight = (height * screenWidth) / width;
-          }
-          
-          setCalculatedDimensions({
-            width: finalWidth,
-            height: finalHeight
-          });
-          setImageLoadError(false);
-        }, 
-        (error) => {
-          console.error('Erreur lors du chargement des dimensions de l\'image:', error);
-          setImageLoadError(true);
-          setCalculatedDimensions({
-            width: screenWidth,
-            height: screenHeight * 2
-          });
-        }
-      );
-    } else {
-      // Si pas d'URL définie, définir les dimensions par défaut
-      console.log('Pas d\'URL d\'image définie, utilisation des dimensions par défaut');
-      setImageLoadError(true);
-      setCalculatedDimensions({
-        width: screenWidth,
-        height: screenHeight * 2
-      });
+      };
     }
-  }, [imageUrl, imageDimensions]);
+    
+    // Dimensions par défaut optimisées
+    const aspectRatio = 1457.2463768115942 / 400;
+    const width = Math.min(screenWidth, REFERENCE_WIDTH);
+    const height = width * aspectRatio;
+    
+    return { width, height };
+  }, [imageDimensions]);
 
+  // Calculer la marge horizontale
+  const horizontalMargin = Math.max(0, (screenWidth - calculatedDimensions.width) / 2);
+  
+  // Hauteur du contenu
+  const contentHeight = Math.max(calculatedDimensions.height + HEADER_HEIGHT, screenHeight);
+
+  // Positions des parcours
   const positionsArray = useMemo(() => {
     if (!positions) return [];
     return Object.entries(positions).map(([id, posData]) => ({
@@ -136,25 +97,11 @@ const TreeBackground = forwardRef<TreeBackgroundRef, TreeBackgroundProps>(({
       ...posData
     }));
   }, [positions]);
-
-  // Augmenter la hauteur du contenu pour permettre plus de défilement
-  const contentHeight = Math.max(calculatedDimensions.height + 100, scrollViewHeight * 1.5);
-
-  // Calculer la marge horizontale pour centrer l'image
-  const horizontalMargin = screenWidth > REFERENCE_WIDTH ? (screenWidth - REFERENCE_WIDTH) / 2 : 0;
-
-  // Générer la clé actuelle pour identifier l'image active
-  const currentKey = `${currentSection}-${currentLevel}`;
-
-  // Créer les styles d'image communs
-  const getImageStyle = (dimensions: any) => [
-    styles.backgroundImage,
-    { 
-      height: dimensions?.finalHeight || calculatedDimensions.height,
-      width: dimensions?.finalWidth || calculatedDimensions.width,
-      marginHorizontal: horizontalMargin,
-    }
-  ];
+  
+  const onScrollViewLayout = (event: LayoutChangeEvent) => {
+    const { width, height } = event.nativeEvent.layout;
+    setScrollViewDimensions({ width, height });
+  };
 
   const scrollToPosition = async (order: number): Promise<{ x: number; y: number } | null> => {
     return new Promise((resolve) => {
@@ -174,13 +121,8 @@ const TreeBackground = forwardRef<TreeBackgroundRef, TreeBackgroundProps>(({
       const absoluteY = (position.y * calculatedDimensions.height) / 100;
 
       // Calculer la position de scroll pour centrer le parcours à l'écran
-      const scrollX = Math.max(0, absoluteX - (scrollViewWidth / 2));
-      const scrollY = Math.max(0, absoluteY - (scrollViewHeight / 2));
-
-      console.log('🎯 Scroll vers parcours ordre:', order);
-      console.log('📍 Position relative:', { x: position.x, y: position.y });
-      console.log('📍 Position absolue sur image:', { x: absoluteX, y: absoluteY });
-      console.log('📱 Position de scroll:', { x: scrollX, y: scrollY });
+      const scrollX = Math.max(0, absoluteX - (scrollViewDimensions.width / 2));
+      const scrollY = Math.max(0, absoluteY - (scrollViewDimensions.height / 2));
 
       // Scroller vers la position
       scrollViewRef.current.scrollTo({ 
@@ -192,13 +134,9 @@ const TreeBackground = forwardRef<TreeBackgroundRef, TreeBackgroundProps>(({
       // Attendre que le scroll soit terminé avant de retourner la position écran
       setTimeout(() => {
         // Calculer la position réelle du parcours à l'écran après le scroll
-        // Position du parcours = position absolue - position de scroll + marge horizontale
         const screenX = absoluteX - scrollX + horizontalMargin;
         const screenY = absoluteY - scrollY - 25; // Ajustement pour centrer sur le cadenas
         
-        console.log('📱 Position réelle du parcours à l\'écran:', { x: screenX, y: screenY });
-        console.log('🔧 Marge horizontale appliquée:', horizontalMargin);
-        console.log('🎯 Ajustement Y appliqué: -15px');
         resolve({ x: screenX, y: screenY });
       }, 500); // Attendre 500ms pour que l'animation de scroll soit terminée
     });
@@ -207,6 +145,9 @@ const TreeBackground = forwardRef<TreeBackgroundRef, TreeBackgroundProps>(({
   useImperativeHandle(ref, () => ({
     scrollToPosition
   }));
+
+  // Clé de l'image actuelle
+  const currentImageKey = `${currentSection}-${currentLevel}`;
 
   return (
     <ScrollView
@@ -228,69 +169,54 @@ const TreeBackground = forwardRef<TreeBackgroundRef, TreeBackgroundProps>(({
         style={styles.gradient}
       />
       
-      {/* Pré-monter TOUTES les images de fond (cachées) */}
-      {allImagesData && ALL_SECTIONS.map(section => 
+      {/* PRÉ-MONTAGE DE TOUTES LES 6 IMAGES POUR LES GARDER EN MÉMOIRE */}
+      {ALL_SECTIONS.map(section => 
         ALL_LEVELS.map(level => {
           const key = `${section}-${level}`;
-          const imageData = allImagesData.get(key);
-          const isCurrentImage = key === currentKey;
+          const imageData = allImagesData?.get(key);
+          const isCurrentImage = key === currentImageKey;
           
-          if (!imageData?.url) return null;
+          if (!imageData?.url || !imageData?.isLoaded) return null;
           
           return (
             <Image
               key={key}
               source={{ uri: imageData.url }}
               style={[
-                ...getImageStyle(imageData.dimensions),
+                styles.backgroundImage,
                 {
-                  // Seule l'image actuelle est visible
-                  opacity: isCurrentImage ? 0.9 : 0,
-                  // Garder toutes les images dans le layout pour éviter les recalculs
-                  position: 'absolute',
-                  top: 0,
-                  zIndex: isCurrentImage ? 1 : 0
+                  height: calculatedDimensions.height,
+                  width: calculatedDimensions.width,
+                  marginHorizontal: horizontalMargin,
+                  opacity: isCurrentImage ? 0.9 : 0, // Visible seulement si c'est l'image actuelle
+                  zIndex: isCurrentImage ? 1 : 0, // Au premier plan seulement si c'est l'image actuelle
                 }
               ]}
               resizeMode="contain"
-              onError={() => {
-                if (isCurrentImage) {
-                  setImageLoadError(true);
-                }
-              }}
-              onLoad={() => {
-                if (isCurrentImage) {
-                  console.log(`🖼️ Image active affichée instantanément: ${key}`);
-                }
-              }}
             />
           );
         })
       ).flat()}
       
-      {/* Image de fallback si aucune image pré-montée n'est disponible */}
-      {(!allImagesData || !allImagesData.get(currentKey)) && imageUrl && !imageLoadError && (
+      {/* Fallback vers imageUrl si les images préchargées ne sont pas disponibles */}
+      {imageUrl && !allImagesData?.get(currentImageKey)?.isLoaded && (
         <Image
           source={{ uri: imageUrl }}
           style={[
             styles.backgroundImage,
-            { 
+            {
               height: calculatedDimensions.height,
               width: calculatedDimensions.width,
               marginHorizontal: horizontalMargin,
-              opacity: isImageLoaded ? 0.9 : 0.5
+              opacity: 0.9,
             }
           ]}
           resizeMode="contain"
-          onError={() => setImageLoadError(true)}
-          onLoad={() => {
-            console.log('🖼️ Image de fallback affichée');
-          }}
         />
       )}
-
-      {/* Fond par défaut si aucune image n'est disponible */}
-      {(!imageUrl || imageLoadError) && (!allImagesData || !allImagesData.get(currentKey)) && (
+      
+      {/* Fond par défaut SEULEMENT si aucune image n'est disponible */}
+      {!imageUrl && !allImagesData?.get(currentImageKey)?.isLoaded && (
         <View 
           style={[
             styles.defaultBackground, 
@@ -315,7 +241,6 @@ const TreeBackground = forwardRef<TreeBackgroundRef, TreeBackgroundProps>(({
             ...parcoursData,
             status: 'blocked' // Forcer le statut bloqué pendant l'animation
           };
-          console.log(`🔒 Parcours ${position.order} maintenu en statut bloqué pendant l'animation`);
         }
         
         return (
@@ -330,8 +255,8 @@ const TreeBackground = forwardRef<TreeBackgroundRef, TreeBackgroundProps>(({
             parcoursData={modifiedParcoursData}
             imageWidth={calculatedDimensions.width}
             imageHeight={calculatedDimensions.height}
-            containerWidth={scrollViewWidth}
-            containerHeight={scrollViewHeight}
+            containerWidth={scrollViewDimensions.width}
+            containerHeight={scrollViewDimensions.height}
             hideVector={hideLockParcoursOrder !== null && position.order === hideLockParcoursOrder}
           />
         );
@@ -362,7 +287,6 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 0,
     alignSelf: 'center',
-    opacity: 0.9,
   },
   defaultBackground: {
     backgroundColor: theme.colors.background.medium,
@@ -371,6 +295,4 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
   },
-});
-
-export default TreeBackground; 
+}); 
