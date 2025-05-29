@@ -341,11 +341,14 @@ export default function HomeScreen() {
                       if (screenPosition) {
                         console.log('📱 Position écran après scroll:', screenPosition);
                         
-                        setUnlockAnimation({
-                          isVisible: true,
-                          position: screenPosition,
-                          parcoursOrder: unlockInfo.parcoursOrder
-                        });
+                        // Attendre 150ms avant de lancer l'animation
+                        setTimeout(() => {
+                          setUnlockAnimation({
+                            isVisible: true,
+                            position: screenPosition,
+                            parcoursOrder: unlockInfo.parcoursOrder
+                          });
+                        }, 150);
                       } else {
                         console.log('❌ Échec du scroll vers le parcours');
                       }
