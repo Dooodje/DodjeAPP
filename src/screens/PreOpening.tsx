@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, Animated, Image } from 'react-native';
+import { View, Text, StyleSheet, Animated, Image, Platform } from 'react-native';
 import { router } from 'expo-router';
 import { useAuth } from '../hooks/useAuth';
 import { usePreloadCache, globalImageCache } from '../hooks/usePreloadCache';
 import { LogoDodje } from '../components/LogoDodje';
 import { Section, Level } from '../types/home';
+import { iapService } from '../services/iap';
 
 // Composant invisible pour pré-monter toutes les images en mémoire
 const ImagePreloader: React.FC<{ 
@@ -66,6 +67,12 @@ export default function PreOpening() {
   // État pour contrôler le pré-montage
   const [shouldPreloadImages, setShouldPreloadImages] = useState(false);
   const [preloadingComplete, setPreloadingComplete] = useState(false);
+  
+  // État pour l'initialisation IAP
+  const [isIAPInitialized, setIsIAPInitialized] = useState(false);
+
+  // État pour contrôler l'animation de zoom out
+  const [shouldZoomOut, setShouldZoomOut] = useState(false);
 
   // États pour les animations
   const [logoScale] = useState(new Animated.Value(0.8));
@@ -73,6 +80,24 @@ export default function PreOpening() {
 
   // Calculer le pourcentage de progression
   const progressPercentage = totalItems > 0 ? Math.round((progress / totalItems) * 100) : 0;
+
+  // Initialiser le service IAP en parallèle
+  useEffect(() => {
+    const initializeIAP = async () => {
+      if (Platform.OS === 'android' || Platform.OS === 'ios') {
+        try {
+          await iapService.initialize();
+          console.log('Service IAP initialisé avec succès');
+        } catch (error) {
+          console.error('Erreur lors de l\'initialisation du service IAP:', error);
+        }
+      }
+      // Dans tous les cas, marquer comme initialisé pour ne pas bloquer l'application
+      setIsIAPInitialized(true);
+    };
+
+    initializeIAP();
+  }, []);
 
   // Démarrer les animations au montage
   useEffect(() => {
@@ -107,15 +132,24 @@ export default function PreOpening() {
     }
   }, [isComplete, cacheStats.imagesCached, shouldPreloadImages]);
 
-  // Naviguer vers l'écran d'ouverture quand le chargement ET le pré-montage sont terminés
+  // Démarrer l'animation de zoom out quand tous les chargements sont terminés
   useEffect(() => {
-    if (isComplete && !authLoading && preloadingComplete) {
-      console.log('✅ Préchargement et pré-montage terminés, navigation vers /opening');
-      setTimeout(() => {
+    if (isComplete && !authLoading && preloadingComplete && isIAPInitialized && !shouldZoomOut) {
+      console.log('✅ Tous les chargements terminés, démarrage du zoom out du logo');
+      setShouldZoomOut(true);
+      
+      // Animation de zoom out rapide et au maximum
+      Animated.timing(logoScale, {
+        toValue: 0, // Zoom out au maximum pour faire disparaître le logo
+        duration: 300, // Animation rapide (300ms)
+        useNativeDriver: true,
+      }).start(() => {
+        // Une fois l'animation terminée, naviguer vers l'écran suivant
+        console.log('🎯 Animation de zoom out terminée, navigation vers /opening');
         router.replace('/opening');
-      }, 500); // Petit délai pour une transition fluide
+      });
     }
-  }, [isComplete, authLoading, preloadingComplete]);
+  }, [isComplete, authLoading, preloadingComplete, isIAPInitialized, shouldZoomOut]);
 
   // Fonction pour obtenir le texte de chargement approprié
   const getLoadingText = () => {
@@ -151,54 +185,10 @@ export default function PreOpening() {
       {/* Pré-montage invisible de toutes les images pour les garder en mémoire */}
       <ImagePreloader shouldPreload={shouldPreloadImages} />
       
-      {/* Logo animé */}
+      {/* Logo centré */}
       <Animated.View style={[styles.logoContainer, { transform: [{ scale: logoScale }] }]}>
-        <LogoDodje width={120} height={120} />
+        <LogoDodje width={225} height={225} />
       </Animated.View>
-
-      {/* Texte de chargement */}
-      <Text style={styles.loadingText}>
-        {getLoadingText()}
-      </Text>
-
-      {/* Barre de progression animée */}
-      <Animated.View style={[styles.progressContainer, { opacity: progressOpacity }]}>
-        <View style={styles.progressBar}>
-          <View style={[styles.progressFill, { width: `${progressPercentage}%` }]} />
-        </View>
-        <Text style={styles.progressText}>{progressPercentage}%</Text>
-      </Animated.View>
-
-      {/* Détails du chargement */}
-      {(isLoading || isComplete) && (
-        <Animated.View style={[styles.detailsContainer, { opacity: progressOpacity }]}>
-          <Text style={styles.detailsText}>
-            Données: {cacheStats.staticDataCached}/{totalStaticData}
-          </Text>
-          <Text style={styles.detailsText}>
-            Images: {cacheStats.imagesCached}/{totalImages}
-          </Text>
-          {user && (
-            <Text style={styles.detailsText}>
-              Données utilisateur: {loadedDataCount - cacheStats.staticDataCached}
-            </Text>
-          )}
-        </Animated.View>
-      )}
-
-      {/* Affichage des erreurs */}
-      {error && (
-        <Text style={styles.errorText}>
-          Erreur: {error}
-        </Text>
-      )}
-
-      {/* Message d'attente si pas d'utilisateur */}
-      {!authLoading && !user && (
-        <Text style={styles.waitingText}>
-          Veuillez vous connecter pour continuer
-        </Text>
-      )}
     </View>
   );
 }
@@ -206,66 +196,12 @@ export default function PreOpening() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#1a1a1a',
+    backgroundColor: '#0A0400',
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 20,
   },
   logoContainer: {
-    marginBottom: 40,
-  },
-  loadingText: {
-    color: '#ffffff',
-    fontSize: 18,
-    fontWeight: '600',
-    marginBottom: 30,
-    textAlign: 'center',
-  },
-  progressContainer: {
-    width: '80%',
-    alignItems: 'center',
-    marginBottom: 20,
-  },
-  progressBar: {
-    width: '100%',
-    height: 6,
-    backgroundColor: '#333333',
-    borderRadius: 3,
-    overflow: 'hidden',
-    marginBottom: 10,
-  },
-  progressFill: {
-    height: '100%',
-    backgroundColor: '#4CAF50',
-    borderRadius: 3,
-  },
-  progressText: {
-    color: '#ffffff',
-    fontSize: 16,
-    fontWeight: '500',
-  },
-  detailsContainer: {
-    alignItems: 'center',
-    marginTop: 20,
-  },
-  detailsText: {
-    color: '#cccccc',
-    fontSize: 14,
-    marginBottom: 5,
-  },
-  errorText: {
-    color: '#ff6b6b',
-    fontSize: 14,
-    textAlign: 'center',
-    marginTop: 20,
-    paddingHorizontal: 20,
-  },
-  waitingText: {
-    color: '#ffeb3b',
-    fontSize: 16,
-    textAlign: 'center',
-    marginTop: 20,
-    fontWeight: '500',
+    // Pas de margin, le logo est parfaitement centré
   },
   imagePreloader: {
     position: 'absolute',

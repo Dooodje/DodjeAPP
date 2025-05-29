@@ -7,7 +7,6 @@ import { Input } from '../../src/components/ui';
 import { useAuth } from '../../src/hooks/useAuth';
 import { registerSchema } from '../../src/utils/validation';
 import { LogoDodje } from '../../src/components/LogoDodje';
-import FondCo from '../../src/components/FondCo';
 import { Ionicons } from '@expo/vector-icons';
 
 interface RegisterForm {
@@ -52,8 +51,6 @@ export default function RegisterScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
     >
-      <FondCo width={windowWidth} height={windowHeight} />
-      
       <TouchableOpacity style={styles.backButton} onPress={handleBack}>
         <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
       </TouchableOpacity>

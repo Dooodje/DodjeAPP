@@ -8,6 +8,7 @@ export default function VideoLayout() {
       screenOptions={{
         headerShown: false,
         animation: 'fade',
+        animationDuration: 350,
         presentation: 'fullScreenModal',
         contentStyle: {
           backgroundColor: '#0A0400'

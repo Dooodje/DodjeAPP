@@ -7,7 +7,6 @@ import { Input } from '../../src/components/ui';
 import { useAuth } from '../../src/hooks/useAuth';
 import { loginSchema } from '../../src/utils/validation';
 import { LogoDodje } from '../../src/components/LogoDodje';
-import FondCo from '../../src/components/FondCo';
 import { Ionicons } from '@expo/vector-icons';
 
 interface LoginForm {
@@ -33,7 +32,11 @@ export default function LoginScreen() {
       await login(data.email, data.password);
       router.replace('/(tabs)');
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Une erreur est survenue');
+      if (err instanceof Error && err.message.includes('auth/invalid-credential')) {
+        setError('Adresse mail ou mot de passe incorrect');
+      } else {
+        setError(err instanceof Error ? err.message : 'Une erreur est survenue');
+      }
     } finally {
       setIsLoading(false);
     }
@@ -49,8 +52,6 @@ export default function LoginScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
     >
-      <FondCo width={windowWidth} height={windowHeight} />
-      
       <TouchableOpacity style={styles.backButton} onPress={handleBack}>
         <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
       </TouchableOpacity>
@@ -67,7 +68,7 @@ export default function LoginScreen() {
 
           <View style={styles.formContainer}>
             <View style={styles.inputGroup}>
-              <Text style={styles.label}>Mail ou pseudo :</Text>
+              <Text style={styles.label}>Adresse mail :</Text>
               <Input
                 control={control}
                 name="email"

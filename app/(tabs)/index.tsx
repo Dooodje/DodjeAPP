@@ -218,10 +218,10 @@ export default function HomeScreen() {
       // Lancer le chargement des données en arrière-plan
       fetchTreeData();
       
-      // Attendre 2 secondes pour la page de chargement
+      // Attendre 3 secondes pour la page de chargement
       setTimeout(() => {
         setIsInitialLoading(false);
-      }, 2000);
+      }, 3000);
     };
 
     initializeApp();

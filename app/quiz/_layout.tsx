@@ -6,7 +6,8 @@ export default function QuizLayout() {
       screenOptions={{
         headerShown: false,
         presentation: 'modal',
-        animation: 'slide_from_bottom',
+        animation: 'fade',
+        animationDuration: 350,
       }}
     />
   );

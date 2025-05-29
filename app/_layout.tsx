@@ -7,7 +7,6 @@ import { store, persistor } from '../src/store';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { View, Text, ActivityIndicator, StyleSheet, TouchableOpacity, Platform, LogBox } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { iapService } from '../src/services/iap';
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { useFonts } from 'expo-font';
 import * as SplashScreen from 'expo-splash-screen';
@@ -46,7 +45,6 @@ const queryClient = new QueryClient({
  */
 export default function RootLayout() {
   const [error, setError] = useState<Error | null>(null);
-  const [isIAPInitialized, setIsIAPInitialized] = useState(false);
 
   const [loaded, errorFonts] = useFonts({
     'Arboria-Book': require('../assets/fonts/OnlineWebFonts_COM_ddd7c8d2d4a68d143440be787b1761ca/Arboria-Book/Arboria-Book.ttf'),
@@ -65,24 +63,6 @@ export default function RootLayout() {
       SplashScreen.hideAsync();
     }
   }, [loaded, errorFonts]);
-
-  // Initialiser le service IAP
-  useEffect(() => {
-    const initializeIAP = async () => {
-      if (Platform.OS === 'android' || Platform.OS === 'ios') {
-        try {
-          await iapService.initialize();
-          console.log('Service IAP initialisé avec succès');
-        } catch (error) {
-          console.error('Erreur lors de l\'initialisation du service IAP:', error);
-        }
-      }
-      // Dans tous les cas, marquer comme initialisé pour ne pas bloquer l'application
-      setIsIAPInitialized(true);
-    };
-
-    initializeIAP();
-  }, []);
 
   // Intercepter les erreurs globales
   useEffect(() => {
@@ -171,16 +151,6 @@ export default function RootLayout() {
     );
   }
 
-  // Afficher un indicateur de chargement pendant l'initialisation du service IAP
-  if (!isIAPInitialized && (Platform.OS === 'android' || Platform.OS === 'ios')) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#06D001" />
-        <Text style={styles.loadingText}>Initialisation des services de paiement...</Text>
-      </View>
-    );
-  }
-
   // Composant de chargement pour PersistGate
   const renderLoading = () => (
     <View style={styles.loadingContainer}>
@@ -253,6 +223,11 @@ function RootLayoutNav() {
         headerTitleStyle: {
           fontFamily: 'Arboria-Bold',
         },
+        // Configuration pour une transition "gentle"
+        animation: 'fade',
+        animationDuration: 400, // Durée plus longue pour une transition plus douce
+        gestureEnabled: true,
+        gestureDirection: 'horizontal',
       }}
     >
       <Stack.Screen
@@ -314,12 +289,15 @@ function RootLayoutNav() {
         options={{
           headerShown: false,
           presentation: 'modal',
+          animation: 'fade',
+          animationDuration: 350,
         }}
       />
       <Stack.Screen
         name="(dodjelab)"
         options={{
           headerShown: false,
+          animation: 'fade',
         }}
       />
       <Stack.Screen
@@ -327,6 +305,8 @@ function RootLayoutNav() {
         options={{
           headerShown: false,
           presentation: 'modal',
+          animation: 'fade',
+          animationDuration: 350,
         }}
       />
       <Stack.Screen
@@ -334,6 +314,8 @@ function RootLayoutNav() {
         options={{
           headerShown: false,
           presentation: 'modal',
+          animation: 'fade',
+          animationDuration: 350,
         }}
       />
     </Stack>

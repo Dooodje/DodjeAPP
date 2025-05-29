@@ -6,7 +6,8 @@ export default function CourseLayout() {
     <Stack 
       screenOptions={{
         headerShown: false,
-        animation: 'slide_from_bottom',
+        animation: 'fade',
+        animationDuration: 350,
         presentation: 'modal',
         contentStyle: {
           backgroundColor: '#0A0400'
