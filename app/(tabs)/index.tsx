@@ -256,10 +256,52 @@ export default function HomeScreen() {
   }, [fetchTreeData, queryClient]);
 
   const [selectedParcoursId, setSelectedParcoursId] = useState<string | null>(null);
+  const [selectedParcoursOrder, setSelectedParcoursOrder] = useState<number | null>(null);
 
-  const handleParcoursUnlock = () => {
-    if (selectedParcoursId) {
-      router.push(`/course/${selectedParcoursId}`);
+  const handleParcoursUnlock = async (parcoursOrder: number) => {
+    console.log('🔓 handleParcoursUnlock appelé avec ordre:', parcoursOrder);
+    console.log('🏠 homeDesign disponible:', !!homeDesign);
+    console.log('🌳 treeBackgroundRef disponible:', !!treeBackgroundRef.current);
+    
+    // Marquer immédiatement ce parcours comme en cours de déblocage pour éviter le flash visuel
+    // MAIS ne pas faire disparaître le cadenas encore
+    console.log('🔒 Marquage du parcours comme en cours de déblocage pour éviter le flash');
+    setPendingUnlockParcoursOrder(parcoursOrder);
+    
+    // Trouver la position du parcours débloqué
+    if (homeDesign?.positions && treeBackgroundRef.current) {
+      console.log('✅ Conditions remplies, tentative de scroll...');
+      try {
+        // Scroller vers le parcours pour le centrer
+        const screenPosition = await treeBackgroundRef.current.scrollToPosition(parcoursOrder);
+        
+        if (screenPosition) {
+          console.log('📱 Position écran pour animation:', screenPosition);
+          
+          // Faire disparaître le cadenas ET lancer l'animation en même temps
+          console.log('🎬 Lancement de l\'animation et disparition du cadenas...');
+          setHideLockParcoursOrder(parcoursOrder);
+          setUnlockAnimation({
+            isVisible: true,
+            position: screenPosition,
+            parcoursOrder: parcoursOrder
+          });
+        } else {
+          console.log('❌ Échec du scroll - position non trouvée');
+          // Si le scroll échoue, annuler le marquage
+          setPendingUnlockParcoursOrder(null);
+        }
+      } catch (error) {
+        console.error('❌ Erreur lors du scroll pour animation:', error);
+        // Si le scroll échoue, annuler le marquage
+        setPendingUnlockParcoursOrder(null);
+      }
+    } else {
+      console.log('❌ Conditions non remplies:');
+      console.log('  - homeDesign.positions:', !!homeDesign?.positions);
+      console.log('  - treeBackgroundRef.current:', !!treeBackgroundRef.current);
+      // Si les conditions ne sont pas remplies, annuler le marquage
+      setPendingUnlockParcoursOrder(null);
     }
   };
 
@@ -273,123 +315,102 @@ export default function HomeScreen() {
   // État pour empêcher le changement de design prématuré
   const [pendingUnlockParcoursOrder, setPendingUnlockParcoursOrder] = useState<number | null>(null);
 
+  // Nouvel état pour contrôler quand le cadenas doit disparaître (seulement au moment de l'animation)
+  const [hideLockParcoursOrder, setHideLockParcoursOrder] = useState<number | null>(null);
+
   // Référence au TreeBackground pour contrôler le scroll
   const treeBackgroundRef = useRef<TreeBackgroundRef>(null);
 
-  // Vérifier s'il y a une animation de déblocage à lancer
+  // Gérer les déblocages venant du quiz via AsyncStorage
   useFocusEffect(
     useCallback(() => {
-      const checkForUnlockAnimation = async () => {
+      const checkPendingUnlockAnimation = async () => {
         try {
-          console.log('🔍 Vérification animation de déblocage...');
+          console.log('🔍 Vérification des animations de déblocage en attente...');
+          const pendingData = await AsyncStorage.getItem('pendingUnlockAnimation');
           
-          const pendingAnimation = await AsyncStorage.getItem('pendingUnlockAnimation');
-          console.log('📦 Données AsyncStorage:', pendingAnimation);
-          
-          if (pendingAnimation) {
-            const unlockInfo = JSON.parse(pendingAnimation);
-            console.log('📋 Info déblocage:', unlockInfo);
+          if (pendingData) {
+            console.log('📦 Données de déblocage trouvées:', pendingData);
+            const unlockData = JSON.parse(pendingData);
+            const { parcoursOrder, timestamp } = unlockData;
             
-            // Vérifier que l'animation n'est pas trop ancienne (max 10 secondes)
-            if (Date.now() - unlockInfo.timestamp < 10000) {
-              console.log('🔓 Animation de déblocage détectée pour le parcours:', unlockInfo.parcoursOrder);
-              
-              // Marquer ce parcours comme en attente de déblocage visuel
-              setPendingUnlockParcoursOrder(unlockInfo.parcoursOrder);
-              
-              // Attendre que homeDesign soit disponible avant de lancer l'animation
-              if (homeDesign?.positions && homeDesign?.parcours) {
-                const parcoursId = unlockInfo.parcoursOrder.toString();
-                const parcours = homeDesign.parcours[parcoursId];
-                console.log('🎯 Parcours trouvé:', parcours);
-                
-                // Trouver la position en cherchant dans toutes les positions celle qui a l'ordre correspondant
-                let targetPosition = null;
-                let targetPositionId = null;
-                
-                console.log('🔍 Recherche de la position pour l\'ordre:', unlockInfo.parcoursOrder);
-                console.log('🗺️ Positions disponibles:', Object.entries(homeDesign.positions).map(([id, pos]) => ({ 
-                  id, 
-                  order: pos.order, 
-                  x: pos.x, 
-                  y: pos.y 
-                })));
-                
-                for (const [positionId, position] of Object.entries(homeDesign.positions)) {
-                  console.log(`🔍 Vérification position ${positionId}: ordre=${position.order}, recherché=${unlockInfo.parcoursOrder}`);
-                  // Vérifier avec conversion de type au cas où
-                  if (position.order === unlockInfo.parcoursOrder || 
-                      position.order === Number(unlockInfo.parcoursOrder) ||
-                      Number(position.order) === Number(unlockInfo.parcoursOrder)) {
-                    targetPosition = position;
-                    targetPositionId = positionId;
-                    console.log(`✅ Position trouvée! ID: ${positionId}, ordre: ${position.order}`);
-                    break;
-                  }
-                }
-                
-                console.log('📍 Position trouvée:', targetPosition, 'ID:', targetPositionId);
-                
-                if (targetPosition) {
-                  console.log('🎯 Parcours et position trouvés, démarrage du scroll...');
-                  
-                  // D'abord scroller vers le parcours pour le centrer
-                  if (treeBackgroundRef.current) {
-                    try {
-                      const screenPosition = await treeBackgroundRef.current.scrollToPosition(unlockInfo.parcoursOrder);
-                      
-                      if (screenPosition) {
-                        console.log('📱 Position écran après scroll:', screenPosition);
-                        
-                        // Attendre 150ms avant de lancer l'animation
-                        setTimeout(() => {
-                          setUnlockAnimation({
-                            isVisible: true,
-                            position: screenPosition,
-                            parcoursOrder: unlockInfo.parcoursOrder
-                          });
-                        }, 150);
-                      } else {
-                        console.log('❌ Échec du scroll vers le parcours');
-                      }
-                    } catch (error) {
-                      console.error('❌ Erreur lors du scroll:', error);
-                    }
-                  } else {
-                    console.log('❌ Référence TreeBackground non disponible');
-                  }
-                } else {
-                  console.log('❌ Position non trouvée pour le parcours ordre:', unlockInfo.parcoursOrder);
-                  console.log('🔍 Positions disponibles:', Object.entries(homeDesign.positions).map(([id, pos]) => ({ id, order: pos.order })));
-                }
-              } else {
-                console.log('❌ homeDesign non disponible, on attend...');
-                // Si homeDesign n'est pas encore disponible, on va réessayer
-                setTimeout(() => checkForUnlockAnimation(), 1000);
-                return; // Ne pas nettoyer AsyncStorage encore
-              }
-            } else {
-              console.log('⏰ Animation trop ancienne, ignorée');
+            // Vérifier que les données ne sont pas trop anciennes (max 30 secondes)
+            const now = Date.now();
+            const timeDiff = now - timestamp;
+            console.log(`⏰ Différence de temps: ${timeDiff}ms`);
+            
+            if (timeDiff > 30000) {
+              console.log('⚠️ Données de déblocage trop anciennes, suppression...');
+              await AsyncStorage.removeItem('pendingUnlockAnimation');
+              return;
             }
             
-            // Nettoyer AsyncStorage
+            // Nettoyer AsyncStorage immédiatement
             await AsyncStorage.removeItem('pendingUnlockAnimation');
+            console.log('🧹 AsyncStorage nettoyé');
+            
+            // Marquer immédiatement le parcours comme en cours de déblocage pour éviter le flash visuel
+            // Ceci doit être fait AVANT toute vérification pour garantir que le cadenas reste visible
+            console.log('🔒 Marquage immédiat du parcours comme en cours de déblocage depuis AsyncStorage');
+            setPendingUnlockParcoursOrder(parcoursOrder);
+            
+            // Fonction pour lancer l'animation une fois que les conditions sont remplies
+            const launchAnimation = async () => {
+              if (homeDesign?.positions && treeBackgroundRef.current) {
+                console.log('✅ Conditions remplies pour animation depuis AsyncStorage');
+                
+                try {
+                  // Scroller vers le parcours pour le centrer
+                  const screenPosition = await treeBackgroundRef.current.scrollToPosition(parcoursOrder);
+                  
+                  if (screenPosition) {
+                    console.log('📱 Position écran pour animation depuis AsyncStorage:', screenPosition);
+                    
+                    // Attendre 300ms avant de lancer l'animation (cadenas visible pendant ce temps)
+                    console.log('⏳ Attente de 300ms avant de lancer l\'animation...');
+                    setTimeout(() => {
+                      console.log('🎬 Lancement de l\'animation depuis AsyncStorage après délai...');
+                      // Faire disparaître le cadenas ET lancer l'animation en même temps
+                      setHideLockParcoursOrder(parcoursOrder);
+                      setUnlockAnimation({
+                        isVisible: true,
+                        position: screenPosition,
+                        parcoursOrder: parcoursOrder
+                      });
+                    }, 300);
+                  } else {
+                    console.log('❌ Échec du scroll depuis AsyncStorage - position non trouvée');
+                    // Si le scroll échoue, annuler le marquage
+                    setPendingUnlockParcoursOrder(null);
+                  }
+                } catch (error) {
+                  console.error('❌ Erreur lors du scroll pour animation depuis AsyncStorage:', error);
+                  // Si le scroll échoue, annuler le marquage
+                  setPendingUnlockParcoursOrder(null);
+                }
+              } else {
+                console.log('❌ Conditions non remplies pour AsyncStorage, nouvelle tentative dans 50ms...');
+                // Réessayer après un court délai si les conditions ne sont pas encore remplies
+                setTimeout(launchAnimation, 50);
+              }
+            };
+            
+            // Lancer l'animation (avec retry automatique si nécessaire)
+            launchAnimation();
           } else {
-            console.log('📭 Aucune animation en attente');
+            console.log('📭 Aucune animation de déblocage en attente');
           }
         } catch (error) {
-          console.error('Erreur lors de la vérification de l\'animation de déblocage:', error);
+          console.error('❌ Erreur lors de la vérification des animations en attente:', error);
         }
       };
+
+      // Vérification immédiate puis avec un petit délai de sécurité
+      checkPendingUnlockAnimation();
+      const timeoutId = setTimeout(checkPendingUnlockAnimation, 100);
       
-      // Vérifier immédiatement si homeDesign est déjà disponible
-      if (homeDesign) {
-        checkForUnlockAnimation();
-      } else {
-        // Sinon attendre un peu que les données se chargent
-        setTimeout(checkForUnlockAnimation, 500);
-      }
-    }, [homeDesign, width])
+      return () => clearTimeout(timeoutId);
+    }, [homeDesign])
   );
 
   // Gérer la fin de l'animation de déblocage
@@ -397,12 +418,13 @@ export default function HomeScreen() {
     console.log('🔓 Animation de déblocage terminée');
     setUnlockAnimation(null);
     
-    // Maintenant on peut permettre le changement de design
+    // Maintenant on peut permettre le changement de design et réafficher le cadenas si nécessaire
     setPendingUnlockParcoursOrder(null);
+    setHideLockParcoursOrder(null);
     
-    // Rafraîchir seulement les données nécessaires sans rechargement complet
-    console.log('🔄 Rafraîchissement léger des données après animation');
-    // fetchTreeData(); // Commenté pour éviter le rechargement
+    // Rafraîchir les données pour mettre à jour le statut du parcours
+    console.log('🔄 Rafraîchissement des données après animation de déblocage');
+    fetchTreeData();
   };
 
   if (loading) {
@@ -433,11 +455,13 @@ export default function HomeScreen() {
           onClose={() => {
             setIsModalVisible(false);
             setSelectedParcoursId(null);
+            setSelectedParcoursOrder(null);
           }}
           parcoursId={selectedParcoursId}
           userId={user.uid}
           onUnlock={handleParcoursUnlock}
           parcoursTitle={homeDesign?.parcours?.[selectedParcoursId]?.titre}
+          parcoursOrder={selectedParcoursOrder || undefined}
         />
       )}
 
@@ -463,6 +487,7 @@ export default function HomeScreen() {
                     if (parcours.id) {
                       if (parcours.status === 'blocked') {
                         setSelectedParcoursId(parcours.id);
+                        setSelectedParcoursOrder(order);
                         setIsModalVisible(true);
                       } else {
                         handlePositionPress(positionId, order);
@@ -478,6 +503,7 @@ export default function HomeScreen() {
               currentLevel={currentLevel}
               allImagesData={allImagesData}
               pendingUnlockParcoursOrder={pendingUnlockParcoursOrder}
+              hideLockParcoursOrder={hideLockParcoursOrder}
               ref={treeBackgroundRef}
             />
           ) : (

@@ -7,8 +7,9 @@ interface ParcoursLockedModalProps {
   onClose: () => void;
   parcoursId: string;
   userId: string;
-  onUnlock: () => void;
+  onUnlock: (parcoursOrder: number) => void;
   parcoursTitle?: string;
+  parcoursOrder?: number;
 }
 
 const ParcoursLockedModal: React.FC<ParcoursLockedModalProps> = ({
@@ -17,7 +18,8 @@ const ParcoursLockedModal: React.FC<ParcoursLockedModalProps> = ({
   parcoursId,
   userId,
   onUnlock,
-  parcoursTitle
+  parcoursTitle,
+  parcoursOrder
 }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -46,15 +48,33 @@ const ParcoursLockedModal: React.FC<ParcoursLockedModalProps> = ({
       setLoading(true);
       setError(null);
       
+      console.log('🔓 Modal: Début du processus de déblocage');
+      console.log('📋 Modal: parcoursOrder =', parcoursOrder);
+      
+      // Marquer immédiatement le parcours comme en cours de déblocage AVANT le déblocage
+      if (parcoursOrder !== undefined) {
+        console.log('🔒 Modal: Marquage immédiat du parcours comme en cours de déblocage');
+        onUnlock(parcoursOrder);
+      } else {
+        console.log('❌ Modal: parcoursOrder est undefined, impossible de lancer l\'animation');
+        setLoading(false);
+        return;
+      }
+      
       const result = await ParcoursUnlockService.unlockParcoursWithDodji(userId, parcoursId);
       
       if (result.success) {
-        onUnlock();
+        console.log('🔓 Modal: Parcours débloqué avec succès');
+        
+        // Fermer le modal immédiatement
+        console.log('🚪 Modal: Fermeture du modal');
         onClose();
       } else {
+        console.log('❌ Modal: Échec du déblocage:', result.error);
         setError(result.error || "Une erreur est survenue");
       }
     } catch (err) {
+      console.log('❌ Modal: Erreur lors du déblocage:', err);
       setError("Une erreur est survenue lors du déblocage");
     } finally {
       setLoading(false);

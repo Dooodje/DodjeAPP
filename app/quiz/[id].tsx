@@ -613,20 +613,21 @@ export default function QuizPage() {
         }
       }
       
-      // Préparer les données pour l'animation seulement si on a un prochain parcours
+      // Préparer et sauvegarder les données pour l'animation AVANT de naviguer
       if (nextParcoursOrder) {
         const unlockData = {
           parcoursOrder: nextParcoursOrder,
           timestamp: Date.now()
         };
         
-        console.log('📦 Données de déblocage:', unlockData);
+        console.log('📦 Sauvegarde des données de déblocage AVANT navigation:', unlockData);
         
-        // Sauvegarder dans AsyncStorage pour React Native
+        // Sauvegarder dans AsyncStorage AVANT de fermer le quiz
         await AsyncStorage.setItem('pendingUnlockAnimation', JSON.stringify(unlockData));
+        console.log('✅ Données sauvegardées avec succès');
       }
       
-      // Fermer le quiz d'abord
+      // Maintenant fermer le quiz
       router.dismiss();
       
       // Puis fermer automatiquement la page parcours après 50ms
@@ -635,7 +636,7 @@ export default function QuizPage() {
       }, 50);
     } catch (error) {
       console.error('Erreur lors de la sauvegarde des données d\'animation:', error);
-      // Fallback: fermer le quiz et la page parcours
+      // Fallback: fermer le quiz et la page parcours même en cas d'erreur
       router.dismiss();
       setTimeout(() => {
         router.back();

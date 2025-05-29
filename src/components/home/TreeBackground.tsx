@@ -42,6 +42,8 @@ interface TreeBackgroundProps {
   }>;
   // Prop pour empêcher le changement de design prématuré
   pendingUnlockParcoursOrder?: number | null;
+  // Prop pour contrôler quand le cadenas doit disparaître
+  hideLockParcoursOrder?: number | null;
 }
 
 export interface TreeBackgroundRef {
@@ -58,7 +60,8 @@ const TreeBackground = forwardRef<TreeBackgroundRef, TreeBackgroundProps>(({
   currentSection,
   currentLevel,
   allImagesData,
-  pendingUnlockParcoursOrder
+  pendingUnlockParcoursOrder,
+  hideLockParcoursOrder
 }, ref) => {
   const [calculatedDimensions, setCalculatedDimensions] = useState({ width: 0, height: 0 });
   const [scrollViewHeight, setScrollViewHeight] = useState(screenHeight);
@@ -191,7 +194,7 @@ const TreeBackground = forwardRef<TreeBackgroundRef, TreeBackgroundProps>(({
         // Calculer la position réelle du parcours à l'écran après le scroll
         // Position du parcours = position absolue - position de scroll + marge horizontale
         const screenX = absoluteX - scrollX + horizontalMargin;
-        const screenY = absoluteY - scrollY - 15; // Ajustement pour centrer sur le cadenas
+        const screenY = absoluteY - scrollY - 25; // Ajustement pour centrer sur le cadenas
         
         console.log('📱 Position réelle du parcours à l\'écran:', { x: screenX, y: screenY });
         console.log('🔧 Marge horizontale appliquée:', horizontalMargin);
@@ -329,7 +332,7 @@ const TreeBackground = forwardRef<TreeBackgroundRef, TreeBackgroundProps>(({
             imageHeight={calculatedDimensions.height}
             containerWidth={scrollViewWidth}
             containerHeight={scrollViewHeight}
-            hideVector={pendingUnlockParcoursOrder !== null && position.order === pendingUnlockParcoursOrder}
+            hideVector={hideLockParcoursOrder !== null && position.order === hideLockParcoursOrder}
           />
         );
       })}
