@@ -120,9 +120,31 @@ export const TreeBackground = forwardRef<TreeBackgroundRef, TreeBackgroundProps>
       const absoluteX = (position.x * calculatedDimensions.width) / 100;
       const absoluteY = (position.y * calculatedDimensions.height) / 100;
 
+      // Calculer les limites de scroll
+      const maxScrollX = Math.max(0, calculatedDimensions.width - scrollViewDimensions.width);
+      const maxScrollY = Math.max(0, contentHeight - scrollViewDimensions.height);
+
       // Calculer la position de scroll pour centrer le parcours à l'écran
-      const scrollX = Math.max(0, absoluteX - (scrollViewDimensions.width / 2));
-      const scrollY = Math.max(0, absoluteY - (scrollViewDimensions.height / 2));
+      let targetScrollX = absoluteX - (scrollViewDimensions.width / 2);
+      let targetScrollY = absoluteY - (scrollViewDimensions.height / 2);
+
+      // Limiter le scroll dans les bornes valides
+      const scrollX = Math.max(0, Math.min(targetScrollX, maxScrollX));
+      const scrollY = Math.max(0, Math.min(targetScrollY, maxScrollY));
+
+      console.log('🎯 Calcul de position pour le parcours', order, {
+        absoluteX,
+        absoluteY,
+        targetScrollX,
+        targetScrollY,
+        scrollX,
+        scrollY,
+        maxScrollX,
+        maxScrollY,
+        scrollViewDimensions,
+        calculatedDimensions,
+        horizontalMargin
+      });
 
       // Scroller vers la position
       scrollViewRef.current.scrollTo({ 
@@ -134,8 +156,34 @@ export const TreeBackground = forwardRef<TreeBackgroundRef, TreeBackgroundProps>
       // Attendre que le scroll soit terminé avant de retourner la position écran
       setTimeout(() => {
         // Calculer la position réelle du parcours à l'écran après le scroll
-        const screenX = absoluteX - scrollX + horizontalMargin;
+        // La position écran = position absolue - position de scroll + marge horizontale
+        // Mais il faut tenir compte que l'image est centrée avec marginHorizontal
+        const imageStartX = horizontalMargin; // Position de début de l'image à l'écran
+        const relativeXOnImage = absoluteX - scrollX; // Position relative sur l'image visible
+        
+        // Ajouter un petit décalage vers la droite pour les parcours à droite de l'écran
+        const isRightSide = position.x > 50; // Si le parcours est à plus de 50% vers la droite
+        const rightSideOffset = isRightSide ? 12 : 0; // Décalage de 15px vers la droite
+        
+        const screenX = imageStartX + relativeXOnImage + rightSideOffset;
         const screenY = absoluteY - scrollY - 25; // Ajustement pour centrer sur le cadenas
+        
+        console.log('📍 Position écran finale calculée:', {
+          screenX,
+          screenY,
+          absoluteX,
+          absoluteY,
+          scrollX,
+          scrollY,
+          horizontalMargin,
+          imageStartX,
+          relativeXOnImage,
+          isRightSide,
+          rightSideOffset,
+          positionXPercent: position.x,
+          calculatedDimensions,
+          scrollViewDimensions
+        });
         
         resolve({ x: screenX, y: screenY });
       }, 500); // Attendre 500ms pour que l'animation de scroll soit terminée
