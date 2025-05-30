@@ -12,6 +12,7 @@ import { useFonts } from 'expo-font';
 import * as SplashScreen from 'expo-splash-screen';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AnimationProvider } from '../src/contexts/AnimationContext';
+import { PreopeningProvider } from '../src/contexts/PreopeningContext';
 
 // Ignorer des avertissements spécifiques pour éviter les erreurs dans la console
 LogBox.ignoreLogs([
@@ -164,11 +165,13 @@ export default function RootLayout() {
       <Provider store={store}>
         <PersistGate loading={renderLoading()} persistor={persistor}>
           <QueryClientProvider client={queryClient}>
-            <AnimationProvider>
-              <SafeAreaProvider>
-                <RootLayoutNav />
-              </SafeAreaProvider>
-            </AnimationProvider>
+            <PreopeningProvider>
+              <AnimationProvider>
+                <SafeAreaProvider>
+                  <RootLayoutNav />
+                </SafeAreaProvider>
+              </AnimationProvider>
+            </PreopeningProvider>
           </QueryClientProvider>
         </PersistGate>
       </Provider>

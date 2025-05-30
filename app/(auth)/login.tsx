@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, StyleSheet, Text, Dimensions, TouchableOpacity, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
 import { Link, router } from 'expo-router';
 import { useForm } from 'react-hook-form';
 import { yupResolver } from '@hookform/resolvers/yup';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Input } from '../../src/components/ui';
 import { useAuth } from '../../src/hooks/useAuth';
 import { loginSchema } from '../../src/utils/validation';
@@ -14,22 +15,63 @@ interface LoginForm {
   password: string;
 }
 
+const REMEMBER_ME_KEY = 'rememberMe';
+const SAVED_CREDENTIALS_KEY = 'savedCredentials';
+
 export default function LoginScreen() {
   const windowWidth = Dimensions.get('window').width;
   const windowHeight = Dimensions.get('window').height;
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [rememberMe, setRememberMe] = useState(false);
   const { login } = useAuth();
 
-  const { control, handleSubmit } = useForm<LoginForm>({
+  const { control, handleSubmit, setValue } = useForm<LoginForm>({
     resolver: yupResolver(loginSchema),
   });
+
+  // Charger les identifiants sauvegardés au démarrage
+  useEffect(() => {
+    const loadSavedCredentials = async () => {
+      try {
+        const rememberMeValue = await AsyncStorage.getItem(REMEMBER_ME_KEY);
+        if (rememberMeValue === 'true') {
+          setRememberMe(true);
+          const savedCredentials = await AsyncStorage.getItem(SAVED_CREDENTIALS_KEY);
+          if (savedCredentials) {
+            const { email, password } = JSON.parse(savedCredentials);
+            setValue('email', email);
+            setValue('password', password);
+          }
+        }
+      } catch (error) {
+        console.error('Erreur lors du chargement des identifiants:', error);
+      }
+    };
+
+    loadSavedCredentials();
+  }, [setValue]);
 
   const onSubmit = async (data: LoginForm) => {
     try {
       setIsLoading(true);
       setError(null);
+      
+      // Connexion normale
       await login(data.email, data.password);
+      
+      // Gérer la sauvegarde des identifiants
+      if (rememberMe) {
+        await AsyncStorage.setItem(REMEMBER_ME_KEY, 'true');
+        await AsyncStorage.setItem(SAVED_CREDENTIALS_KEY, JSON.stringify({
+          email: data.email,
+          password: data.password
+        }));
+      } else {
+        await AsyncStorage.removeItem(REMEMBER_ME_KEY);
+        await AsyncStorage.removeItem(SAVED_CREDENTIALS_KEY);
+      }
+      
       router.replace('/(tabs)');
     } catch (err) {
       if (err instanceof Error && err.message.includes('auth/invalid-credential')) {
@@ -89,6 +131,16 @@ export default function LoginScreen() {
                 style={styles.input}
               />
             </View>
+
+            <TouchableOpacity 
+              style={styles.rememberMeContainer}
+              onPress={() => setRememberMe(!rememberMe)}
+            >
+              <View style={[styles.checkbox, rememberMe && styles.checkboxChecked]}>
+                {rememberMe && <Ionicons name="checkmark" size={16} color="#FFFFFF" />}
+              </View>
+              <Text style={styles.rememberMeText}>Rester connecté</Text>
+            </TouchableOpacity>
 
             {error && <Text style={styles.error}>{error}</Text>}
 
@@ -178,5 +230,27 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#FF0000',
     textAlign: 'center',
+  },
+  rememberMeContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  checkbox: {
+    width: 20,
+    height: 20,
+    borderRadius: 5,
+    borderWidth: 1,
+    borderColor: '#FFFFFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 10,
+  },
+  checkboxChecked: {
+    backgroundColor: '#9BEC00',
+  },
+  rememberMeText: {
+    color: '#FFFFFF',
+    fontFamily: 'Arboria-Book',
+    fontSize: 14,
   },
 }); 

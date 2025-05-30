@@ -5,6 +5,7 @@ import { Section, Level } from '../types/home';
 import { VideoStatusService } from '../services/businessLogic/VideoStatusService';
 import { UserVideo } from '../types/video';
 import { useAuth } from './useAuth';
+import { usePreopeningContext } from '../contexts/PreopeningContext';
 
 // Constantes pour toutes les sections et niveaux
 const ALL_SECTIONS: Section[] = ['Bourse', 'Crypto'];
@@ -45,7 +46,8 @@ export const pendingUserDataKeys = new Set<string>();
  * Lance d'abord les données statiques, puis complète avec les données utilisateur
  */
 export function usePreloadCache() {
-  const { user } = useAuth();
+  const { user, isLoading: authLoading } = useAuth();
+  const { isPreopeningComplete } = usePreopeningContext();
   const [isLoading, setIsLoading] = useState(true);
   const [loadedDataCount, setLoadedDataCount] = useState(0);
   const [loadedImagesCount, setLoadedImagesCount] = useState(0);
@@ -225,16 +227,23 @@ export function usePreloadCache() {
     console.log('🔍 PreloadCache: loadUserData appelée avec:', {
       userId,
       staticDataLoaded,
+      isPreopeningComplete,
       'pendingUserDataKeys.size': pendingUserDataKeys.size,
       'pendingKeys': Array.from(pendingUserDataKeys)
     });
+    
+    // CONDITION PRINCIPALE: Attendre que le preopening soit complètement terminé
+    if (!isPreopeningComplete) {
+      console.log('⏳ PreloadCache: En attente de la fin du preopening avant de créer les listeners utilisateur...');
+      return;
+    }
     
     if (!staticDataLoaded || pendingUserDataKeys.size === 0) {
       console.log('📦 PreloadCache: Pas de données utilisateur à charger ou données statiques pas prêtes');
       return;
     }
 
-    console.log(`🚀 PreloadCache: Début du chargement des données UTILISATEUR pour ${pendingUserDataKeys.size} combinaisons...`);
+    console.log(`🚀 PreloadCache: Preopening terminé - Début du chargement des données UTILISATEUR pour ${pendingUserDataKeys.size} combinaisons...`);
     
     const newUnsubscribeFunctions = new Map<string, () => void>();
     const videoUnsubscribeFunctions = new Map<string, () => void>();
@@ -337,7 +346,7 @@ export function usePreloadCache() {
     });
     
     console.log(`🎉 PreloadCache: Listeners utilisateur configurés pour ${newUnsubscribeFunctions.size} combinaisons`);
-  }, [staticDataLoaded, pendingUserDataKeys]);
+  }, [staticDataLoaded, pendingUserDataKeys, isPreopeningComplete]);
 
   // Démarrer le chargement des données statiques immédiatement
   useEffect(() => {
@@ -350,16 +359,30 @@ export function usePreloadCache() {
     loadStaticData();
   }, [loadStaticData]);
 
-  // Compléter avec les données utilisateur quand l'utilisateur est disponible
+  // Compléter avec les données utilisateur quand l'utilisateur est disponible ET le preopening terminé
   useEffect(() => {
     console.log('🔍 PreloadCache: Vérification des conditions pour charger les données utilisateur:', {
+      'authLoading': authLoading,
       'user?.uid': user?.uid,
       'staticDataLoaded': staticDataLoaded,
+      'isPreopeningComplete': isPreopeningComplete,
       'pendingUserDataKeys.size': pendingUserDataKeys.size
     });
     
+    // Attendre que l'authentification soit complètement terminée
+    if (authLoading) {
+      console.log('🔐 PreloadCache: Authentification en cours, attente...');
+      return;
+    }
+    
+    // CONDITION PRINCIPALE: Attendre que le preopening soit complètement terminé
+    if (!isPreopeningComplete) {
+      console.log('⏳ PreloadCache: En attente de la fin du preopening avant de charger les données utilisateur...');
+      return;
+    }
+    
     if (user?.uid && staticDataLoaded && pendingUserDataKeys.size > 0) {
-      console.log('👤 PreloadCache: Utilisateur connecté, chargement des données utilisateur...');
+      console.log('👤 PreloadCache: Preopening terminé, utilisateur connecté et authentification complète, chargement des données utilisateur...');
       loadUserData(user.uid);
     } else {
       if (!user?.uid) {
@@ -372,7 +395,7 @@ export function usePreloadCache() {
         console.log('✅ PreloadCache: Toutes les données utilisateur sont déjà chargées');
       }
     }
-  }, [user?.uid, staticDataLoaded, loadUserData, pendingUserDataKeys.size]);
+  }, [user?.uid, authLoading, staticDataLoaded, loadUserData, pendingUserDataKeys.size, isPreopeningComplete]);
 
   // Calculer le pourcentage de progression
   const totalItems = ALL_SECTIONS.length * ALL_LEVELS.length;

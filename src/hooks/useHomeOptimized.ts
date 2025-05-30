@@ -8,6 +8,7 @@ import {
   setCurrentLevel
 } from '../store/slices/homeSlice';
 import { useAuth } from './useAuth';
+import { usePreopeningContext } from '../contexts/PreopeningContext';
 import { Section, Level } from '../types/home';
 import { useUserStats } from './queries/useHomeQueries';
 import { homeService } from '../services/home';
@@ -62,7 +63,8 @@ interface ImageCacheEntry {
  */
 export function useHomeOptimized() {
   const dispatch = useDispatch();
-  const { user } = useAuth();
+  const { user, isLoading: authLoading } = useAuth();
+  const { isPreopeningComplete } = usePreopeningContext();
   
   // État Redux pour la section et le niveau actuels
   const { currentSection, currentLevel } = useSelector((state: RootState) => state.home);
@@ -286,7 +288,21 @@ export function useHomeOptimized() {
 
   // Initialiser le cache en utilisant les données préchargées et en complétant ce qui manque
   useEffect(() => {
-    console.log('🚀 Initialisation du cache optimisé avec données préchargées...');
+    // CONDITION PRINCIPALE: Attendre que le preopening soit complètement terminé
+    if (!isPreopeningComplete) {
+      console.log('⏳ useHomeOptimized: En attente de la fin du preopening avant de créer les listeners...');
+      return;
+    }
+
+    // Attendre que l'authentification soit complètement terminée
+    if (authLoading) {
+      console.log('🔐 useHomeOptimized: Authentification en cours, attente avant initialisation des listeners...');
+      return;
+    }
+
+    console.log('🚀 useHomeOptimized: Preopening terminé et authentification complète - Initialisation du cache optimisé avec données préchargées...');
+    console.log(`👤 État utilisateur: ${user ? `connecté (${user.uid})` : 'non connecté'}`);
+    
     setIsInitialLoading(true);
     setIsImagesLoading(true);
     setLoadedCount(0);
@@ -358,6 +374,9 @@ export function useHomeOptimized() {
       console.log('👤 Pas d\'utilisateur connecté, utilisation des données statiques uniquement');
       return;
     }
+
+    // IMPORTANT: Créer des listeners seulement si l'authentification est complète
+    console.log('🔐 Authentification complète, création des listeners Firestore...');
 
     // Créer des listeners seulement pour ce qui manque vraiment (avec utilisateur connecté)
     const newUnsubscribeFunctions = new Map<string, () => void>();
@@ -460,7 +479,7 @@ export function useHomeOptimized() {
       }
     });
 
-    // 2. Créer des listeners pour les données préchargées qui ont besoin de données utilisateur
+    // 2. NOUVEAU: Créer des listeners pour TOUTES les données préchargées pour assurer les mises à jour temps réel
     let userDataListenersCreated = 0;
     if (user?.uid) {
       ALL_SECTIONS.forEach(section => {
@@ -468,9 +487,9 @@ export function useHomeOptimized() {
           const key = getCacheKey(section, level);
           const preloadedData = globalStaticDataCache.get(key);
           
-          // Si les données sont préchargées mais ont besoin de données utilisateur
-          if (preloadedData && preloadedData.needsUserData) {
-            console.log(`👤 Création d'un listener pour compléter ${section} - ${level} avec données utilisateur`);
+          // Créer un listener pour TOUTES les données préchargées (pas seulement celles qui ont besoin de données utilisateur)
+          if (preloadedData) {
+            console.log(`🔄 Création d'un listener temps réel pour ${section} - ${level} (données préchargées)`);
             
             try {
               const unsubscribe = homeService.observeHomeDesignWithParcours(
@@ -478,7 +497,7 @@ export function useHomeOptimized() {
                 level,
                 user.uid,
                 (data: CachedData) => {
-                  console.log(`✅ Données utilisateur chargées pour ${section} - ${level} (completion des données préchargées)`);
+                  console.log(`🔄 Mise à jour temps réel pour ${section} - ${level}`);
                   
                   // Enrichir les données avec les informations de vidéos
                   const enrichedData = { 
@@ -555,10 +574,10 @@ export function useHomeOptimized() {
                 }
               );
 
-              newUnsubscribeFunctions.set(`user-${key}`, unsubscribe);
+              newUnsubscribeFunctions.set(`realtime-${key}`, unsubscribe);
               userDataListenersCreated++;
             } catch (error) {
-              console.error(`❌ Erreur lors de l'initialisation des données utilisateur pour ${key}:`, error);
+              console.error(`❌ Erreur lors de l'initialisation des listeners temps réel pour ${key}:`, error);
             }
           }
         });
@@ -569,7 +588,7 @@ export function useHomeOptimized() {
     setUnsubscribeFunctions(newUnsubscribeFunctions);
 
     console.log(`📊 Résumé: ${listenersCreated} listeners créés pour les données manquantes`);
-    console.log(`👤 ${userDataListenersCreated} listeners créés pour compléter les données utilisateur`);
+    console.log(`🔄 ${userDataListenersCreated} listeners temps réel créés pour les données préchargées`);
     console.log(`⏳ En attente de completion: ${pendingUserDataKeys.size} combinaisons`);
 
     // Fonction de nettoyage
@@ -591,7 +610,7 @@ export function useHomeOptimized() {
         }
       });
     };
-  }, [user?.uid, getCacheKey, preloadImageWithDimensions]); // Dépendance sur user.uid pour relancer quand l'utilisateur change
+  }, [user?.uid, getCacheKey, preloadImageWithDimensions, authLoading, isPreopeningComplete]); // Ajout de isPreopeningComplete
 
   // Calculer l'état de chargement global (données + images)
   const isLoading = userStatsLoading || isInitialLoading || isImagesLoading;

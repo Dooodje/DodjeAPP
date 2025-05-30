@@ -356,10 +356,19 @@ export const authService = {
   // Déconnexion
   async logout(): Promise<void> {
     try {
+      console.log('🚪 Début de la déconnexion complète...');
+      
+      // 1. Déconnexion Firebase
       await signOut(auth);
-      await AsyncStorage.removeItem(STORAGE_KEYS.USER);
+      console.log('✅ Déconnexion Firebase réussie');
+      
+      // 2. Vider AsyncStorage complètement
+      await AsyncStorage.clear();
+      console.log('✅ AsyncStorage vidé');
+      
+      console.log('🎉 Déconnexion complète terminée');
     } catch (error) {
-      console.error('Erreur lors de la déconnexion:', error);
+      console.error('❌ Erreur lors de la déconnexion:', error);
       throw error;
     }
   },

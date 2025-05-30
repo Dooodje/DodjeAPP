@@ -8,6 +8,11 @@ import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { auth, db } from '@/config/firebase';
 import { ParcoursInitializationService } from '@/services/businessLogic/ParcoursInitializationService';
 import { UserInitializationService } from '@/services/businessLogic/UserInitializationService';
+import { 
+  globalStaticDataCache, 
+  globalImageCache, 
+  pendingUserDataKeys 
+} from './usePreloadCache';
 
 // Durée de vie d'un token (en millisecondes) - 45 minutes
 // Note: Firebase ID tokens expirent après 1 heure, mais on rafraîchit 15 minutes avant
@@ -47,8 +52,22 @@ export const useAuth = () => {
         tokenCheckTimerRef.current = null;
       }
       
+      // Déconnexion via le service d'authentification
       await authService.logout();
       console.log('Déconnexion réussie');
+      
+      // Vider les caches globaux
+      try {
+        globalStaticDataCache.clear();
+        globalImageCache.clear();
+        pendingUserDataKeys.clear();
+        console.log('✅ Caches globaux vidés lors de la déconnexion');
+      } catch (cacheError) {
+        console.warn('⚠️ Erreur lors du vidage des caches globaux:', cacheError);
+        // Ne pas bloquer la déconnexion si le vidage des caches échoue
+      }
+      
+      // Mettre à jour l'état Redux
       dispatch(setUser(null));
       setTokenValid(false);
       setLastError(null);

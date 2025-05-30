@@ -2,6 +2,8 @@ import { useQuery } from '@tanstack/react-query';
 import { useEffect, useState, useRef } from 'react';
 import { getHomeDesignWithParcours, homeService } from '../../services/home';
 import { Section, Level } from '../../types/home';
+import { useAuth } from '../useAuth';
+import { usePreopeningContext } from '../../contexts/PreopeningContext';
 
 // Clés de requête pour la gestion du cache
 export const HOME_QUERY_KEYS = {
@@ -93,20 +95,35 @@ export function useHomeDesign(section: Section, level: Level, userId?: string) {
  * Hook pour observer les statistiques utilisateur en temps réel
  */
 export function useUserStats(userId?: string) {
+  const { isLoading: authLoading } = useAuth();
+  const { isPreopeningComplete } = usePreopeningContext();
   const [data, setData] = useState<{ streak: number; dodji: number } | undefined>(undefined);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
   const unsubscribeRef = useRef<(() => void) | null>(null);
 
   useEffect(() => {
+    // CONDITION PRINCIPALE: Attendre que le preopening soit complètement terminé
+    if (!isPreopeningComplete) {
+      console.log('⏳ useUserStats: En attente de la fin du preopening avant de créer les listeners...');
+      return;
+    }
+
+    // Attendre que l'authentification soit complètement terminée
+    if (authLoading) {
+      console.log('🔐 useUserStats: Authentification en cours, attente...');
+      return;
+    }
+
     if (!userId) {
+      console.log('👤 useUserStats: Aucun utilisateur connecté');
       setData(undefined);
       setIsLoading(false);
       setError(null);
       return;
     }
 
-    console.log(`🔄 Configuration du listener pour les statistiques de l'utilisateur ${userId}`);
+    console.log(`🔄 useUserStats: Preopening terminé - Configuration du listener pour les statistiques de l'utilisateur ${userId}`);
     
     setIsLoading(true);
     setError(null);
@@ -120,7 +137,7 @@ export function useUserStats(userId?: string) {
     try {
       // Configurer le listener temps réel pour les statistiques
       const unsubscribe = homeService.observeUserStats(userId, (stats) => {
-        console.log(`✅ Statistiques utilisateur mises à jour:`, stats);
+        console.log(`✅ useUserStats: Statistiques utilisateur mises à jour:`, stats);
         setData(stats);
         setIsLoading(false);
         setError(null);
@@ -128,7 +145,7 @@ export function useUserStats(userId?: string) {
 
       unsubscribeRef.current = unsubscribe;
     } catch (err) {
-      console.error('Erreur lors de la configuration du listener des statistiques:', err);
+      console.error('useUserStats: Erreur lors de la configuration du listener des statistiques:', err);
       setError(err instanceof Error ? err : new Error('Erreur inconnue'));
       setIsLoading(false);
     }
@@ -136,18 +153,18 @@ export function useUserStats(userId?: string) {
     // Fonction de nettoyage
     return () => {
       if (unsubscribeRef.current) {
-        console.log('🧹 Nettoyage du listener useUserStats');
+        console.log('🧹 useUserStats: Nettoyage du listener');
         unsubscribeRef.current();
         unsubscribeRef.current = null;
       }
     };
-  }, [userId]);
+  }, [userId, authLoading, isPreopeningComplete]);
 
   // Nettoyer lors du démontage du composant
   useEffect(() => {
     return () => {
       if (unsubscribeRef.current) {
-        console.log('🧹 Nettoyage final du listener useUserStats');
+        console.log('🧹 useUserStats: Nettoyage final du listener');
         unsubscribeRef.current();
         unsubscribeRef.current = null;
       }

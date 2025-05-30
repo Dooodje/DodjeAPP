@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, StyleSheet, ScrollView, Linking } from 'react-native';
+import { View, StyleSheet, ScrollView, Linking, TouchableOpacity, Text } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SettingsHeader } from '../components/settings/SettingsHeader';
 import { SettingsSection } from '../components/settings/SettingsSection';
@@ -11,10 +11,12 @@ import { TokensCard } from '../components/settings/TokensCard';
 import { useSettings } from '../hooks/useSettings';
 import { useAuth } from '../hooks/useAuth';
 import { Alert } from 'react-native';
+import { MaterialIcons } from '@expo/vector-icons';
+import { persistor } from '../store';
 
 export default function SettingsPage() {
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const {
     settings,
     isLoading,
@@ -50,6 +52,39 @@ export default function SettingsPage() {
   const openWebLink = (url: string) => {
     Linking.openURL(url).catch((err) => 
       Alert.alert('Erreur', 'Impossible d\'ouvrir le lien')
+    );
+  };
+
+  const handleLogout = () => {
+    Alert.alert(
+      'Déconnexion',
+      'Êtes-vous sûr de vouloir vous déconnecter ?',
+      [
+        {
+          text: 'Annuler',
+          style: 'cancel',
+        },
+        {
+          text: 'Se déconnecter',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              // 1. Purger le store Redux persisté
+              await persistor.purge();
+              console.log('✅ Store Redux persisté purgé');
+              
+              // 2. Déconnexion complète (vide AsyncStorage et caches)
+              await logout();
+              
+              // 3. Redirection vers opening
+              // @ts-ignore - expo-router path
+              router.replace('/opening');
+            } catch (error) {
+              Alert.alert('Erreur', 'Impossible de se déconnecter. Veuillez réessayer.');
+            }
+          },
+        },
+      ]
     );
   };
 
@@ -205,6 +240,14 @@ export default function SettingsPage() {
             showChevron
           />
         </SettingsSection>
+
+        {/* Bouton de déconnexion */}
+        <View style={styles.logoutContainer}>
+          <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
+            <MaterialIcons name="logout" size={24} color="#FF4444" />
+            <Text style={styles.logoutText}>Se déconnecter</Text>
+          </TouchableOpacity>
+        </View>
       </ScrollView>
     </View>
   );
@@ -218,5 +261,27 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
     padding: 16,
+  },
+  logoutContainer: {
+    marginTop: 32,
+    marginBottom: 32,
+    paddingHorizontal: 16,
+  },
+  logoutButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255, 68, 68, 0.1)',
+    borderWidth: 1,
+    borderColor: '#FF4444',
+    borderRadius: 12,
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    gap: 12,
+  },
+  logoutText: {
+    color: '#FF4444',
+    fontSize: 16,
+    fontWeight: '600',
   },
 }); 

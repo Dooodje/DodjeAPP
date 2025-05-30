@@ -18,6 +18,7 @@ import { LogoLoadingSpinner } from '../../src/components/ui/LogoLoadingSpinner';
 import { AnimationDeblocageParcours } from '../../src/components/AnimationDeblocageParcours';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useLoading } from '../../src/contexts/LoadingContext';
+import { usePreopeningContext } from '../../src/contexts/PreopeningContext';
 
 const LEVELS: Level[] = ['Débutant', 'Avancé', 'Expert'];
 const { width, height } = Dimensions.get('screen');
@@ -121,6 +122,7 @@ export default function HomeScreen() {
   const { user } = useAuth();
   const router = useRouter();
   const queryClient = useQueryClient();
+  const { isPreopeningComplete } = usePreopeningContext();
   
   // Utiliser le contexte de chargement global
   const { isInitialLoading, setIsInitialLoading } = useLoading();
@@ -156,6 +158,39 @@ export default function HomeScreen() {
 
   // Memoized current level index
   const currentLevelIndex = useMemo(() => LEVELS.indexOf(currentLevel), [currentLevel]);
+
+  // NOUVELLE LOGIQUE: Forcer la création des listeners comme dans login.tsx
+  useEffect(() => {
+    // Si l'utilisateur est connecté et le preopening terminé, forcer la synchronisation
+    if (user && isPreopeningComplete) {
+      console.log('🚀 index.tsx: Utilisateur connecté et preopening terminé - Force la synchronisation des données');
+      
+      // Invalider les queries pour forcer un rechargement
+      queryClient.invalidateQueries({ queryKey: ['homeDesign'] });
+      queryClient.invalidateQueries({ queryKey: ['userStats'] });
+      
+      // Forcer le rechargement des données
+      fetchTreeData();
+    }
+  }, [user, isPreopeningComplete, queryClient, fetchTreeData]);
+
+  // Charger les données au premier rendu et gérer le chargement initial
+  useEffect(() => {
+    const initializeApp = async () => {
+      // Activer le chargement global
+      setIsInitialLoading(true);
+      
+      // ⚠️ NE PAS appeler fetchTreeData() ici - cela interfère avec la synchronisation du preopening
+      // Les listeners Firestore seront créés automatiquement par useHomeOptimized une fois le preopening terminé
+      
+      // Attendre 3 secondes pour la page de chargement
+      setTimeout(() => {
+        setIsInitialLoading(false);
+      }, 3000);
+    };
+
+    initializeApp();
+  }, [setIsInitialLoading]); // Retirer fetchTreeData des dépendances
 
   // Gérer le changement de niveau avec animation
   const handleLevelChange = useCallback((direction: 'next' | 'prev') => {
@@ -208,24 +243,6 @@ export default function HomeScreen() {
       transform: [{ translateX: translateX.value }],
     };
   });
-
-  // Charger les données au premier rendu et gérer le chargement initial
-  useEffect(() => {
-    const initializeApp = async () => {
-      // Activer le chargement global
-      setIsInitialLoading(true);
-      
-      // Lancer le chargement des données en arrière-plan
-      fetchTreeData();
-      
-      // Attendre 3 secondes pour la page de chargement
-      setTimeout(() => {
-        setIsInitialLoading(false);
-      }, 3000);
-    };
-
-    initializeApp();
-  }, [fetchTreeData, setIsInitialLoading]);
 
   // Fonction pour gérer le changement de section (Bourse/Crypto)
   const handleSectionChange = useCallback((section: Section) => {
