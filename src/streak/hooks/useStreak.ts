@@ -3,6 +3,16 @@ import { useAuth } from '../../hooks/useAuth';
 import { StreakService } from '../services/StreakService';
 import { StreakData, StreakModalData } from '../types';
 
+// Import du contexte FirstConnection pour éviter les conflits de modals
+let useFirstConnection: (() => { showQuestionnaire: boolean }) | null = null;
+try {
+  const firstConnectionModule = require('../../../app/contexts/FirstConnectionContext');
+  useFirstConnection = firstConnectionModule.useFirstConnection;
+} catch (error) {
+  // Le contexte n'est pas disponible, on continue sans
+  console.log('FirstConnectionContext non disponible dans useStreak');
+}
+
 // Cache global pour éviter les vérifications multiples entre différentes instances du hook
 let globalEligibilityCache: {
   userId: string | null;
@@ -36,6 +46,17 @@ export const useStreak = () => {
   const previousUserRef = useRef<string | null>(null);
   const hasCheckedForNewLoginRef = useRef(false);
   const isCheckingEligibilityRef = useRef(false); // Protection contre les appels multiples
+
+  // Vérifier si le questionnaire de première connexion est visible
+  let isQuestionnaireVisible = false;
+  try {
+    if (useFirstConnection) {
+      const firstConnectionContext = useFirstConnection();
+      isQuestionnaireVisible = firstConnectionContext.showQuestionnaire;
+    }
+  } catch (error) {
+    // Ignorer l'erreur si le contexte n'est pas disponible
+  }
 
   /**
    * Vérifie si le cache global est valide pour l'utilisateur actuel
@@ -107,8 +128,8 @@ export const useStreak = () => {
         console.log('🎯 useStreak: - todayReward:', result.todayReward);
         console.log('🎯 useStreak: - totalDodjiEarned:', result.totalDodjiEarned);
         
-        // Vérifier qu'aucun modal n'est déjà affiché
-        if (!modalData.visible) {
+        // Vérifier qu'aucun modal n'est déjà affiché ET que le questionnaire n'est pas visible
+        if (!modalData.visible && !isQuestionnaireVisible) {
           const newModalData = {
             visible: true,
             streakCount: result.currentStreak,
@@ -120,7 +141,11 @@ export const useStreak = () => {
           console.log('🎯 useStreak: Données du modal à afficher:', newModalData);
           setModalData(newModalData);
         } else {
-          console.log('🎯 useStreak: Modal déjà visible, ignoré');
+          if (isQuestionnaireVisible) {
+            console.log('🎯 useStreak: Questionnaire de première connexion visible, modal de streak reporté');
+          } else {
+            console.log('🎯 useStreak: Modal déjà visible, ignoré');
+          }
         }
       } else {
         console.log('🎯 useStreak: ❌ CONDITIONS NON REMPLIES - Pas de modal à afficher');

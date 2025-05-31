@@ -19,6 +19,15 @@ import { LogoDodjeBlanc } from '../../components/LogoDodjeBlanc';
 import { useAnimation } from '../../contexts/AnimationContext';
 import { useUserStreak } from '../../hooks/useUserStreak';
 
+// Import du contexte FirstConnection pour éviter les conflits de modals
+let useFirstConnection: (() => { showQuestionnaire: boolean }) | null = null;
+try {
+  const firstConnectionModule = require('../../../app/contexts/FirstConnectionContext');
+  useFirstConnection = firstConnectionModule.useFirstConnection;
+} catch (error) {
+  // Le contexte n'est pas disponible, on continue sans
+}
+
 interface StreakModalProps {
   modalData: StreakModalData;
   onClose: () => void;
@@ -147,6 +156,17 @@ export const StreakModal: React.FC<StreakModalProps> = ({ modalData, onClose, on
   const { startFlyingDodjisAnimation } = useAnimation();
   const { refreshStreak } = useUserStreak();
   
+  // Vérifier si le questionnaire de première connexion est visible
+  let isQuestionnaireVisible = false;
+  try {
+    if (useFirstConnection) {
+      const firstConnectionContext = useFirstConnection();
+      isQuestionnaireVisible = firstConnectionContext.showQuestionnaire;
+    }
+  } catch (error) {
+    // Ignorer l'erreur si le contexte n'est pas disponible
+  }
+
   React.useEffect(() => {
     console.log('🎭 StreakModal: Données reçues:', modalData);
     
@@ -163,6 +183,12 @@ export const StreakModal: React.FC<StreakModalProps> = ({ modalData, onClose, on
       scaleValue.setValue(0);
     }
   }, [modalData.visible, scaleValue]);
+
+  // Ne pas afficher le modal si le questionnaire de première connexion est visible
+  if (isQuestionnaireVisible) {
+    console.log('🎭 StreakModal: Questionnaire de première connexion visible, modal masqué');
+    return null;
+  }
 
   const handleClose = () => {
     console.log('🎭 StreakModal: Fermeture demandée');
@@ -366,6 +392,8 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,
+    zIndex: 5000,
+    elevation: 5000,
   },
   modalContainer: {
     backgroundColor: '#0A0400',
@@ -376,6 +404,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderWidth: 1,
     borderColor: 'rgba(155, 236, 0, 0.3)',
+    zIndex: 5001,
+    elevation: 5001,
   },
   iconContainer: {
     alignItems: 'center',

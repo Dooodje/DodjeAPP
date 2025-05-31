@@ -33,6 +33,9 @@ export default function RegisterScreen() {
       // Générer un nom d'utilisateur temporaire à partir de l'email
       const tempUsername = data.email.split('@')[0];
       await register(data.email, data.password, tempUsername);
+      
+      // Ne pas rediriger immédiatement - laisser le questionnaire s'afficher
+      // La redirection se fera après la completion du questionnaire via le FirstConnectionContext
       router.replace('/(tabs)');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Une erreur est survenue lors de l\'inscription');

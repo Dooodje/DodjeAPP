@@ -179,7 +179,7 @@ const styles = StyleSheet.create({
     bottom: 0,
     width: width,
     height: height,
-    zIndex: 999998, // Z-index élevé mais légèrement inférieur aux Dodjis volants
+    zIndex: 5000, // Z-index élevé mais légèrement inférieur aux Dodjis volants
   },
   overlay: {
     flex: 1,

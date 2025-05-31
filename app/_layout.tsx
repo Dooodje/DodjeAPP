@@ -13,6 +13,8 @@ import * as SplashScreen from 'expo-splash-screen';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AnimationProvider } from '../src/contexts/AnimationContext';
 import { PreopeningProvider } from '../src/contexts/PreopeningContext';
+import { FirstConnectionProvider } from './contexts/FirstConnectionContext';
+import FirstConnectionWrapper from './components/FirstConnectionWrapper';
 
 // Ignorer des avertissements spécifiques pour éviter les erreurs dans la console
 LogBox.ignoreLogs([
@@ -167,9 +169,13 @@ export default function RootLayout() {
           <QueryClientProvider client={queryClient}>
             <PreopeningProvider>
               <AnimationProvider>
-                <SafeAreaProvider>
-                  <RootLayoutNav />
-                </SafeAreaProvider>
+                <FirstConnectionProvider>
+                  <SafeAreaProvider>
+                    <FirstConnectionWrapper>
+                      <RootLayoutNav />
+                    </FirstConnectionWrapper>
+                  </SafeAreaProvider>
+                </FirstConnectionProvider>
               </AnimationProvider>
             </PreopeningProvider>
           </QueryClientProvider>
