@@ -77,6 +77,8 @@ export class ProfileService {
       return {
         id: userDoc.id,
         displayName: data.displayName || '',
+        name: data.name || '',
+        sexe: data.sexe || undefined,
         avatarUrl: data.avatarUrl || '',
         streak: data.streak || 0,
         lastLoginDate: processDate(data.lastLoginDate),
@@ -263,6 +265,7 @@ export class ProfileService {
 
       const newProfile: Omit<UserProfile, 'id'> = {
         displayName,
+        name: displayName,
         streak: 0,
         lastLoginDate: nowDate,
         progress: {

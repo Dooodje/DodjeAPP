@@ -324,6 +324,68 @@ export default function HomeScreen() {
   // Référence au TreeBackground pour contrôler le scroll
   const treeBackgroundRef = useRef<TreeBackgroundRef>(null);
 
+  // Fonction pour trouver le dernier parcours "unblocked" basé sur l'ordre
+  const findLastUnblockedParcours = useCallback(() => {
+    if (!homeDesign?.parcours) return null;
+
+    let lastUnblockedOrder = -1;
+    
+    // Parcourir tous les parcours pour trouver le dernier avec le statut "unblocked"
+    Object.entries(homeDesign.parcours).forEach(([orderStr, parcours]) => {
+      const order = parseInt(orderStr);
+      if (parcours.status === 'unblocked' && order > lastUnblockedOrder) {
+        lastUnblockedOrder = order;
+      }
+    });
+
+    return lastUnblockedOrder > -1 ? lastUnblockedOrder : null;
+  }, [homeDesign?.parcours]);
+
+  // État pour suivre si le scroll initial a été effectué
+  const [hasInitialScrolled, setHasInitialScrolled] = useState(false);
+
+  // Effet pour scroller automatiquement vers le dernier parcours unblocked
+  useEffect(() => {
+    // Conditions pour effectuer le scroll automatique :
+    // 1. Les données sont chargées (homeDesign existe)
+    // 2. Le TreeBackground est prêt (ref disponible)
+    // 3. Le scroll initial n'a pas encore été effectué
+    // 4. Pas en cours de chargement
+    if (homeDesign && 
+        homeDesign.positions && 
+        treeBackgroundRef.current && 
+        !hasInitialScrolled && 
+        !loading &&
+        !isInitialLoading) {
+      
+      const lastUnblockedOrder = findLastUnblockedParcours();
+      
+      if (lastUnblockedOrder !== null) {
+        console.log(`🎯 Scroll automatique vers le dernier parcours unblocked: ordre ${lastUnblockedOrder}`);
+        
+        // Petit délai pour s'assurer que le TreeBackground est complètement rendu
+        setTimeout(async () => {
+          try {
+            await treeBackgroundRef.current?.scrollToPosition(lastUnblockedOrder);
+            setHasInitialScrolled(true);
+            console.log(`✅ Scroll automatique effectué vers le parcours ordre ${lastUnblockedOrder}`);
+          } catch (error) {
+            console.error('❌ Erreur lors du scroll automatique:', error);
+            setHasInitialScrolled(true); // Marquer comme tenté même en cas d'erreur
+          }
+        }, 500);
+      } else {
+        console.log('ℹ️ Aucun parcours unblocked trouvé, pas de scroll automatique');
+        setHasInitialScrolled(true);
+      }
+    }
+  }, [homeDesign, loading, isInitialLoading, hasInitialScrolled, findLastUnblockedParcours]);
+
+  // Réinitialiser le flag de scroll lors du changement de section/niveau
+  useEffect(() => {
+    setHasInitialScrolled(false);
+  }, [currentSection, currentLevel]);
+
   // Gérer les déblocages venant du quiz via AsyncStorage
   useFocusEffect(
     useCallback(() => {

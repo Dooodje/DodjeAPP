@@ -1,4 +1,4 @@
-import React, { useEffect, ReactNode } from 'react';
+import React, { useEffect, ReactNode, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Image, ImageBackground, ViewStyle, Dimensions } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -8,6 +8,8 @@ import { usePerformanceMonitor } from '../../utils/performance';
 import { withErrorHandling } from '../../utils/errorHandling';
 import { AppRoute } from '../../types/routes';
 import DodjePlusBanniere from '../../components/DodjePlusBanniere';
+import PaymentNotReadyModal from '../../components/ui/PaymentNotReadyModal';
+import Trophee from '../../components/Trophee';
 
 // Ce composant sera utilisé comme motif de fond pour la carte jaune
 function YellowPatternBackground({ children, style }: { children: ReactNode; style?: ViewStyle }) {
@@ -27,6 +29,7 @@ function YellowPatternBackground({ children, style }: { children: ReactNode; sty
 export function DodjeOneScreen() {
   const router = useRouter();
   const screenWidth = Dimensions.get('window').width;
+  const [showPaymentNotReadyModal, setShowPaymentNotReadyModal] = useState(false);
   const {
     subscription,
     isLoading,
@@ -45,46 +48,8 @@ export function DodjeOneScreen() {
 
   const handleSubscribe = withErrorHandling(
     async (plan: 'monthly' | 'yearly') => {
-      try {
-        // Afficher un indicateur de chargement
-        Alert.alert(
-          "Confirmation d'abonnement",
-          "Voulez-vous vous abonner à Dodje ONE pour 7,99€/mois avec un essai gratuit de 7 jours ?",
-          [
-            {
-              text: "Annuler",
-              style: "cancel"
-            },
-            {
-              text: "M'abonner",
-              onPress: async () => {
-                try {
-                  await subscribe(plan);
-                  Alert.alert(
-                    "Félicitations !",
-                    "Votre abonnement a bien été activé. Profitez de toutes les fonctionnalités premium !",
-                    [
-                      {
-                        text: "Super !",
-                        onPress: () => router.push('/(tabs)' as AppRoute)
-                      }
-                    ]
-                  );
-                } catch (error) {
-                  console.error('Erreur lors du paiement:', error);
-                  Alert.alert(
-                    "Erreur de paiement",
-                    "Un problème est survenu lors de la procédure d'abonnement. Veuillez réessayer.",
-                    [{ text: "OK" }]
-                  );
-                }
-              }
-            }
-          ]
-        );
-      } catch (err) {
-        console.error('Erreur lors de la souscription:', err);
-      }
+      // Afficher le modal de paiement non disponible au lieu du processus d'abonnement
+      setShowPaymentNotReadyModal(true);
     },
     'Erreur lors de la souscription'
   );
@@ -123,7 +88,7 @@ export function DodjeOneScreen() {
             
             <Text style={styles.activeTitle}>DODJE ONE</Text>
             <View style={styles.trophyIcon}>
-              <MaterialCommunityIcons name="trophy" size={60} color="#FFFFFF" />
+              <Trophee width={60} height={60} />
             </View>
             
             <Text style={styles.activeInfo}>
@@ -210,21 +175,19 @@ export function DodjeOneScreen() {
         
         {/* Trophy Icon */}
         <View style={styles.trophyContainer}>
-          <MaterialCommunityIcons name="trophy" size={80} color="#FFFFFF" />
+          <Trophee width={80} height={80} />
         </View>
-        
-        {/* Restore Purchases */}
-        <TouchableOpacity 
-          style={styles.restorePurchasesButton}
-          onPress={handleRestorePurchases}
-        >
-          <Text style={styles.restorePurchasesText}>Restaurer mes achats</Text>
-        </TouchableOpacity>
         
         <Text style={styles.termsText}>
           L'abonnement sera renouvelé automatiquement. Vous pouvez annuler à tout moment.
         </Text>
       </ScrollView>
+
+      {/* Modal de paiement non disponible */}
+      <PaymentNotReadyModal
+        visible={showPaymentNotReadyModal}
+        onClose={() => setShowPaymentNotReadyModal(false)}
+      />
     </SafeAreaView>
   );
 }
@@ -348,7 +311,7 @@ const styles = StyleSheet.create({
   priceButtonText: {
     fontSize: 22,
     fontFamily: 'Arboria-Bold',
-    color: '#000000',
+    color: '#FFFFFF',
   },
   benefitsContainer: {
     marginTop: 30,
@@ -370,15 +333,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: 40,
     marginBottom: 20,
-  },
-  restorePurchasesButton: {
-    alignItems: 'center',
-    marginVertical: 20,
-  },
-  restorePurchasesText: {
-    color: '#9BEC00',
-    fontSize: 14,
-    fontFamily: 'Arboria-Medium',
   },
   termsText: {
     color: 'rgba(255, 255, 255, 0.5)',

@@ -41,9 +41,8 @@ export class DodjiService {
                 dodji: 0
             });
 
-            // Initialiser le document de récompenses
+            // Initialiser le document de récompenses - structure directe
             await setDoc(doc(db, this.USERS_COLLECTION, userId, this.DODJI_COLLECTION, 'rewards'), {
-                rewards: {},
                 lastUpdated: new Date()
             });
         } catch (error) {
@@ -66,12 +65,14 @@ export class DodjiService {
                 return false;
             }
 
-            const data = rewardsDoc.data() as DodjiDocument;
-            if (!data || !data.rewards) {
+            const data = rewardsDoc.data();
+            if (!data) {
                 return false;
             }
 
-            return data.rewards[rewardId] === true;
+            // Vérifier directement le champ dans le document (structure actuelle de la DB)
+            // ou dans le sous-objet rewards (structure prévue par le code)
+            return data[rewardId] === true || data.rewards?.[rewardId] === true;
         } catch (error) {
             console.error('Error checking reward status:', error);
             throw error;
@@ -98,15 +99,15 @@ export class DodjiService {
             const rewardsDoc = await getDoc(rewardsRef);
 
             if (!rewardsDoc.exists()) {
-                // Créer le document s'il n'existe pas
+                // Créer le document s'il n'existe pas - structure directe
                 await setDoc(rewardsRef, {
-                    rewards: { [rewardId]: true },
+                    [rewardId]: true,
                     lastUpdated: new Date()
                 });
             } else {
-                // Mettre à jour le document existant
+                // Mettre à jour le document existant - structure directe
                 await updateDoc(rewardsRef, {
-                    [`rewards.${rewardId}`]: true,
+                    [rewardId]: true,
                     lastUpdated: new Date()
                 });
             }

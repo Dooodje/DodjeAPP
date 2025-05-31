@@ -14,7 +14,7 @@ import { AppRoute } from '../../types/routes';
 import DodjeOneBanner from '../../components/shop/DodjeOneBanner';
 import Dodji from '../../components/SymboleBlanc';
 import DailyStrike from '../../components/DailyStrike';
-import ProfilHomme from '../../components/profilHomme';
+import UserGenderIcon from '../../components/UserGenderIcon';
 
 function Profile() {
   const router = useRouter();
@@ -137,12 +137,12 @@ function Profile() {
         
         <View style={styles.profileInfoContainer}>
           <View style={styles.avatarSection}>
-            <ProfilHomme />
+            <UserGenderIcon sexe={profile.sexe} />
           </View>
 
           <View style={styles.userInfoSection}>
             <View style={styles.usernameContainer}>
-              <Text style={styles.usernameText}>#{profile.displayName || 'Utilisateur'}</Text>
+              <Text style={styles.usernameText}>#{profile.name || 'Utilisateur'}</Text>
             </View>
 
             <View style={styles.gainSection}>

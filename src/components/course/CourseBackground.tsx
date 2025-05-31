@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useImperativeHandle, forwardRef } from 'react';
 import { View, Image, StyleSheet, Dimensions, ScrollView, LayoutChangeEvent, ActivityIndicator, Text } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { LogoLoadingSpinner } from '../ui/LogoLoadingSpinner';
@@ -13,19 +13,25 @@ interface CourseBackgroundProps {
   children: React.ReactNode;
   loading?: boolean;
   lastViewedVideoId?: string; // ID de la dernière vidéo visionnée
+  lastUnblockedVideoId?: string; // ID de la dernière vidéo unblocked
   refreshControl?: React.ReactElement; // Prop pour le contrôle de rafraîchissement
   onImageDimensionsChange?: (width: number, height: number) => void; // Callback pour les dimensions de l'image
 }
 
-const CourseBackground: React.FC<CourseBackgroundProps> = ({ 
+export interface CourseBackgroundRef {
+  scrollToVideo: (videoId: string) => Promise<boolean>;
+}
+
+const CourseBackground = forwardRef<CourseBackgroundRef, CourseBackgroundProps>(({ 
   imageUrl, 
   positions,
   children,
   loading = false,
   lastViewedVideoId,
+  lastUnblockedVideoId,
   refreshControl,
   onImageDimensionsChange
-}) => {
+}, ref) => {
   // Initialiser avec des dimensions par défaut non nulles (taille de l'écran)
   const [imageDimensions, setImageDimensions] = useState({ 
     width: screenWidth, 
@@ -37,6 +43,53 @@ const CourseBackground: React.FC<CourseBackgroundProps> = ({
   const [imageError, setImageError] = useState(false);
   const [initialScrollDone, setInitialScrollDone] = useState(false);
   const scrollViewRef = useRef<ScrollView>(null);
+  
+  // Exposer la méthode scrollToVideo via la référence
+  useImperativeHandle(ref, () => ({
+    scrollToVideo: async (videoId: string): Promise<boolean> => {
+      return new Promise((resolve) => {
+        console.log(`🎯 CourseBackground.scrollToVideo appelé pour la vidéo: ${videoId}`);
+        console.log(`  - scrollViewRef.current: ${!!scrollViewRef.current}`);
+        console.log(`  - positions disponibles: ${Object.keys(positions)}`);
+        console.log(`  - position pour ${videoId}: ${!!positions[videoId]}`);
+        
+        if (!scrollViewRef.current || !positions[videoId]) {
+          console.warn(`❌ Impossible de scroller vers la vidéo ${videoId}: ScrollView ou position non disponible`);
+          if (!scrollViewRef.current) {
+            console.warn(`  - scrollViewRef.current est null`);
+          }
+          if (!positions[videoId]) {
+            console.warn(`  - Position non trouvée pour ${videoId} dans:`, Object.keys(positions));
+          }
+          resolve(false);
+          return;
+        }
+
+        const videoPosition = positions[videoId];
+        console.log(`📍 Position trouvée pour ${videoId}:`, videoPosition);
+        console.log(`  - imageDimensions: ${imageDimensions.width}x${imageDimensions.height}`);
+        console.log(`  - scrollViewHeight: ${scrollViewHeight}`);
+        
+        // Calculer la position pour centrer cette vidéo
+        const scrollPosition = Math.max(0, (videoPosition.y / 100) * imageDimensions.height - scrollViewHeight / 2);
+        const finalScrollPosition = Math.min(scrollPosition, imageDimensions.height - scrollViewHeight);
+        
+        console.log(`🎯 Calcul de scroll pour la vidéo ${videoId}:`);
+        console.log(`  - Position Y: ${videoPosition.y}%`);
+        console.log(`  - Position Y en pixels: ${(videoPosition.y / 100) * imageDimensions.height}px`);
+        console.log(`  - Position de scroll calculée: ${scrollPosition}px`);
+        console.log(`  - Position de scroll finale: ${finalScrollPosition}px`);
+        
+        scrollViewRef.current.scrollTo({ y: finalScrollPosition, animated: true });
+        
+        // Attendre que l'animation soit terminée
+        setTimeout(() => {
+          console.log(`✅ Scroll vers la vidéo ${videoId} terminé`);
+          resolve(true);
+        }, 500);
+      });
+    }
+  }));
   
   // Reset du flag initialScrollDone quand les positions changent
   useEffect(() => {
@@ -119,34 +172,64 @@ const CourseBackground: React.FC<CourseBackgroundProps> = ({
     });
   }, [imageUrl]);
 
-  // Défilement initial vers la position de la dernière vidéo visionnée
+  // Défilement initial vers la dernière vidéo unblocked ou la dernière vidéo visionnée
   useEffect(() => {
+    console.log(`🔍 CourseBackground scroll initial - Conditions:`);
+    console.log(`  - imageLoaded: ${imageLoaded}`);
+    console.log(`  - scrollViewRef.current: ${!!scrollViewRef.current}`);
+    console.log(`  - initialScrollDone: ${initialScrollDone}`);
+    console.log(`  - loading: ${loading}`);
+    console.log(`  - imageDimensions.height: ${imageDimensions.height}`);
+    console.log(`  - lastUnblockedVideoId: ${lastUnblockedVideoId}`);
+    console.log(`  - lastViewedVideoId: ${lastViewedVideoId}`);
+    console.log(`  - positions keys: ${Object.keys(positions)}`);
+    
     if (imageLoaded && scrollViewRef.current && !initialScrollDone && !loading && imageDimensions.height > 0) {
       let scrollPosition = 0;
+      let targetVideoId = null;
       
-      // Trouver la position de la dernière vidéo visionnée
+      // Si lastUnblockedVideoId est fourni, ne pas faire de scroll initial automatique
+      // La page parent gérera le scroll via scrollToVideo
+      if (lastUnblockedVideoId) {
+        console.log(`⏸️ CourseBackground: lastUnblockedVideoId fourni (${lastUnblockedVideoId}), pas de scroll initial automatique`);
+        setInitialScrollDone(true);
+        return;
+      }
+      
+      // Priorité 1: Dernière vidéo visionnée (seulement si pas de lastUnblockedVideoId)
       if (lastViewedVideoId && positions[lastViewedVideoId]) {
+        targetVideoId = lastViewedVideoId;
         const videoPosition = positions[lastViewedVideoId];
-        // Calculer la position pour centrer cette vidéo
-        // Convertir la position Y de pourcentage en pixels par rapport à la hauteur de l'image
         scrollPosition = Math.max(0, (videoPosition.y / 100) * imageDimensions.height - scrollViewHeight / 2);
         scrollPosition = Math.min(scrollPosition, imageDimensions.height - scrollViewHeight);
-        console.log(`Défilement vers la dernière vidéo visionnée (${lastViewedVideoId}) à la position Y: ${videoPosition.y}% => ${scrollPosition}px`);
-      } else {
-        // Si aucune vidéo n'a été visionnée, défiler vers le haut de l'image
+        console.log(`📺 CourseBackground: Défilement vers la dernière vidéo visionnée (${lastViewedVideoId}) à la position Y: ${videoPosition.y}% => ${scrollPosition}px`);
+      }
+      // Priorité 2: Haut de l'image par défaut
+      else {
         scrollPosition = 0;
-        console.log(`Défilement vers le haut de l'image à la position Y: ${scrollPosition}`);
+        console.log(`⬆️ CourseBackground: Défilement vers le haut de l'image à la position Y: ${scrollPosition}`);
+        if (lastViewedVideoId) {
+          console.log(`⚠️ CourseBackground: lastViewedVideoId fourni (${lastViewedVideoId}) mais position non trouvée dans:`, Object.keys(positions));
+        }
       }
       
       // Petit délai pour s'assurer que le ScrollView est complètement rendu
       setTimeout(() => {
         if (scrollViewRef.current) {
+          console.log(`🚀 CourseBackground: Exécution du scroll vers Y=${scrollPosition}`);
           scrollViewRef.current.scrollTo({ y: scrollPosition, animated: false });
           setInitialScrollDone(true);
+          if (targetVideoId) {
+            console.log(`✅ CourseBackground: Scroll initial effectué vers la vidéo ${targetVideoId}`);
+          }
+        } else {
+          console.warn(`⚠️ CourseBackground: scrollViewRef.current est null lors de l'exécution du scroll`);
         }
       }, 300);
+    } else {
+      console.log(`⏳ CourseBackground: Conditions de scroll initial non remplies`);
     }
-  }, [imageLoaded, loading, initialScrollDone, imageDimensions.height, scrollViewHeight, lastViewedVideoId, positions]);
+  }, [imageLoaded, loading, initialScrollDone, imageDimensions.height, scrollViewHeight, lastViewedVideoId, lastUnblockedVideoId, positions]);
 
   // Calculer la marge horizontale pour centrer l'image
   const horizontalMargin = Math.max(0, (scrollViewWidth - imageDimensions.width) / 2);
@@ -263,7 +346,7 @@ const CourseBackground: React.FC<CourseBackgroundProps> = ({
       )}
     </View>
   );
-};
+});
 
 const styles = StyleSheet.create({
   container: {

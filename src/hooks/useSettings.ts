@@ -10,6 +10,7 @@ import {
   UserInfoPreferences
 } from '../types/settings';
 import { settingsService } from '../services/settingsService';
+import { profileService } from '../services/profile';
 import { useAuth } from './useAuth';
 import { Alert } from 'react-native';
 import { doc, getDoc } from 'firebase/firestore';
@@ -58,10 +59,6 @@ export function useSettings(): SettingsContextType {
   useEffect(() => {
     if (user) {
       loadSettings();
-      // Mettre à jour uniquement le nom d'utilisateur si disponible
-      if (user.displayName && user.uid) {
-        updateUserInfo({ username: user.displayName });
-      }
     } else {
       // Utilisateur non connecté : initialiser avec des paramètres par défaut
       setSettings(defaultSettings);
@@ -82,9 +79,11 @@ export function useSettings(): SettingsContextType {
         return;
       }
 
-      // Récupérer l'email depuis la collection users
+      // Récupérer l'email et le name depuis la collection users
       const userDoc = await getDoc(doc(db, 'users', user.uid));
-      const userEmail = userDoc.exists() ? userDoc.data().email : '';
+      const userData = userDoc.exists() ? userDoc.data() : null;
+      const userEmail = userData?.email || '';
+      const userName = userData?.name || '';
 
       const userSettings = await settingsService.getSettings(user.uid);
       
@@ -93,7 +92,7 @@ export function useSettings(): SettingsContextType {
         const completeSettings: UserSettings = {
           userInfo: {
             email: userEmail || '',
-            username: userSettings.userInfo?.username || user.displayName || '',
+            username: userSettings.userInfo?.username || userName || '',
           },
           language: {
             interface: userSettings.language?.interface || 'fr',
@@ -132,7 +131,7 @@ export function useSettings(): SettingsContextType {
           userInfo: {
             ...defaultSettings.userInfo,
             email: userEmail || '',
-            username: user.displayName || '',
+            username: userName || '',
           }
         };
         await settingsService.updateSettings(user.uid, newSettings);
@@ -206,10 +205,12 @@ export function useSettings(): SettingsContextType {
 
       // Vérifier à nouveau que l'utilisateur est toujours connecté et a un uid valide
       if (user && user.uid) {
-        // Ne pas envoyer l'email dans la mise à jour
-        const settingsToUpdate = { ...safeNewSettings };
+        // Ne pas envoyer l'email dans la mise à jour - créer un objet sans email
+        const settingsToUpdate: any = { ...safeNewSettings };
         if (settingsToUpdate.userInfo) {
-          delete settingsToUpdate.userInfo.email;
+          settingsToUpdate.userInfo = {
+            username: settingsToUpdate.userInfo.username
+          };
         }
         await settingsService.updatePartialSettings(user.uid, settingsToUpdate);
         setSettings(updatedSettings);
@@ -300,6 +301,11 @@ export function useSettings(): SettingsContextType {
         console.warn('Tentative de mise à jour des informations utilisateur sans utilisateur connecté');
         setError('Vous devez être connecté pour modifier vos informations');
         return;
+      }
+
+      // Si le username est modifié, mettre à jour le champ name dans la collection users
+      if (userInfo.username) {
+        await profileService.updateProfile(user.uid, { name: userInfo.username });
       }
 
       // Ne jamais mettre à jour l'email, seulement le username

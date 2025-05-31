@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Modal, View, Text, TouchableOpacity, StyleSheet, Dimensions, ActivityIndicator } from 'react-native';
 import { ParcoursUnlockService } from '../../services/businessLogic/ParcoursUnlockService';
+import { router } from 'expo-router';
 
 interface ParcoursLockedModalProps {
   visible: boolean;
@@ -24,6 +25,7 @@ const ParcoursLockedModal: React.FC<ParcoursLockedModalProps> = ({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [unlockCost, setUnlockCost] = useState<number | null>(null);
+  const [hasTriedUnlockWithoutFunds, setHasTriedUnlockWithoutFunds] = useState(false);
 
   useEffect(() => {
     const fetchUnlockCost = async () => {
@@ -43,6 +45,14 @@ const ParcoursLockedModal: React.FC<ParcoursLockedModalProps> = ({
     fetchUnlockCost();
   }, [parcoursId, visible]);
 
+  // Réinitialiser l'état quand la modal s'ouvre
+  useEffect(() => {
+    if (visible) {
+      setHasTriedUnlockWithoutFunds(false);
+      setError(null);
+    }
+  }, [visible]);
+
   const handleUnlock = async () => {
     try {
       setLoading(true);
@@ -51,20 +61,17 @@ const ParcoursLockedModal: React.FC<ParcoursLockedModalProps> = ({
       console.log('🔓 Modal: Début du processus de déblocage');
       console.log('📋 Modal: parcoursOrder =', parcoursOrder);
       
-      // Marquer immédiatement le parcours comme en cours de déblocage AVANT le déblocage
-      if (parcoursOrder !== undefined) {
-        console.log('🔒 Modal: Marquage immédiat du parcours comme en cours de déblocage');
-        onUnlock(parcoursOrder);
-      } else {
-        console.log('❌ Modal: parcoursOrder est undefined, impossible de lancer l\'animation');
-        setLoading(false);
-        return;
-      }
-      
+      // D'abord tenter le déblocage
       const result = await ParcoursUnlockService.unlockParcoursWithDodji(userId, parcoursId);
       
       if (result.success) {
         console.log('🔓 Modal: Parcours débloqué avec succès');
+        
+        // Déclencher l'animation SEULEMENT si le déblocage a réussi
+        if (parcoursOrder !== undefined) {
+          console.log('🔒 Modal: Lancement de l\'animation de déblocage');
+          onUnlock(parcoursOrder);
+        }
         
         // Fermer le modal immédiatement
         console.log('🚪 Modal: Fermeture du modal');
@@ -72,6 +79,11 @@ const ParcoursLockedModal: React.FC<ParcoursLockedModalProps> = ({
       } else {
         console.log('❌ Modal: Échec du déblocage:', result.error);
         setError(result.error || "Une erreur est survenue");
+        
+        // Si l'erreur indique un manque de fonds, marquer que l'utilisateur a tenté sans assez de dodji
+        if (result.error && result.error.includes("pas assez de Dodji")) {
+          setHasTriedUnlockWithoutFunds(true);
+        }
       }
     } catch (err) {
       console.log('❌ Modal: Erreur lors du déblocage:', err);
@@ -79,6 +91,12 @@ const ParcoursLockedModal: React.FC<ParcoursLockedModalProps> = ({
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleGoToShop = () => {
+    console.log('🛒 Redirection vers la boutique');
+    onClose();
+    router.push('/boutique');
   };
 
   return (
@@ -106,19 +124,25 @@ const ParcoursLockedModal: React.FC<ParcoursLockedModalProps> = ({
           
           {/* Boutons */}
           <View style={styles.buttonContainer}>
-            {unlockCost !== null && (
-              <TouchableOpacity
-                style={[styles.button, styles.unlockButton]}
-                onPress={handleUnlock}
-                disabled={loading}
-              >
-                {loading ? (
-                  <ActivityIndicator color="#0A0400" />
-                ) : (
-                  <Text style={styles.buttonText}>Débloquer ({unlockCost} Dodji)</Text>
-                )}
-              </TouchableOpacity>
-            )}
+            {/* Toujours afficher le bouton de déblocage/caisse */}
+            <TouchableOpacity
+              style={[styles.button, styles.unlockButton]}
+              onPress={hasTriedUnlockWithoutFunds ? handleGoToShop : handleUnlock}
+              disabled={loading || (unlockCost === null && !hasTriedUnlockWithoutFunds)}
+            >
+              {loading ? (
+                <ActivityIndicator color="#0A0400" />
+              ) : (
+                <Text style={styles.buttonText}>
+                  {hasTriedUnlockWithoutFunds 
+                    ? "Passer à la caisse" 
+                    : unlockCost !== null 
+                      ? `Débloquer (${unlockCost} Dodji)` 
+                      : "Chargement..."
+                  }
+                </Text>
+              )}
+            </TouchableOpacity>
             
             <TouchableOpacity
               style={[styles.button, styles.secondaryButton]}

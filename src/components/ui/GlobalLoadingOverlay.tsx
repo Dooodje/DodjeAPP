@@ -1,5 +1,5 @@
-import React from 'react';
-import { View, StyleSheet, Dimensions } from 'react-native';
+import React, { useEffect, useRef } from 'react';
+import { View, StyleSheet, Dimensions, Animated } from 'react-native';
 import { useLoading } from '../../contexts/LoadingContext';
 import { LogoLoadingSpinner } from './LogoLoadingSpinner';
 
@@ -7,15 +7,38 @@ const { width, height } = Dimensions.get('screen');
 
 export const GlobalLoadingOverlay: React.FC = () => {
   const { isInitialLoading } = useLoading();
+  
+  // Animation pour l'overlay
+  const overlayOpacity = useRef(new Animated.Value(0)).current;
+  
+  // État local pour contrôler la visibilité du composant
+  const [isVisible, setIsVisible] = React.useState(false);
 
-  if (!isInitialLoading) {
+  useEffect(() => {
+    if (isInitialLoading) {
+      // Afficher l'overlay immédiatement
+      setIsVisible(true);
+      overlayOpacity.setValue(1);
+    } else if (isVisible) {
+      // Animation de fermeture douce
+      Animated.timing(overlayOpacity, {
+        toValue: 0,
+        duration: 500, // 500ms pour une transition douce
+        useNativeDriver: true,
+      }).start(() => {
+        setIsVisible(false);
+      });
+    }
+  }, [isInitialLoading, isVisible, overlayOpacity]);
+
+  if (!isVisible) {
     return null;
   }
 
   return (
-    <View style={styles.overlay}>
+    <Animated.View style={[styles.overlay, { opacity: overlayOpacity }]}>
       <LogoLoadingSpinner />
-    </View>
+    </Animated.View>
   );
 };
 

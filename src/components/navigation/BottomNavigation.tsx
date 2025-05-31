@@ -108,6 +108,13 @@ const TabButton: React.FC<TabButtonProps> = ({
           }}
           resizeMode="contain"
         />
+        
+        {/* Badge rouge pour la boutique */}
+        {name === 'shop' && (
+          <View style={styles.shopBadge}>
+            <Text style={styles.shopBadgeText}>!</Text>
+          </View>
+        )}
       </View>
       <Text
         style={[
@@ -190,6 +197,33 @@ const styles = StyleSheet.create({
   activeTabLabel: {
     color: '#F3FF90',
     fontFamily: 'Arboria-Bold',
+  },
+  shopBadge: {
+    position: 'absolute',
+    top: -2,
+    right: -2,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: '#FF4444',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#FFFFFF',
+    shadowColor: '#FF4444',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.8,
+    shadowRadius: 3,
+    elevation: 5,
+  },
+  shopBadgeText: {
+    fontSize: 11,
+    fontFamily: 'Arboria-Bold',
+    color: '#FFFFFF',
+    textAlign: 'center',
   },
 });
 

@@ -41,12 +41,35 @@ export const useShop = (userId: string) => {
         shopService.getUserTransactions(userId)
       ]);
 
-      // Identifier le meilleur pack en termes de rapport qualité/prix
-      if (packs.length > 0) {
-        // Calculer la valeur (jetons par euro) pour chaque pack
-        const packsWithValue = packs.map(pack => {
+      // Ajouter un pack "Bienvenue" de test s'il n'existe pas
+      let allPacks = [...packs];
+      const hasWelcomePack = packs.some(pack => pack.name.toLowerCase().includes('bienvenue'));
+      
+      if (!hasWelcomePack) {
+        const welcomePack: TokenPack = {
+          id: 'welcome-pack',
+          name: 'Bienvenue',
+          description: 'Pack de bienvenue pour commencer votre aventure',
+          amount: 200,
+          bonus: 0,
+          price: 0.00,
+          totalTokens: 200,
+          status: 'active',
+          isPopular: false,
+          isBestValue: false,
+          createdAt: new Date()
+        };
+        allPacks = [welcomePack, ...packs];
+      }
+
+      // Identifier le meilleur pack en termes de rapport qualité/prix (excluant le pack Bienvenue)
+      const regularPacks = allPacks.filter(pack => !pack.name.toLowerCase().includes('bienvenue'));
+      
+      if (regularPacks.length > 0) {
+        // Calculer la valeur (jetons par euro) pour chaque pack régulier
+        const packsWithValue = regularPacks.map(pack => {
           const totalTokens = pack.totalTokens || pack.amount + (pack.bonus ? Math.round(pack.amount * (pack.bonus / 100)) : 0);
-          const valueForMoney = totalTokens / pack.price; // Jetons par euro
+          const valueForMoney = pack.price > 0 ? totalTokens / pack.price : 0; // Jetons par euro
           return { ...pack, valueForMoney };
         });
 
@@ -55,7 +78,7 @@ export const useShop = (userId: string) => {
         
         // Marquer le pack avec la meilleure valeur
         if (sortedPacks.length > 0) {
-          const enhancedPacks = sortedPacks.map((pack, index) => ({
+          const enhancedRegularPacks = sortedPacks.map((pack, index) => ({
             ...pack,
             isBestValue: index === 0, // Le premier pack a la meilleure valeur
             // Marquer comme populaire le pack au milieu de la gamme ou le deuxième meilleur si moins de 3 packs
@@ -64,12 +87,16 @@ export const useShop = (userId: string) => {
               : index === Math.min(1, sortedPacks.length - 1)
           }));
           
-          dispatch(setTokenPacks(enhancedPacks));
+          // Recombiner avec le pack Bienvenue
+          const welcomePackFromAll = allPacks.find(pack => pack.name.toLowerCase().includes('bienvenue'));
+          const finalPacks = welcomePackFromAll ? [welcomePackFromAll, ...enhancedRegularPacks] : enhancedRegularPacks;
+          
+          dispatch(setTokenPacks(finalPacks));
         } else {
-          dispatch(setTokenPacks(packs));
+          dispatch(setTokenPacks(allPacks));
         }
       } else {
-        dispatch(setTokenPacks(packs));
+        dispatch(setTokenPacks(allPacks));
       }
 
       dispatch(setSubscription(subscription));

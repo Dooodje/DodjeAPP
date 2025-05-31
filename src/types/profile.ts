@@ -43,6 +43,8 @@ export interface Progress {
 export interface UserProfile {
   id: string;
   displayName: string;
+  name: string;
+  sexe?: 'homme' | 'femme';
   avatarUrl?: string;
   streak: number;
   lastLoginDate: Date;

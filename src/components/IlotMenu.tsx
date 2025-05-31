@@ -1,5 +1,5 @@
-import React from 'react';
-import { View, ViewStyle, StyleSheet } from 'react-native';
+import React, { useEffect, useRef } from 'react';
+import { View, ViewStyle, StyleSheet, Text, Animated } from 'react-native';
 import Icon1Svg from '../assets/IlotMenuIcon1.svg';
 import Icon2Svg from '../assets/IlotMenuIcon2.svg';
 import Icon3Svg from '../assets/IlotMenuIcon3.svg';
@@ -10,6 +10,7 @@ import BoutiqueV2 from './BoutiqueV2';
 import LabV2 from './LabV2';
 import ProfilV2 from './ProfilV2';
 import CataV2 from './CataV2';
+import { useWelcomePackBadge } from '../contexts/WelcomePackContext';
 
 interface IlotMenuProps {
   style?: ViewStyle;
@@ -17,6 +18,54 @@ interface IlotMenuProps {
 }
 
 export const IlotMenu: React.FC<IlotMenuProps> = ({ style, activeRoute }) => {
+  // Animation pour le badge
+  const bounceAnim = useRef(new Animated.Value(1)).current;
+  const { showBadge } = useWelcomePackBadge();
+
+  // Effet de rebond répétitif
+  useEffect(() => {
+    if (!showBadge) return;
+
+    const createBounceAnimation = () => {
+      return Animated.sequence([
+        // Premier rebond
+        Animated.timing(bounceAnim, {
+          toValue: 1.3,
+          duration: 150,
+          useNativeDriver: true,
+        }),
+        Animated.timing(bounceAnim, {
+          toValue: 1,
+          duration: 150,
+          useNativeDriver: true,
+        }),
+        // Deuxième rebond
+        Animated.timing(bounceAnim, {
+          toValue: 1.2,
+          duration: 120,
+          useNativeDriver: true,
+        }),
+        Animated.timing(bounceAnim, {
+          toValue: 1,
+          duration: 120,
+          useNativeDriver: true,
+        }),
+        // Pause avant le prochain cycle
+        Animated.delay(1460), // 2000ms total - 540ms d'animation = 1460ms de pause
+      ]);
+    };
+
+    const startAnimation = () => {
+      Animated.loop(createBounceAnimation()).start();
+    };
+
+    startAnimation();
+
+    return () => {
+      bounceAnim.stopAnimation();
+    };
+  }, [bounceAnim, showBadge]);
+
   // Fonction pour déterminer si une icône est active selon la route
   const isIconActive = (iconIndex: number): boolean => {
     if (!activeRoute) return false;
@@ -74,7 +123,20 @@ export const IlotMenu: React.FC<IlotMenuProps> = ({ style, activeRoute }) => {
         {isHomeIcon ? (
           <IconComponent width={24} height={24} />
         ) : isBoutiqueIcon ? (
-          <IconComponent width={24} height={24} />
+          <View style={styles.boutiqueIconWrapper}>
+            <IconComponent width={24} height={24} />
+            {/* Badge rouge pour l'icône boutique non active avec animation - conditionnel */}
+            {showBadge && (
+              <Animated.View style={[
+                styles.boutiqueBadge,
+                {
+                  transform: [{ scale: bounceAnim }]
+                }
+              ]}>
+                <Text style={styles.boutiqueBadgeText}>!</Text>
+              </Animated.View>
+            )}
+          </View>
         ) : isLabIcon ? (
           <IconComponent width={24} height={24} />
         ) : isProfilIcon ? (
@@ -154,5 +216,40 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.8,
     shadowRadius: 4,
     elevation: 5,
+  },
+  boutiqueIconWrapper: {
+    position: 'relative',
+    width: 24,
+    height: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  boutiqueBadge: {
+    position: 'absolute',
+    top: -2,
+    right: -2,
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: '#FF4444',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1.5,
+    borderColor: '#FFFFFF',
+    shadowColor: '#FF4444',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.8,
+    shadowRadius: 3,
+    elevation: 5,
+  },
+  boutiqueBadgeText: {
+    fontSize: 10,
+    fontFamily: 'Arboria-Bold',
+    color: '#FFFFFF',
+    textAlign: 'center',
+    lineHeight: 12,
   },
 }); 

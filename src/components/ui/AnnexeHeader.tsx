@@ -1,5 +1,5 @@
-import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
+import React, { useEffect, useRef } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Animated } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Section } from '../../types/home';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -9,10 +9,11 @@ import DailyStrike from '../DailyStrike';
 import SymbolBlancComponent from '../SymboleBlanc';
 import { useUserStreak } from '../../hooks/useUserStreak';
 import { useStreak, StreakModal } from '../../streak';
+import { useAuth } from '../../hooks/useAuth';
+import { useDodji } from '../../hooks/useDodji';
 
 interface AnnexeHeaderProps {
   level?: number;
-  points?: number;
   title?: string;
   showSectionSelector?: boolean;
   selectedSection?: Section;
@@ -23,7 +24,6 @@ interface AnnexeHeaderProps {
 
 export const AnnexeHeader: React.FC<AnnexeHeaderProps> = ({
   level = 1,
-  points = 2170,
   title = 'DÉBUTANT',
   showSectionSelector = false,
   selectedSection = 'Bourse',
@@ -32,9 +32,74 @@ export const AnnexeHeader: React.FC<AnnexeHeaderProps> = ({
   onBackPress,
 }) => {
   const insets = useSafeAreaInsets();
+  const { user } = useAuth();
+  const { dodji } = useDodji(user?.uid);
   const { streak } = useUserStreak();
   const { modalData: streakModalData, closeModal: closeStreakModal, claimReward, showStreakInfo } = useStreak();
   const router = useRouter();
+  
+  // Animation du compteur de dodjis
+  const animatedDodji = useRef(new Animated.Value(dodji)).current;
+  const scaleAnimation = useRef(new Animated.Value(1)).current;
+  const colorAnimation = useRef(new Animated.Value(0)).current;
+  const displayedDodji = useRef(dodji);
+  const [currentDisplayDodji, setCurrentDisplayDodji] = React.useState(dodji);
+  
+  // Animer le changement de dodjis
+  useEffect(() => {
+    if (dodji !== displayedDodji.current) {
+      const previousDodji = displayedDodji.current;
+      displayedDodji.current = dodji;
+      
+      console.log('🎭 AnnexeHeader: Animation compteur de', previousDodji, 'à', dodji);
+      
+      // Animation du compteur qui se déroule
+      const listener = animatedDodji.addListener(({ value }) => {
+        setCurrentDisplayDodji(Math.floor(value));
+      });
+      
+      // Animation de scale pour attirer l'attention
+      Animated.sequence([
+        Animated.timing(scaleAnimation, {
+          toValue: 1.2,
+          duration: 200,
+          useNativeDriver: true,
+        }),
+        Animated.timing(scaleAnimation, {
+          toValue: 1,
+          duration: 1800,
+          useNativeDriver: true,
+        }),
+      ]).start();
+      
+      // Animation de couleur (jaune -> vert -> jaune)
+      Animated.sequence([
+        Animated.timing(colorAnimation, {
+          toValue: 1,
+          duration: 300,
+          useNativeDriver: false,
+        }),
+        Animated.timing(colorAnimation, {
+          toValue: 0,
+          duration: 1700,
+          useNativeDriver: false,
+        }),
+      ]).start();
+      
+      Animated.timing(animatedDodji, {
+        toValue: dodji,
+        duration: 2000, // 2 secondes pour correspondre à l'animation des Dodjis
+        useNativeDriver: false, // On ne peut pas utiliser useNativeDriver pour les valeurs numériques
+      }).start(() => {
+        animatedDodji.removeListener(listener);
+        setCurrentDisplayDodji(dodji);
+      });
+      
+      return () => {
+        animatedDodji.removeListener(listener);
+      };
+    }
+  }, [dodji, animatedDodji, scaleAnimation, colorAnimation]);
   
   const handlePointsPress = () => {
     router.push('/(tabs)/boutique');
@@ -68,7 +133,21 @@ export const AnnexeHeader: React.FC<AnnexeHeaderProps> = ({
           )}
           
           <TouchableOpacity style={styles.pointsContainer} onPress={handlePointsPress}>
-            <Text style={styles.pointsText}>{points}</Text>
+            <Animated.View style={{ transform: [{ scale: scaleAnimation }] }}>
+              <Animated.Text 
+                style={[
+                  styles.pointsText,
+                  {
+                    color: colorAnimation.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: ['#F1E61C', '#9BEC00'], // Jaune -> Vert
+                    }),
+                  }
+                ]}
+              >
+                {currentDisplayDodji}
+              </Animated.Text>
+            </Animated.View>
             <View style={styles.symbolContainer}>
               <SymbolBlancComponent width={22} height={22} />
             </View>

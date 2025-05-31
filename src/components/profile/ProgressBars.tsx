@@ -1,7 +1,9 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import React from 'react';
+import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { UserProfile } from '../../types/profile';
+import { useProfileProgress } from '../../hooks/useProfileProgress';
+import { useAuth } from '../../hooks/useAuth';
 import { ProgressUpdateButton } from './ProgressUpdateButton';
 
 interface ProgressBarsProps {
@@ -9,19 +11,25 @@ interface ProgressBarsProps {
 }
 
 export const ProgressBars: React.FC<ProgressBarsProps> = ({ profile }) => {
+  const { user } = useAuth();
+  const { progress, isLoading, error, refreshProgress } = useProfileProgress(user?.uid || '');
+
+  // Utiliser les données en temps réel si disponibles, sinon fallback sur le profil
+  const progressData = progress || profile.progress;
+
   // Vérifier si les données de progression sont disponibles et fournir des valeurs par défaut si nécessaire
   const getProgressData = (category: 'bourse' | 'crypto') => {
     // Vérifier si progress existe
-    if (!profile.progress) {
+    if (!progressData) {
       return { percentage: 0, completedCourses: 0, totalCourses: 0 };
     }
     
     // Vérifier si la catégorie existe
-    if (!profile.progress[category]) {
+    if (!progressData[category]) {
       return { percentage: 0, completedCourses: 0, totalCourses: 0 };
     }
     
-    const { percentage = 0, completedCourses = 0, totalCourses = 0 } = profile.progress[category];
+    const { percentage = 0, completedCourses = 0, totalCourses = 0 } = progressData[category];
     return { percentage, completedCourses, totalCourses };
   };
 
@@ -44,6 +52,9 @@ export const ProgressBars: React.FC<ProgressBarsProps> = ({ profile }) => {
           <Text style={styles.categoryText}>
             {category === 'bourse' ? 'Bourse' : 'Crypto'}
           </Text>
+          {isLoading && (
+            <ActivityIndicator color={color} size="small" style={styles.loadingIndicator} />
+          )}
         </View>
         <View style={styles.progressBarContainer}>
           <View
@@ -59,6 +70,9 @@ export const ProgressBars: React.FC<ProgressBarsProps> = ({ profile }) => {
           </Text>
           <Text style={styles.percentageText}>{percentage}%</Text>
         </View>
+        {error && (
+          <Text style={styles.errorText}>Erreur de synchronisation</Text>
+        )}
       </View>
     );
   };
@@ -72,7 +86,10 @@ export const ProgressBars: React.FC<ProgressBarsProps> = ({ profile }) => {
       <View style={styles.headerContainer}>
         <Text style={styles.title}>Progression</Text>
         <ProgressUpdateButton 
-          onUpdateComplete={() => console.log('Progression mise à jour avec succès')}
+          onUpdateComplete={() => {
+            console.log('Progression mise à jour avec succès');
+            refreshProgress();
+          }}
         />
       </View>
       {renderProgressBar(
@@ -145,5 +162,13 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     color: '#fff',
+  },
+  loadingIndicator: {
+    marginLeft: 8,
+  },
+  errorText: {
+    fontSize: 14,
+    color: '#ff0000',
+    marginTop: 4,
   },
 }); 

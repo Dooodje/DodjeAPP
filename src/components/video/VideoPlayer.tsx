@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState, useCallback } from 'react';
+import React, { useRef, useEffect, useState, useCallback, useMemo } from 'react';
 import { View, StyleSheet, Dimensions, Text, TouchableOpacity, Image, Animated, ScrollView } from 'react-native';
 import { Video, ResizeMode, VideoFullscreenUpdateEvent, Audio } from 'expo-av';
 import { useRouter } from 'expo-router';
@@ -124,7 +124,19 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ videoId: initialVideoI
   // Log pour faciliter le débogage
   useEffect(() => {
     console.log(`🔄 VideoPlayer: ID vidéo actuelle changée: ${currentVideoId}`);
-  }, [currentVideoId]);
+    
+    // Réinitialiser tous les états locaux quand l'ID change
+    setVideoStarted(false);
+    setIsPlaying(false);
+    setSavedPosition(0);
+    setVideoError(null);
+    setCurrentTime(0);
+    setDuration(0);
+    setIsDescriptionExpanded(false);
+    
+    // Réinitialiser l'état Redux pour la nouvelle vidéo
+    dispatch(resetVideo());
+  }, [currentVideoId, dispatch]);
 
   // Changer de vidéo
   const handleVideoSelect = useCallback((id: string) => {
@@ -138,11 +150,17 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ videoId: initialVideoI
         });
       }
       
-      // Réinitialiser les états pour la nouvelle vidéo
+      // Réinitialiser immédiatement l'état Redux pour éviter l'affichage des anciennes données
+      dispatch(resetVideo());
+      
+      // Réinitialiser les états locaux pour la nouvelle vidéo
       setVideoStarted(false);
       setIsPlaying(false);
       setSavedPosition(0);
       setVideoError(null);
+      setCurrentTime(0);
+      setDuration(0);
+      setIsDescriptionExpanded(false);
       
       // Changer l'ID de la vidéo actuelle - cela déclenchera un rechargement via useVideo
       setCurrentVideoId(id);
@@ -157,7 +175,7 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ videoId: initialVideoI
     } else {
       console.error('❌ ID vidéo manquant dans handleVideoSelect');
     }
-  }, [router]);
+  }, [router, dispatch]);
 
   // Gérer la lecture/pause
   useEffect(() => {
@@ -451,7 +469,43 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ videoId: initialVideoI
     } else {
       console.log('📱 Aucune vidéo suivante disponible');
     }
-  }, [nextVideo]);
+    
+    // Logs de débogage pour comprendre le problème
+    console.log('🔍 Debug NextVideo - nextVideo:', nextVideo);
+    console.log('🔍 Debug NextVideo - nextVideoId:', nextVideoId);
+    console.log('🔍 Debug NextVideo - isLastVideo:', isLastVideo);
+    console.log('🔍 Debug NextVideo - quizId:', quizId);
+  }, [nextVideo, nextVideoId, isLastVideo, quizId]);
+
+  // Créer un objet nextVideo complet si on a seulement nextVideoId
+  const nextVideoForComponent = useMemo(() => {
+    // Si on a déjà nextVideo du hook useVideo, l'utiliser
+    if (nextVideo && nextVideo.id) {
+      console.log('✅ Utilisation de nextVideo du hook useVideo:', nextVideo.id);
+      return nextVideo;
+    }
+    
+    // Sinon, si on a nextVideoId du hook useVideoAutoNext, créer un objet minimal
+    if (nextVideoId) {
+      console.log('⚠️ Création d\'un objet nextVideo minimal avec nextVideoId:', nextVideoId);
+      return {
+        id: nextVideoId,
+        title: 'Vidéo suivante',
+        titre: 'Vidéo suivante',
+        description: 'Chargement...',
+        videoUrl: '',
+        duration: 0,
+        duree: '1min',
+        thumbnail: '',
+        courseId: currentVideo?.courseId || '',
+        order: 0,
+        isUnlocked: true
+      };
+    }
+    
+    console.log('❌ Aucune vidéo suivante disponible');
+    return null;
+  }, [nextVideo, nextVideoId, currentVideo?.courseId]);
 
   // Supprimer les mises à jour continues de la progression
   const onPlaybackStatusUpdate = useCallback((status: any) => {
@@ -737,10 +791,10 @@ export const VideoPlayer: React.FC<VideoPlayerProps> = ({ videoId: initialVideoI
             </View>
             
             {/* Section vidéo suivante */}
-            {nextVideo || (isLastVideo && quizId) ? (
+            {nextVideoForComponent || (isLastVideo && quizId) ? (
               <>
                 <NextVideo 
-                  video={nextVideo} 
+                  video={nextVideoForComponent} 
                   onNavigate={handleVideoSelect}
                   courseId={currentVideo?.courseId}
                   isLastVideo={isLastVideo}

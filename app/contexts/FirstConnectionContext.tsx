@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '../../src/hooks/useAuth';
+import { QuestionnaireService } from '../../src/services/questionnaireService';
 
 interface FirstConnectionContextType {
   showQuestionnaire: boolean;
@@ -24,7 +25,18 @@ export function FirstConnectionProvider({ children }: { children: React.ReactNod
       if (!user?.uid) return;
 
       try {
-        const hasCompleted = await AsyncStorage.getItem(`${FIRST_CONNECTION_KEY}_${user.uid}`);
+        // D'abord vérifier dans Firestore
+        let hasCompleted = false;
+        
+        try {
+          hasCompleted = await QuestionnaireService.hasCompletedQuestionnaire(user.uid);
+        } catch (firestoreError) {
+          console.warn('Erreur Firestore, utilisation d\'AsyncStorage comme fallback:', firestoreError);
+          // Fallback vers AsyncStorage si Firestore échoue
+          const asyncStorageResult = await AsyncStorage.getItem(`${FIRST_CONNECTION_KEY}_${user.uid}`);
+          hasCompleted = !!asyncStorageResult;
+        }
+
         const isFirst = !hasCompleted;
         setIsFirstConnection(isFirst);
         
@@ -47,7 +59,16 @@ export function FirstConnectionProvider({ children }: { children: React.ReactNod
     if (!user?.uid) return;
 
     try {
-      // Sauvegarder les réponses du questionnaire
+      // Sauvegarder dans Firestore via le service
+      try {
+        await QuestionnaireService.saveQuestionnaireAnswers(user.uid, answers);
+        console.log('Réponses sauvegardées dans Firestore avec succès');
+      } catch (firestoreError) {
+        console.error('Erreur lors de la sauvegarde Firestore:', firestoreError);
+        // Continuer avec AsyncStorage même si Firestore échoue
+      }
+
+      // Sauvegarder également dans AsyncStorage comme backup
       await AsyncStorage.setItem(
         `questionnaire_answers_${user.uid}`, 
         JSON.stringify({

@@ -1,6 +1,8 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
 import { UserProfile } from '../../types/profile';
+import { useProfileProgress } from '../../hooks/useProfileProgress';
+import { useAuth } from '../../hooks/useAuth';
 import Svg, { Circle } from 'react-native-svg';
 
 interface ProgressCirclesProps {
@@ -8,14 +10,20 @@ interface ProgressCirclesProps {
 }
 
 export const ProgressCircles: React.FC<ProgressCirclesProps> = ({ profile }) => {
+  const { user } = useAuth();
+  const { progress, isLoading, error } = useProfileProgress(user?.uid || '');
+
+  // Utiliser les données en temps réel si disponibles, sinon fallback sur le profil
+  const progressData = progress || profile.progress;
+
   // Ensure progress data exists with safe defaults
   const getProgressData = (category: 'bourse' | 'crypto') => {
-    if (!profile.progress || !profile.progress[category]) {
+    if (!progressData || !progressData[category]) {
       return { percentage: 0 };
     }
     
     return { 
-      percentage: profile.progress[category].percentage || 0 
+      percentage: progressData[category].percentage || 0 
     };
   };
 
@@ -28,7 +36,6 @@ export const ProgressCircles: React.FC<ProgressCirclesProps> = ({ profile }) => 
     const strokeWidth = 8;
     const radius = (size - strokeWidth) / 2;
     const circumference = 2 * Math.PI * radius;
-    const alpha = (percentage / 100) * 360;
     const strokeDashoffset = circumference - (percentage / 100) * circumference;
     
     return (
@@ -62,10 +69,17 @@ export const ProgressCircles: React.FC<ProgressCirclesProps> = ({ profile }) => 
           
           {/* Percentage Text */}
           <View style={styles.percentageContainer}>
-          <Text style={styles.percentageText}>{percentage}%</Text>
+            {isLoading ? (
+              <ActivityIndicator color="#9BEC00" size="small" />
+            ) : (
+              <Text style={styles.percentageText}>{percentage}%</Text>
+            )}
           </View>
         </View>
         <Text style={styles.labelText}>{label}</Text>
+        {error && (
+          <Text style={styles.errorText}>Erreur de synchronisation</Text>
+        )}
       </View>
     );
   };
@@ -109,5 +123,11 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#FFFFFF',
     fontFamily: 'Arboria-Medium',
+  },
+  errorText: {
+    fontSize: 12,
+    color: '#FF6B6B',
+    fontFamily: 'Arboria-Medium',
+    marginTop: 4,
   },
 }); 

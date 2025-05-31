@@ -22,7 +22,7 @@ interface RewardText {
 }
 
 interface AnimationContextType {
-  startFlyingDodjisAnimation: (startX?: number, startY?: number, count?: number) => void;
+  startFlyingDodjisAnimation: (startX?: number, startY?: number, count?: number, onComplete?: () => void) => void;
 }
 
 const AnimationContext = createContext<AnimationContextType | undefined>(undefined);
@@ -39,7 +39,7 @@ export const AnimationProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const [flyingDodjis, setFlyingDodjis] = useState<FlyingDodji[]>([]);
   const [rewardTexts, setRewardTexts] = useState<RewardText[]>([]);
   
-  const startFlyingDodjisAnimation = (startX = width / 2, startY = height / 2, count = 5) => {
+  const startFlyingDodjisAnimation = (startX = width / 2, startY = height / 2, count = 5, onComplete?: () => void) => {
     console.log('🎭 AnimationProvider: Démarrage animation globale');
     console.log('🎭 AnimationProvider: Position de départ:', { startX, startY });
     console.log('🎭 AnimationProvider: Nombre de Dodjis gagnés:', count);
@@ -156,6 +156,9 @@ export const AnimationProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     Animated.stagger(staggerDelay, animations).start(() => {
       console.log('🎭 AnimationProvider: Animation terminée, nettoyage');
       setFlyingDodjis([]);
+      if (onComplete) {
+        onComplete();
+      }
     });
   };
   

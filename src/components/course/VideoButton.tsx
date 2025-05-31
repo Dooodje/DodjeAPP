@@ -1,6 +1,7 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Dimensions, Platform } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
+import Animated, { useSharedValue, useAnimatedStyle, withRepeat, withTiming, Easing } from 'react-native-reanimated';
 import VideoOn from '../../components/VideoOn';
 import VideoOff from '../../components/VideoOff';
 import VideoLock from '../../components/VideoLock';
@@ -40,6 +41,32 @@ const VideoButton: React.FC<VideoButtonProps> = ({
   onPress
 }) => {
   const [isModalVisible, setIsModalVisible] = useState(false);
+
+  // Animation pour l'effet de rebond
+  const bounceScale = useSharedValue(1);
+
+  // Optimiser l'animation - ne démarrer que si nécessaire
+  useEffect(() => {
+    if (completionStatus === 'unblocked') {
+      bounceScale.value = withRepeat(
+        withTiming(1.1, {
+          duration: 800,
+          easing: Easing.bezier(0.25, 0.46, 0.45, 0.94),
+        }),
+        -1, // Répéter indéfiniment
+        true // Reverse (aller-retour)
+      );
+    } else {
+      bounceScale.value = withTiming(1, { duration: 200 });
+    }
+  }, [completionStatus, bounceScale]);
+
+  // Style animé pour l'effet de rebond - mémorisé
+  const bounceAnimatedStyle = useAnimatedStyle(() => {
+    return {
+      transform: [{ scale: bounceScale.value }],
+    };
+  }, []);
 
   // Calculer la position absolue en pixels
   const position = useMemo(() => {
@@ -115,18 +142,21 @@ const VideoButton: React.FC<VideoButtonProps> = ({
           }
         }}
       >
-        {completionStatus === 'completed' ? (
-          <VideoOn width={DEFAULT_BUTTON_SIZE} height={DEFAULT_BUTTON_SIZE} />
-        ) : completionStatus === 'unblocked' ? (
-          <VideoOff width={DEFAULT_BUTTON_SIZE} height={DEFAULT_BUTTON_SIZE} />
-        ) : (
-          <View style={styles.blockedContainer}>
-            <VideoLock width={DEFAULT_BUTTON_SIZE} height={DEFAULT_BUTTON_SIZE} />
-            <View style={styles.vectorContainer}>
-              <Vector width={DEFAULT_BUTTON_SIZE * 0.6} height={DEFAULT_BUTTON_SIZE * 0.6} />
+        {/* Appliquer l'animation de rebond seulement pour les vidéos unblocked */}
+        <Animated.View style={completionStatus === 'unblocked' ? bounceAnimatedStyle : undefined}>
+          {completionStatus === 'completed' ? (
+            <VideoOn width={DEFAULT_BUTTON_SIZE} height={DEFAULT_BUTTON_SIZE} />
+          ) : completionStatus === 'unblocked' ? (
+            <VideoOff width={DEFAULT_BUTTON_SIZE} height={DEFAULT_BUTTON_SIZE} />
+          ) : (
+            <View style={styles.blockedContainer}>
+              <VideoLock width={DEFAULT_BUTTON_SIZE} height={DEFAULT_BUTTON_SIZE} />
+              <View style={styles.vectorContainer}>
+                <Vector width={DEFAULT_BUTTON_SIZE * 0.6} height={DEFAULT_BUTTON_SIZE * 0.6} />
+              </View>
             </View>
-          </View>
-        )}
+          )}
+        </Animated.View>
       </TouchableOpacity>
 
       <VideoLockedModal

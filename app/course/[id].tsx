@@ -1,9 +1,10 @@
 import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react';
-import { View, Text, StyleSheet, ActivityIndicator, TouchableOpacity, Alert, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, ActivityIndicator, TouchableOpacity, Alert, Dimensions, Animated } from 'react-native';
 import { useLocalSearchParams, useRouter, router as globalRouter } from 'expo-router';
 import { courseService } from '../../src/services/course';
 import { ParcoursStatusService } from '../../src/services/businessLogic/ParcoursStatusService';
 import CourseBackground from '../../src/components/course/CourseBackground';
+import type { CourseBackgroundRef } from '../../src/components/course/CourseBackground';
 import VideoButton from '../../src/components/course/VideoButton';
 import QuizButton from '../../src/components/course/QuizButton';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -83,11 +84,216 @@ export default function CoursePage() {
   const [parcoursStatus, setParcoursStatus] = useState<'blocked' | 'unblocked' | 'in_progress' | 'completed' | null>(null);
   const [isModalVisible, setIsModalVisible] = useState(false);
   
+  // État pour contrôler l'overlay de chargement - complètement isolé
+  const [isLoadingOverlayVisible, setIsLoadingOverlayVisible] = useState(false);
+  
+  // Animation pour l'overlay
+  const overlayOpacity = useRef(new Animated.Value(0)).current;
+  
   // Références pour stocker les fonctions de désabonnement
   const unsubscribeParcoursRef = useRef<(() => void) | null>(null);
   const unsubscribeVideoStatusRef = useRef<(() => void) | null>(null);
   const unsubscribeQuizStatusRef = useRef<(() => void) | null>(null);
   const isInitializedRef = useRef(false);
+
+  // Référence au CourseBackground pour contrôler le scroll
+  const courseBackgroundRef = useRef<CourseBackgroundRef>(null);
+
+  // État pour suivre si le scroll initial a été effectué
+  const [hasInitialScrolled, setHasInitialScrolled] = useState(false);
+
+  // Fonction pour trouver la dernière vidéo "unblocked" basée sur l'ordre
+  const findLastUnblockedVideo = useCallback(() => {
+    if (!parcoursData?.videos || !videoStatus) {
+      console.log('🔍 findLastUnblockedVideo: Pas de données vidéos ou de statuts');
+      return null;
+    }
+
+    console.log(`🔍 findLastUnblockedVideo: Recherche parmi ${parcoursData.videos.length} vidéos`);
+    
+    let lastUnblockedVideo = null;
+    let highestOrder = -1;
+
+    // Parcourir toutes les vidéos pour trouver la dernière avec le statut "unblocked"
+    parcoursData.videos.forEach(video => {
+      if (video.id && videoStatus[video.id]) {
+        const status = videoStatus[video.id].completionStatus;
+        const order = video.order || video.ordre || 0;
+        
+        console.log(`  - Vidéo ${video.id}: ordre=${order}, statut=${status}`);
+        
+        if (status === 'unblocked' && order > highestOrder) {
+          highestOrder = order;
+          lastUnblockedVideo = video.id;
+          console.log(`    ✅ Nouvelle dernière vidéo unblocked: ${video.id} (ordre=${order})`);
+        }
+      } else {
+        console.log(`  - Vidéo ${video.id}: pas de statut disponible`);
+      }
+    });
+
+    console.log(`🎯 Résultat findLastUnblockedVideo: ${lastUnblockedVideo} (ordre=${highestOrder})`);
+    return lastUnblockedVideo;
+  }, [parcoursData?.videos, videoStatus]);
+
+  // Calculer la dernière vidéo unblocked
+  const lastUnblockedVideoId = useMemo(() => {
+    return findLastUnblockedVideo();
+  }, [findLastUnblockedVideo]);
+
+  // Créer un objet positions mappé par ID de vidéo pour le CourseBackground
+  const videoPositionsMap = useMemo(() => {
+    if (!parcoursData?.videos) return {};
+    
+    const positionsMap: Record<string, { x: number; y: number; order?: number; isAnnex: boolean }> = {};
+    
+    parcoursData.videos.forEach((video, index) => {
+      if (!video.id) return;
+      
+      // Récupérer l'ordre (priority) de la vidéo
+      const videoOrder = video.order || video.ordre || index + 1;
+      
+      // Trouver la position correspondant à l'ordre
+      let position;
+      
+      if (parcoursData?.design?.positions) {
+        // Chercher parmi les positions celle qui a le même ordre que la vidéo
+        const matchingPositionEntry = Object.entries(parcoursData.design.positions)
+          .find(([_, pos]) => Number(pos.order) === Number(videoOrder));
+          
+        if (matchingPositionEntry) {
+          const positionData = matchingPositionEntry[1];
+          position = {
+            x: Number(positionData.x) || 50,
+            y: Number(positionData.y) || 50,
+            order: positionData.order,
+            isAnnex: !!positionData.isAnnex
+          };
+        } else {
+          // Position par défaut si aucune position trouvée
+          position = {
+            x: 50,
+            y: 10 + videoOrder * 15,
+            order: videoOrder,
+            isAnnex: false
+          };
+        }
+      } else {
+        // Position par défaut si pas de design
+        position = {
+          x: 50,
+          y: 10 + videoOrder * 15,
+          order: videoOrder,
+          isAnnex: false
+        };
+      }
+      
+      // Mapper la position par l'ID de la vidéo
+      positionsMap[video.id] = position;
+      console.log(`Position mappée pour vidéo ${video.id}: x=${position.x}%, y=${position.y}%`);
+    });
+    
+    return positionsMap;
+  }, [parcoursData?.videos, parcoursData?.design?.positions]);
+
+  // Effet pour scroller automatiquement vers la dernière vidéo unblocked
+  useEffect(() => {
+    // Conditions pour effectuer le scroll automatique :
+    // 1. Les données du parcours sont chargées
+    // 2. Les statuts des vidéos sont chargés
+    // 3. Le CourseBackground est prêt (ref disponible)
+    // 4. Le scroll initial n'a pas encore été effectué
+    // 5. Pas en cours de chargement
+    if (parcoursData && 
+        Object.keys(videoStatus).length > 0 && 
+        courseBackgroundRef.current && 
+        !hasInitialScrolled && 
+        !loading &&
+        !isLoadingOverlayVisible) {
+      
+      const targetVideoId = lastUnblockedVideoId;
+      
+      console.log(`🔍 Conditions de scroll automatique:`);
+      console.log(`  - parcoursData: ${!!parcoursData}`);
+      console.log(`  - videoStatus count: ${Object.keys(videoStatus).length}`);
+      console.log(`  - courseBackgroundRef: ${!!courseBackgroundRef.current}`);
+      console.log(`  - hasInitialScrolled: ${hasInitialScrolled}`);
+      console.log(`  - loading: ${loading}`);
+      console.log(`  - isLoadingOverlayVisible: ${isLoadingOverlayVisible}`);
+      console.log(`  - lastUnblockedVideoId: ${lastUnblockedVideoId}`);
+      console.log(`  - videoPositionsMap keys: ${Object.keys(videoPositionsMap)}`);
+      
+      if (targetVideoId) {
+        const targetPosition = videoPositionsMap[targetVideoId];
+        console.log(`🎯 Scroll automatique vers la dernière vidéo unblocked: ${targetVideoId}`);
+        console.log(`  - Position trouvée: ${!!targetPosition}`);
+        if (targetPosition) {
+          console.log(`  - Position: x=${targetPosition.x}%, y=${targetPosition.y}%`);
+        }
+        
+        // Petit délai pour s'assurer que le CourseBackground est complètement rendu
+        setTimeout(async () => {
+          try {
+            const success = await courseBackgroundRef.current?.scrollToVideo(targetVideoId);
+            if (success) {
+              console.log(`✅ Scroll automatique effectué vers la vidéo ${targetVideoId}`);
+            } else {
+              console.warn(`⚠️ Échec du scroll automatique vers la vidéo ${targetVideoId}`);
+            }
+            setHasInitialScrolled(true);
+          } catch (error) {
+            console.error('❌ Erreur lors du scroll automatique:', error);
+            setHasInitialScrolled(true); // Marquer comme tenté même en cas d'erreur
+          }
+        }, 1000); // Augmenter le délai pour éviter les conflits avec le scroll initial du CourseBackground
+      } else {
+        console.log('ℹ️ Aucune vidéo unblocked trouvée, pas de scroll automatique');
+        // Afficher les statuts des vidéos pour le débogage
+        console.log('📊 Statuts des vidéos:');
+        Object.entries(videoStatus).forEach(([videoId, status]) => {
+          console.log(`  - ${videoId}: ${status.completionStatus}`);
+        });
+        setHasInitialScrolled(true);
+      }
+    } else {
+      console.log('⏳ Conditions de scroll automatique non remplies');
+    }
+  }, [parcoursData, videoStatus, loading, isLoadingOverlayVisible, hasInitialScrolled, lastUnblockedVideoId, videoPositionsMap]);
+
+  // Réinitialiser le flag de scroll lors du changement de parcours
+  useEffect(() => {
+    setHasInitialScrolled(false);
+  }, [id]);
+
+  // Overlay de chargement avec animation douce seulement à la fermeture
+  useEffect(() => {
+    if (id) {
+      console.log('🎬 Démarrage overlay pour parcours:', id);
+      setIsLoadingOverlayVisible(true);
+      
+      // Apparition immédiate (pas d'animation)
+      overlayOpacity.setValue(1);
+      
+      const timer = setTimeout(() => {
+        console.log('🎬 Début animation de fermeture overlay');
+        
+        // Animation de disparition douce seulement
+        Animated.timing(overlayOpacity, {
+          toValue: 0,
+          duration: 500, // 500ms pour une transition douce
+          useNativeDriver: true,
+        }).start(() => {
+          console.log('🎬 Fin overlay après animation');
+          setIsLoadingOverlayVisible(false);
+        });
+      }, 2000);
+
+      return () => {
+        console.log('🎬 Nettoyage timer overlay');
+        clearTimeout(timer);
+      };
+    }
+  }, [id, overlayOpacity]); // Seulement quand l'ID change
 
   // Callback pour recevoir les dimensions de l'image d'arrière-plan
   const handleImageDimensionsChange = useCallback((width: number, height: number) => {
@@ -691,10 +897,12 @@ export default function CoursePage() {
           {/* Contenu principal avec l'image de fond qui défile */}
           <CourseBackground
             imageUrl={parcoursData?.design?.backgroundImageUrl || parcoursData?.design?.imageUrl || ''}
-            positions={parcoursData?.design?.positions || {}}
+            positions={videoPositionsMap}
             loading={loading}
             lastViewedVideoId={lastViewedVideoId}
+            lastUnblockedVideoId={lastUnblockedVideoId || undefined}
             onImageDimensionsChange={handleImageDimensionsChange}
+            ref={courseBackgroundRef}
           >
             {!loading && parcoursData && (
               <View style={styles.contentContainer}>
@@ -848,6 +1056,13 @@ export default function CoursePage() {
           )}
         </View>
       )}
+      
+      {/* Overlay de chargement indépendant - s'affiche au-dessus de tout */}
+      {isLoadingOverlayVisible && (
+        <Animated.View style={[styles.loadingOverlay, { opacity: overlayOpacity }]}>
+          <LogoLoadingSpinner />
+        </Animated.View>
+      )}
     </>
   );
 }
@@ -951,5 +1166,16 @@ const styles = StyleSheet.create({
     right: 0,
     zIndex: 50, // Entre l'image de fond (z-index: 0) et le header (z-index: 100)
     pointerEvents: 'none', // Pour ne pas bloquer le scrolling
+  },
+  loadingOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    width: screenWidth,
+    height: screenHeight,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#0A0400',
+    zIndex: 999999,
   },
 });

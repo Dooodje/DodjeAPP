@@ -12,8 +12,9 @@ import {
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { LogoDodje } from '../src/components/LogoDodje';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc, setDoc, Timestamp } from 'firebase/firestore';
 import { db } from '../src/services/firebase/config';
+import { useAuth } from '../src/hooks/useAuth';
 import GlandHomme from '../src/components/GlandHomme';
 import GlandFemme from '../src/components/GlandFemme';
 import BadgeBourse from '../src/components/BadgeBourse';
@@ -21,6 +22,12 @@ import BadgeCrypto from '../src/components/BadgeCrypto';
 import BadgeDebutant from '../src/components/BadgeDebutant';
 import BadgeAvance from '../src/components/BadgeAvance';
 import BadgeExpert from '../src/components/BadgeExpert';
+import { QuestionnaireService } from '../src/services/questionnaireService';
+
+// Fonction utilitaire pour récupérer les réponses du questionnaire depuis Firestore
+export const getQuestionnaireAnswers = async (userId: string) => {
+  return await QuestionnaireService.getQuestionnaireAnswers(userId);
+};
 
 interface QuestionnaireProps {
   visible: boolean;
@@ -50,6 +57,7 @@ interface QuestionnaireData {
 }
 
 export default function FirstConnectionQuestionnaire({ visible, onComplete }: QuestionnaireProps) {
+  const { user } = useAuth();
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [questionnaireData, setQuestionnaireData] = useState<QuestionnaireData | null>(null);
@@ -57,6 +65,7 @@ export default function FirstConnectionQuestionnaire({ visible, onComplete }: Qu
   const [error, setError] = useState<string | null>(null);
   const [currentAnswer, setCurrentAnswer] = useState<string | null>(null);
   const [textInputValue, setTextInputValue] = useState<string>('');
+  const [savingAnswers, setSavingAnswers] = useState(false);
 
   useEffect(() => {
     if (visible) {
@@ -91,7 +100,7 @@ export default function FirstConnectionQuestionnaire({ visible, onComplete }: Qu
     }
   };
 
-  if (!questionnaireData || loading) {
+  if (!questionnaireData || loading || savingAnswers) {
     return (
       <Modal
         visible={visible}
@@ -105,7 +114,12 @@ export default function FirstConnectionQuestionnaire({ visible, onComplete }: Qu
           <View style={styles.loadingContainer}>
             <ActivityIndicator size="large" color="#06D001" />
             <Text style={styles.loadingText}>
-              {loading ? 'Chargement du questionnaire...' : error}
+              {savingAnswers 
+                ? 'Enregistrement de tes réponses...' 
+                : loading 
+                  ? 'Chargement du questionnaire...' 
+                  : error
+              }
             </Text>
           </View>
         </View>
@@ -146,7 +160,33 @@ export default function FirstConnectionQuestionnaire({ visible, onComplete }: Qu
   };
 
   const handleComplete = async (finalAnswers: Record<string, string>) => {
-    onComplete(finalAnswers);
+    if (!user?.uid) {
+      console.error('Aucun utilisateur connecté pour enregistrer les réponses');
+      onComplete(finalAnswers);
+      return;
+    }
+
+    try {
+      setSavingAnswers(true);
+      
+      // Utiliser le service pour enregistrer les réponses
+      await QuestionnaireService.saveQuestionnaireAnswers(user.uid, finalAnswers);
+      
+      console.log('Réponses du questionnaire enregistrées avec succès dans Firestore');
+      
+      // Analyser les réponses pour des informations supplémentaires
+      const analysis = QuestionnaireService.analyzeAnswers(finalAnswers);
+      console.log('Analyse des réponses:', analysis);
+      
+      // Appeler la fonction de completion originale
+      onComplete(finalAnswers);
+    } catch (error) {
+      console.error('Erreur lors de l\'enregistrement des réponses:', error);
+      // Même en cas d'erreur, on continue le processus pour ne pas bloquer l'utilisateur
+      onComplete(finalAnswers);
+    } finally {
+      setSavingAnswers(false);
+    }
   };
 
   const getProgressPercentage = () => {
